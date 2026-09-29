@@ -16,7 +16,7 @@ such session is running, open an issue there instead. A claim is checked before 
 sender hears the outcome. Keep no copy elsewhere; cite this file by path or URL.
 
 ⭐ **An entry that can be checked mechanically belongs as a RULE in this library, not as prose
-here.** `BNXQ1004` and `BNXQ1005` began as entries below. `BNXQ1001` and `BNXQ1002` began as guards
+here.** `BNXQ1004`, `BNXQ1005` and `BNXQ1010` began as entries below. `BNXQ1001` and `BNXQ1002` began as guards
 hand-rolled in application test suites, and each turned out to be stricter than the guard it
 replaced in ways nobody predicted. Prose is for what a markup scan cannot see — template
 internals, runtime behaviour, platform differences. When an entry becomes checkable, promote it
@@ -640,6 +640,8 @@ Measured the same way as the two entries above.
 **Fix:** Answer `Transparent` where null would mean "no highlight", for instance with `TargetNullValue={x:Static Brushes.Transparent}` on the binding. It paints the same over the list.
 
 Measured on Avalonia 12.1.3, headless with Skia and the Fluent theme, with pointer input raised through `HeadlessWindowExtensions` and the target read with `InputHitTest`.
+
+⭐ **Checked by [`BNXQ1010`](../README.md#rules)**, for list, combo and tab rows generated from `ItemsSource`: a row style or theme that sets `Background` to `{x:Null}`, or binds it with no non-null `TargetNullValue`, a row theme `BasedOn` nothing that sets none, and a row template that draws no background. Measured on 12.1.3 under Fluent, Simple and Semi 12.1.0.1 for the rule: a `ComboBoxItem` and a `TabItem` miss the click as a `ListBoxItem` does, `FallbackValue` alone does not help, and a theme that sets `Transparent` over a template that draws nothing misses it too. A `TreeViewItem` is left out: Fluent's and Simple's templates give its header presenter a `Transparent` background of its own, so a null row still takes the click there, while under Semi it does not.
 
 ### A tunnelling `PageDown` handler that scrolls a page, left unhandled, moves two pages
 

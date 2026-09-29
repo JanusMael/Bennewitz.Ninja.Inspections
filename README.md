@@ -47,6 +47,7 @@ people stop referencing.
 | `BNXQ1007` | Every interactive control declares an explicit AutomationId. |
 | `BNXQ1008` | Every control in a zero-size Grid slot is hidden by IsVisible, not by the slot alone. |
 | `BNXQ1009` | Every item container generated from ItemsSource is named by what it shows, not by its item's type. |
+| `BNXQ1010` | Every list, combo or tab row generated from ItemsSource draws a background of its own: its template draws one, and where it draws the row's Background, that is never null. |
 <!-- END GENERATED RULES -->
 
 The table above is rendered from the rule types — `Id` and `Summary` on each `IXamlRule` — and a
@@ -133,6 +134,72 @@ names it, from compiled types: pass the application's assembly to `WithAssemblie
 Avalonia's list, tab and tree rows, whose naming was measured on 12.1.3, and leaves another
 framework's alone.
 
+**`BNXQ1010` asks whether a list's rows draw a background of their own.** A control is hit-tested
+where it draws, and a null `Background` draws nothing, so a row whose background is null takes a
+click only where something it holds draws, and a click elsewhere reaches the list behind. Stock rows
+are `Transparent`, which draws. The rule reports two things markup decides about the rows' own
+template. First, rows whose `Background` can be null where their template draws it: a row style or
+theme that sets `{x:Null}`, or a binding with no non-null `TargetNullValue`, which answers null
+wherever its source or its converter does, or a row theme `BasedOn` nothing that sets no background,
+where something in the template draws the row's background. Second, a row template that draws no
+background at all. What draws the row's background is a `Border`, a panel, a `ContentPresenter` or a
+`TextBlock` that takes it by a `TemplateBinding`, or by a binding to the templated parent or to the
+row as an ancestor, counted from the nearest ancestor of the type it names, in a `RelativeSource`
+that finds an ancestor rather than one whose `Mode` is `Self` or `DataContext`, a shape's `Fill` that
+takes it, or a templated control that takes it and whose own
+template draws it; a binding with a `TargetNullValue` paints anyway, and one through a converter is
+not decided. A theme that sets no template leaves a row the framework's, or `ContentControl`'s
+default, both of which draw it, and a template of `{x:Null}` presents nothing. Where nothing draws the
+row's background, anything in the template that paints a brush of its own draws one, however little
+of the row it covers: a literal brush, a default its type registers, what a control's own theme
+paints, or what the markup of a view, or of any type with an `x:Class` of its own or a base's, holds, whose own
+`Background` outranks the one a template gives it, though a binding does not. What a
+`ContentPresenter` or a `TransitioningContentControl` in the template holds as markup content has no
+templated parent, so it is not followed. What the rows present decides nothing, the item template
+or what a presenter in the template shows, and neither does what hides an element from the pointer,
+nor what a `Popup` holds: a row whose content paints across it is still reported, and the fix,
+`TargetNullValue={x:Static Brushes.Transparent}` or a `Transparent` background, costs nothing. A
+value the template's markup gives an element ranks below a style with a condition and its own code,
+so one they may replace is not decided. A style that paints the rows only for `:pointerover` leaves
+the state they start in as it was, and so do ones for `:disabled` and `:selected`, unless markup may
+disable or select the rows from the start. Anything in the scan that sets `IsEnabled` to anything but
+`True`, or gives a button a `Command`, in any spelling the XAML compiler takes, may disable them,
+since a control disabled anywhere disables all it holds; a list, its theme or its type that always
+selects a row, as a `TabControl` does, or the selection, or an editable combo box's `Text`, that
+markup gives a list, in any spelling, may select one. A `:selected`
+style paints only the rows selected, so a null background the rest draw is still reported. One that
+clears them in such a state can break a row, so it is named in `Skipped`. A style that holds of every row whatever the data, such as
+`ListBox ListBoxItem` or `ListBoxItem:not(.compact)`, sets them all, a `:not()` of a state may not,
+and one asking for a property the row theme binds to each item sets only the rows the data picks. It
+checks Avalonia's list, combo and tab rows, measured on 12.1.3 under Fluent, Simple and Semi, and
+leaves tree rows out, because Fluent's and Simple's give a tree row's header a background of its own.
+Pass the application's assembly to `WithAssemblies`.
+
+**`BNXQ1005`, `BNXQ1009` and `BNXQ1010` read a property in every spelling the XAML compiler takes.**
+A setter names it alone, after an owner or in parentheses, in its `Property` attribute or a
+`Setter.Property` element, and an element sets its own as an attribute or a property element. An
+element that gives one property two ways decides nothing, because the framework applies each in turn
+and a binding's value arrives once its data does. An owner is the type its prefix names: exactly that
+type in a `using:` or `clr-namespace:` namespace, and found by its name in the framework's, Avalonia's,
+or WPF's or MAUI's in markup written for that framework; one in any other namespace, which only an
+assembly's `XmlnsDefinition` maps to a type, is not decided. On an
+element, the control's own type or a base names its own property, and another owner names the one
+held by the field the compiler takes for it, which is the control's only where it holds the same
+property, as `Border`'s `Background` is a `Panel`'s and a templated control's. After an owner with an
+instance property of that name, the compiler takes nothing but a binding, so
+`Border.Background="{TemplateBinding Background}"` on a template's `Panel` draws the row's and
+`Border.Background="Red"` does not load; after one with static `Set` or `Get` accessors, an attached
+property, any value sets it. In a setter, a `TemplateBinding` or a binding path, an owner names the
+property its most-derived public field holds, the control's own type included, since a subclass may
+hide its base's field with another property, and where two types in the control's chain carry the
+owner's name, it is decided only where they hold one property. An attached property of the same name,
+such as a consumer's `Paint.Background`, is another property, and only Avalonia's
+`AutomationProperties` names a row. A theme applies only where its `TargetType`, the type its prefix
+names, is the control's style key or a base of it, and a style key a `StyleKeyOverride` returns other
+than by a `typeof` is not read. Where an owner or its fields cannot be read, a value after another
+owner may or may not be a binding, or an owner or a theme is not decided, the rule says so in
+`Skipped`.
+
 **Read `Skipped` as well as `Inspected`.** Every result also names what the rule saw but could not
 check. For `BNXQ1003` that is a control with a `ControlTheme` in the scan and no part found in its
 code, a control that declares parts but has no theme in the scan, one the scanned assemblies define
@@ -151,8 +218,24 @@ missing or names a type the scan does not hold; an item type that is abstract, a
 control, or has a subclass that writes its own `ToString()`; a template root that names the row
 through a peer of its own, and a row whose own peer names it; a style that names the rows only in
 some state or some places, or from another view, and one that sets the list's template or the rows'
-theme; and, when the scan was given no assemblies, every `ItemsSource`. None is a violation, and some are correct; all are
-places where a clean result is not what it seems.
+theme; and, when the scan was given no assemblies, every `ItemsSource`. For `BNXQ1010` it is a list
+whose rows' background markup does not decide: a row theme or template the scan does not hold,
+styles that disagree, a style that sets the rows' theme or template, or that may paint every row, a
+row theme's nested style that may give rows another template, rows whose own code, or their list's,
+sets their background or whose type's default cannot be read, a binding of the row's background
+through a converter, or to an ancestor that markup cannot count back to the row, an element of the
+template that a style with a condition or its own code may
+repaint where it draws the row's background, and, where nothing does, one that its theme, a style, a
+binding, its code or its type's default may paint, that is given a template of its own, that is a
+templated control whose own theme the scan does not hold, or whose type the scan does not resolve,
+and what a presenter, or a `TransitioningContentControl`, in the template holds as markup content; a
+style that clears the rows in some
+state, or picks some of them by a class, a name, a place, a property, the absence of a state, or
+`:disabled` or `:selected` where markup may disable or select them; a style that paints,
+clears or binds a part of their template, and one in another view, where it could change the answer;
+and, when the scan was given no assemblies, every
+`ItemsSource`.
+None is a violation, and some are correct; all are places where a clean result is not what it seems.
 
 ## Versioning
 

@@ -372,6 +372,7 @@ public sealed class ItemContainerNameRuleTests : IDisposable
     [InlineData("<SelectableTextBlock Text=\"{Binding Label}\" />")]
     [InlineData("<TextBlock><Run Text=\"{Binding Label}\" /></TextBlock>")]
     [InlineData("<TextBlock><TextBlock.Text><Binding Path=\"Label\" /></TextBlock.Text></TextBlock>")]
+    [InlineData("<TextBlock><TextBlock.Text>Label</TextBlock.Text></TextBlock>")]
     public void ATextBlockRootWithText_NamesTheRows(string root)
     {
         Write("View.axaml", View(List(root)));
@@ -385,6 +386,7 @@ public sealed class ItemContainerNameRuleTests : IDisposable
     /// </summary>
     [Theory]
     [InlineData("<TextBlock Text=\"\" />")]
+    [InlineData("<TextBlock Text=\"{x:Null}\" />")]
     [InlineData("<TextBlock AutomationProperties.Name=\"{Binding Label}\" />")]
     [InlineData("<TextBlock Text=\" \" AutomationProperties.Name=\"{Binding Label}\" />")]
     public void ATextBlockRootWithNoText_LeavesTheRowsToToString(string root)
@@ -566,9 +568,10 @@ public sealed class ItemContainerNameRuleTests : IDisposable
         AssertUnnamed(Run());
     }
 
-    /// <summary>The setter's other spellings count: the property in parentheses, and the value as content.</summary>
+    /// <summary>The setter's other spellings count: the property in parentheses or in a Setter.Property element, and the value as content.</summary>
     [Theory]
     [InlineData("<Setter Property=\"(AutomationProperties.Name)\" Value=\"{Binding Label}\" />")]
+    [InlineData("<Setter Value=\"{Binding Label}\"><Setter.Property>AutomationProperties.Name</Setter.Property></Setter>")]
     [InlineData("<Setter Property=\"AutomationProperties.Name\"><Binding Path=\"Label\" /></Setter>")]
     [InlineData("<Setter Property=\"AutomationProperties.Name\"><Setter.Value><Binding Path=\"Label\" /></Setter.Value></Setter>")]
     [InlineData("<Setter Property=\"AutomationProperties.LabeledBy\" Value=\"{Binding #Caption}\" />")]
@@ -622,6 +625,202 @@ public sealed class ItemContainerNameRuleTests : IDisposable
             + "<ListBox.ItemContainerTheme><ControlTheme TargetType=\"ListBoxItem\" BasedOn=\"{StaticResource {x:Type ListBoxItem}}\">"
             + "<Setter Property=\"AutomationProperties.Name\" Value=\"{Binding Label}\" /></ControlTheme></ListBox.ItemContainerTheme>")));
 
+        AssertNamed(Run());
+    }
+
+    /// <summary>A container theme names them in the setter's other spellings too: the property in parentheses, or in a Setter.Property element.</summary>
+    [Theory]
+    [InlineData("<Setter Property=\"(AutomationProperties.Name)\" Value=\"{Binding Label}\" />")]
+    [InlineData("<Setter Value=\"{Binding Label}\"><Setter.Property>AutomationProperties.Name</Setter.Property></Setter>")]
+    public void AnItemContainerThemeInTheSettersOtherSpellings_NamesThem(string setter)
+    {
+        Write("View.axaml", View(Items(Template(PanelRoot)
+            + "<ListBox.ItemContainerTheme><ControlTheme TargetType=\"ListBoxItem\" BasedOn=\"{StaticResource {x:Type ListBoxItem}}\">"
+            + setter + "</ControlTheme></ListBox.ItemContainerTheme>")));
+
+        AssertNamed(Run());
+    }
+
+    /// <summary>
+    /// The list's own properties, and a <c>TextBlock</c>'s text, are read after its type or a base, as the XAML
+    /// compiler takes them, and after another owner only where that owner holds the same property, through a binding,
+    /// the one value the compiler takes there: measured, a list written <c>ComboBox.ItemsSource="{Binding Rows}"</c>,
+    /// or with it as a property element, generated rows that its item template's root named nothing on, one given
+    /// <c>ComboBox.ItemContainerTheme="{DynamicResource Named}"</c>, either way, took the name that theme's setter
+    /// bound, and rows whose item template's root was <c>&lt;TextBlock SelectableTextBlock.Text="{Binding Label}"/&gt;</c>
+    /// were named by their labels. After an owner that holds another property they are that owner's.
+    /// </summary>
+    [Fact]
+    public void PropertiesWrittenAfterAnOwner_CountWhereThatOwnerHoldsThem()
+    {
+        static void AssertNotASubject(XamlRuleResult result)
+        {
+            Assert.Equal(0, result.Inspected);
+            Assert.Empty(result.Findings);
+            Assert.Empty(result.Skipped);
+        }
+
+        Write("View.axaml", View($"<ListBox ComboBox.ItemsSource=\"{{Binding Rows}}\">{Template(PanelRoot)}</ListBox>"));
+        AssertUnnamed(Run());
+        Write("View.axaml", View($"<ListBox><ComboBox.ItemsSource><Binding Path=\"Rows\" /></ComboBox.ItemsSource>{Template(PanelRoot)}</ListBox>"));
+        AssertUnnamed(Run());
+        Write("View.axaml", View($"<ListBox ComboBox.ItemsSource=\"Rows\">{Template(PanelRoot)}</ListBox>"));
+        AssertNotASubject(Run());
+
+        const string Named = "<UserControl.Resources><ControlTheme x:Key=\"Named\" TargetType=\"ListBoxItem\">"
+                             + "<Setter Property=\"AutomationProperties.Name\" Value=\"{Binding Label}\" /></ControlTheme></UserControl.Resources>";
+        Write("View.axaml", View(List(attributes: "ComboBox.ItemContainerTheme=\"{DynamicResource Named}\""), Named));
+        AssertNamed(Run());
+        Write("View.axaml", View(Items(Template(PanelRoot) + "<ComboBox.ItemContainerTheme><DynamicResource ResourceKey=\"Named\" /></ComboBox.ItemContainerTheme>"), Named));
+        AssertNamed(Run());
+        Write("View.axaml", View(List(attributes: "Paint.ItemContainerTheme=\"{DynamicResource Named}\""), Named));
+        AssertUnnamed(Run());
+
+        Write("View.axaml", View(List("<TextBlock SelectableTextBlock.Text=\"{Binding Label}\" />")));
+        AssertNamed(Run());
+        Write("View.axaml", View(List("<TextBlock><SelectableTextBlock.Text><Binding Path=\"Label\" /></SelectableTextBlock.Text></TextBlock>")));
+        AssertNamed(Run());
+        Write("View.axaml", View(List("<TextBlock SelectableTextBlock.Text=\"Label\" />")));
+        AssertUnnamed(Run());
+        Write("View.axaml", View(List("<TextBlock><Wrapping.Text>Label</Wrapping.Text></TextBlock>")));
+        AssertUnnamed(Run());
+        Write("View.axaml", View(List("<TextBlock Unknowable.Text=\"{Binding Label}\" />")));
+        Assert.Contains("whether it does could not be read", AssertSkipped(Run()).Reason, StringComparison.Ordinal);
+
+        Write("View.axaml", View("<ListBox ItemsControl.ItemsSource=\"{Binding Rows}\" ItemsControl.DisplayMemberBinding=\"{Binding Label}\" />"));
+        AssertNamed(Run());
+
+        Write("View.axaml", View(List("<TextBlock TextBlock.Text=\"{Binding Label}\" />")));
+        AssertNamed(Run());
+
+        Write("View.axaml", View(Items("", "Control.Theme=\"{StaticResource Rows}\""),
+            "<UserControl.Resources><ControlTheme x:Key=\"Rows\" TargetType=\"ListBox\"><Setter Property=\"ItemTemplate\">"
+            + $"<DataTemplate x:DataType=\"m:PlainItem\">{PanelRoot}</DataTemplate></Setter></ControlTheme></UserControl.Resources>"));
+        AssertUnnamed(Run());
+
+        Write("View.axaml", View("<ListBox ItemsSource=\"{Binding Rows}\" Wrapping.DisplayMemberBinding=\"{Binding Label}\" />"));
+        AssertSkipped(Run());
+        Write("View.axaml", View("<ListBox ItemsSource=\"{Binding Rows}\"><Wrapping.DisplayMemberBinding><Binding Path=\"Label\" /></Wrapping.DisplayMemberBinding></ListBox>"));
+        AssertSkipped(Run());
+
+        Write("View.axaml", View("<ListBox Wrapping.ItemsSource=\"{Binding Rows}\" DisplayMemberBinding=\"{Binding Label}\" />"));
+        AssertNotASubject(Run());
+    }
+
+    /// <summary>
+    /// A property written after an owner whose type does not resolve may be the list's own, wherever the rule reads one:
+    /// its source, and what names its rows where the list's theme would give it otherwise. Each is said, not guessed.
+    /// </summary>
+    [Fact]
+    public void AnOwnerThatCannotBeRead_IsSkipped()
+    {
+        Write("View.axaml", View("<ListBox Unknowable.ItemsSource=\"{Binding Rows}\" />"));
+        AssertSkipped(Run());
+
+        static string ListTheme(string setter) =>
+            $"<UserControl.Resources><ControlTheme x:Key=\"{{x:Type ListBox}}\" TargetType=\"ListBox\">{setter}</ControlTheme></UserControl.Resources>";
+        Write("View.axaml", View("<ListBox ItemsSource=\"{Binding Rows}\" Unknowable.DisplayMemberBinding=\"{Binding Label}\" />",
+            ListTheme("<Setter Property=\"DisplayMemberBinding\" Value=\"{Binding Label}\" />")));
+        AssertSkipped(Run());
+        Write("View.axaml", View("<ListBox ItemsSource=\"{Binding Rows}\" Unknowable.ItemTemplate=\"{StaticResource Other}\" />",
+            ListTheme($"<Setter Property=\"ItemTemplate\"><DataTemplate x:DataType=\"m:PlainItem\">{TextRoot}</DataTemplate></Setter>")));
+        AssertSkipped(Run());
+
+        // A Text after an owner whose class constructor fails in the rule's process.
+        Write("View.axaml", View(List("<TextBlock UnreadableTextBlock.Text=\"{Binding Label}\" />")));
+        Assert.Contains("could not be read", AssertSkipped(Run()).Reason, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A <c>TextBlock</c> that gives its Text two ways, or its Text beside inline content, decides nothing: the
+    /// framework applies each in turn; measured, rows whose item template's root was
+    /// <c>&lt;TextBlock Text="" SelectableTextBlock.Text="{Binding Label}"/&gt;</c> were named by their labels.
+    /// </summary>
+    [Theory]
+    [InlineData("<TextBlock Text=\"\" SelectableTextBlock.Text=\"{Binding Label}\" />")]
+    [InlineData("<TextBlock SelectableTextBlock.Text=\"{Binding Label}\" Text=\"\" />")]
+    [InlineData("<TextBlock Text=\"\"><SelectableTextBlock.Text><Binding Path=\"Label\" /></SelectableTextBlock.Text></TextBlock>")]
+    [InlineData("<TextBlock Text=\"\"><TextBlock.Text><Binding Path=\"Label\" /></TextBlock.Text></TextBlock>")]
+    [InlineData("<TextBlock Text=\"\">Label</TextBlock>")]
+    public void ATextGivenTwoWays_DecidesNothing(string root)
+    {
+        Write("View.axaml", View(List(root)));
+        Assert.Contains("which the framework applies in turn", AssertSkipped(Run()).Reason, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The row theme names the rows by the last of <c>AutomationProperties</c>' own setters, whatever another owner's
+    /// attached <c>Name</c> is set after it: measured, rows whose theme set <c>AutomationProperties.Name</c> and then a
+    /// consumer's <c>NameTag.Name</c> were named by their labels, as were rows whose theme set only the latter, over a
+    /// base that set the former.
+    /// </summary>
+    [Fact]
+    public void AnotherOwnersNameAfterTheAutomationName_DoesNotHideIt()
+    {
+        const string Naming = "<Setter Property=\"AutomationProperties.Name\" Value=\"{Binding Label}\" />";
+        const string Tagging = "<Setter Property=\"NameTag.Name\" Value=\"tag\" />";
+        Write("View.axaml", View(Items(Template(PanelRoot)
+            + $"<ListBox.ItemContainerTheme><ControlTheme TargetType=\"ListBoxItem\">{Naming}{Tagging}</ControlTheme></ListBox.ItemContainerTheme>")));
+        AssertNamed(Run());
+
+        Write("View.axaml", View(Items(Template(PanelRoot)
+                + $"<ListBox.ItemContainerTheme><ControlTheme TargetType=\"ListBoxItem\" BasedOn=\"{{StaticResource Base}}\">{Tagging}</ControlTheme></ListBox.ItemContainerTheme>"),
+            $"<UserControl.Resources><ControlTheme x:Key=\"Base\" TargetType=\"ListBoxItem\">{Naming}</ControlTheme></UserControl.Resources>"));
+        AssertNamed(Run());
+
+        Write("View.axaml", View(Items(Template(PanelRoot)
+            + $"<ListBox.ItemContainerTheme><ControlTheme TargetType=\"ListBoxItem\">{Tagging}</ControlTheme></ListBox.ItemContainerTheme>")));
+        AssertUnnamed(Run());
+
+        // An owner is the type its prefix names: AutomationProperties in another namespace is another type's, one in a
+        // URI only an assembly's XmlnsDefinition maps is not decided, and Avalonia's through using: is Avalonia's.
+        static string RowTheme(string setters) =>
+            $"<ListBox.ItemContainerTheme><ControlTheme TargetType=\"ListBoxItem\">{setters}</ControlTheme></ListBox.ItemContainerTheme>";
+        const string Theirs = "xmlns:alt=\"using:XamlQuality.Tests.Rules.ItemFakes.Alt\" Property=\"alt:AutomationProperties.Name\"";
+        Write("View.axaml", View(Items(Template(PanelRoot) + RowTheme(Naming + "<Setter " + Theirs + " Value=\"{x:Null}\" />"))));
+        AssertNamed(Run());
+        Write("View.axaml", View(Items(Template(PanelRoot) + RowTheme("<Setter " + Theirs + " Value=\"{Binding Label}\" />"))));
+        AssertUnnamed(Run());
+        Write("View.axaml", View(Items(Template(PanelRoot)
+            + RowTheme("<Setter xmlns:u=\"https://example.test/alt\" Property=\"u:AutomationProperties.Name\" Value=\"{Binding Label}\" />"))));
+        AssertSkipped(Run());
+        Write("View.axaml", View(Items(Template(PanelRoot)
+            + RowTheme("<Setter xmlns:a=\"using:Avalonia.Automation\" Property=\"a:AutomationProperties.Name\" Value=\"{Binding Label}\" />"))));
+        AssertNamed(Run());
+
+        // So it is in a style for the row type: measured, a Style for ListBoxItem in the list's Styles that set a consumer's
+        // AutomationProperties.Name, in a URI its XmlnsDefinition maps, left every row named by its item's ToString().
+        static string RowStyle(string setter) => "<ListBox.Styles><Style Selector=\"ListBoxItem\">" + setter + "</Style></ListBox.Styles>";
+        foreach (string value in (string[])["{Binding Label}", "Named"])
+        {
+            Write("View.axaml", View(Items(Template(PanelRoot)
+                + RowStyle("<Setter xmlns:u=\"https://example.test/alt\" Property=\"u:AutomationProperties.Name\" Value=\"" + value + "\" />"))));
+            AssertSkipped(Run());
+        }
+
+        Write("View.axaml", View(Items(Template(PanelRoot) + RowStyle(Naming))));
+        AssertNamed(Run());
+
+        // Beside Avalonia's, whatever else such a style sets, the rows are named.
+        Write("View.axaml", View(Items(Template(PanelRoot)
+            + RowStyle("<Setter xmlns:u=\"https://example.test/alt\" Property=\"u:AutomationProperties.Name\" Value=\"{Binding Label}\" />" + Naming))));
+        AssertNamed(Run());
+    }
+
+    /// <summary>
+    /// A Text written after an owner is the <c>TextBlock</c>'s own where the field the XAML compiler takes for it holds
+    /// the <c>TextBlock</c>'s: measured, rows whose item template's root was <c>&lt;TextBlock TextAlias.Text="Named"/&gt;</c>,
+    /// where <c>TextAlias</c> is a static class whose field holds a <c>TextBlock</c>'s Text, with accessors, were named
+    /// <c>Named</c>, and rows whose root was <c>&lt;TextBlock ShadowTextBlock.Text="{Binding Label}"/&gt;</c>, where
+    /// <c>ShadowTextBlock</c> derives from <c>TextBlock</c> and hides its field with one of another property, were named by
+    /// their labels.
+    /// </summary>
+    [Fact]
+    public void ATextAfterAnOwner_IsTheTextBlocksWhereTheCompilersFieldHoldsIt()
+    {
+        Write("View.axaml", View(List("<TextBlock TextAlias.Text=\"Named\" />")));
+        AssertNamed(Run());
+        Write("View.axaml", View(List("<TextBlock ShadowTextBlock.Text=\"{Binding Label}\" />")));
         AssertNamed(Run());
     }
 

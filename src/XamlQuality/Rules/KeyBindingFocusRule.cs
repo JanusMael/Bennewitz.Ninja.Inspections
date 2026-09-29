@@ -300,7 +300,7 @@ public sealed class KeyBindingFocusRule : IXamlRule
             }
 
             Found hostTemplate = Local(host, file, "Template");
-            if (!hostTemplate.IsSet && hostTheme is not null)
+            if (!hostTemplate.IsSet && !hostTemplate.IsUnknown && hostTheme is not null)
             {
                 hostTemplate = InTheme(hostTheme, "Template");
             }
@@ -434,11 +434,12 @@ public sealed class KeyBindingFocusRule : IXamlRule
             List<(XamlFile File, XElement Root)> content)
         {
             Found itemTemplate = Local(host, file, "ItemTemplate");
-            if (!itemTemplate.IsSet && hostTheme is not null)
+            if (!itemTemplate.IsSet && !itemTemplate.IsUnknown && hostTheme is not null)
             {
                 itemTemplate = InTheme(hostTheme, "ItemTemplate");
             }
 
+            Found display = Local(host, file, "DisplayMemberBinding");
             if (itemTemplate.IsSet)
             {
                 if (TemplateContent(itemTemplate, content) is { } unknown)
@@ -450,7 +451,11 @@ public sealed class KeyBindingFocusRule : IXamlRule
             {
                 return itemTemplate.Unknown;
             }
-            else if (!Local(host, file, "DisplayMemberBinding").IsSet)
+            else if (display.IsUnknown)
+            {
+                return display.Unknown;
+            }
+            else if (!display.IsSet)
             {
                 XElement[] dataTemplates = [.. host.Elements()
                     .Where(child => child.Name.LocalName.EndsWith(".DataTemplates", StringComparison.Ordinal))
@@ -469,7 +474,7 @@ public sealed class KeyBindingFocusRule : IXamlRule
             {
                 // A control that also presents its selected item's content, as a TabControl does.
                 Found contentTemplate = Local(host, file, "ContentTemplate");
-                if (!contentTemplate.IsSet && hostTheme is not null)
+                if (!contentTemplate.IsSet && !contentTemplate.IsUnknown && hostTheme is not null)
                 {
                     contentTemplate = InTheme(hostTheme, "ContentTemplate");
                 }
@@ -496,6 +501,11 @@ public sealed class KeyBindingFocusRule : IXamlRule
         /// </summary>
         private Focus FocusOf(XElement element, XamlFile file, Type type, Found local, Definition? theme, string typeName)
         {
+            if (local.IsUnknown)
+            {
+                return new Focus(null, local.Unknown!, theme);
+            }
+
             if (local.IsSet)
             {
                 return BoolOf(local.Setting!) switch
@@ -563,6 +573,11 @@ public sealed class KeyBindingFocusRule : IXamlRule
         private (Definition? Theme, string? Unknown) ThemeOfItem(XElement item, XamlFile file, Definition? containerTheme, Type type)
         {
             Found named = Local(item, file, "Theme");
+            if (named.IsUnknown)
+            {
+                return (null, named.Unknown);
+            }
+
             if (named.IsSet)
             {
                 (Definition? theme, string? unknown, bool cleared) = ThemeOf(named.Setting!, "its Theme");
@@ -637,7 +652,7 @@ public sealed class KeyBindingFocusRule : IXamlRule
 
                     Type type = resolved.Type!;
                     Found local = Local(element, file, "Focusable");
-                    bool? own = local.IsSet ? BoolOf(local.Setting!) : _types.FocusableByDefault(type, out _);
+                    bool? own = local.IsUnknown ? null : local.IsSet ? BoolOf(local.Setting!) : _types.FocusableByDefault(type, out _);
 
                     if (own is true)
                     {
@@ -646,7 +661,7 @@ public sealed class KeyBindingFocusRule : IXamlRule
 
                     if (own is null)
                     {
-                        undecided ??= $"Whether the {name} at {Where(file, element)} can take focus could not be read.";
+                        undecided ??= local.Unknown ?? $"Whether the {name} at {Where(file, element)} can take focus could not be read.";
                     }
                     else if (ElementTypes.IsTemplated(type))
                     {
@@ -695,8 +710,8 @@ public sealed class KeyBindingFocusRule : IXamlRule
                   + "evaluated, so what can take focus there is not decided from markup."
                 : null;
 
-        /// <summary>The value an element sets locally, as an attribute or as a property element.</summary>
-        private static Found Local(XElement element, XamlFile file, string property) => ThemeReader.Local(element, file, property);
+        /// <summary>The value an element sets locally, as an attribute or as a property element, in any spelling <see cref="ThemeReader.Local"/> reads.</summary>
+        private Found Local(XElement element, XamlFile file, string property) => Themes.Local(element, file, property);
 
         /// <summary>A literal <c>True</c> or <c>False</c>, from text or from an <c>x:Boolean</c> element; <c>null</c> otherwise.</summary>
         private static bool? BoolOf(Setting setting)

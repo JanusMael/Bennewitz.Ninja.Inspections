@@ -1,7 +1,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Text;
 using System.Xml.Linq;
+using static Bennewitz.Ninja.XamlQuality.StyleSelectors;
 
 namespace Bennewitz.Ninja.XamlQuality.Rules;
 
@@ -137,8 +137,9 @@ public sealed class ItemContainerNameRule : IXamlRule
     }
 
     /// <summary>
-    /// Every element that sets <c>ItemsSource</c>, as an attribute or as a property element, but a
-    /// template: a <c>TreeDataTemplate</c> sets its children's source, and generates no rows itself.
+    /// Every element that may set <c>ItemsSource</c>, as an attribute, after any owner, or as a property
+    /// element, but a template: a <c>TreeDataTemplate</c> sets its children's source, and generates no rows
+    /// itself. Whether an owner makes it the element's own is decided once its type is read.
     /// </summary>
     private static IEnumerable<(XamlFile File, XElement Host)> HostsIn(XamlScanContext context)
     {
@@ -147,7 +148,7 @@ public sealed class ItemContainerNameRule : IXamlRule
             foreach (XElement element in file.Document!.Descendants())
             {
                 if (!element.Name.LocalName.EndsWith("Template", StringComparison.Ordinal)
-                    && ThemeReader.Local(element, file, "ItemsSource").IsSet)
+                    && ThemeReader.MaySet(element, "ItemsSource"))
                 {
                     yield return (file, element);
                 }
@@ -177,19 +178,6 @@ public sealed class ItemContainerNameRule : IXamlRule
         public static Verdict Undecided(string why) => new(Outcome.Undecided, why);
     }
 
-    /// <summary>How a container's automation peer names it, where that was measured.</summary>
-    private enum Kind
-    {
-        /// <summary>Not a row whose naming was measured.</summary>
-        None,
-
-        /// <summary>A list or tab row: its own name, else what it presents, else its item's <c>ToString()</c>.</summary>
-        Content,
-
-        /// <summary>A tree row: its own name, else nothing.</summary>
-        Tree,
-    }
-
     /// <summary>Who wrote the <c>ToString()</c> a type resolves to.</summary>
     private enum Writer
     {
@@ -203,24 +191,9 @@ public sealed class ItemContainerNameRule : IXamlRule
         Code,
     }
 
-    /// <summary>How far a style's selector picks the containers.</summary>
-    private enum Pick
-    {
-        /// <summary>It does not name the container type.</summary>
-        No,
-
-        /// <summary>One of its alternatives is the container type alone, so it applies to every row.</summary>
-        Every,
-
-        /// <summary>It names the container type with a state, a class, a name or a context, so it may apply to some.</summary>
-        Some,
-    }
-
     /// <summary>One scan's worth of resolved types, resources and styles, shared by every control it decides.</summary>
     private sealed class Analysis
     {
-        private const string Peers = "Avalonia.Automation.Peers.";
-
         private static readonly XNamespace Xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
 
         /// <summary>
@@ -237,7 +210,7 @@ public sealed class ItemContainerNameRule : IXamlRule
         private readonly ElementTypes _types;
         private readonly ResourceScope _scope;
         private readonly ThemeReader _themes;
-        private readonly Dictionary<Type, (Kind Kind, string? Why)> _kinds = [];
+        private readonly Dictionary<Type, (RowKind Kind, string? Why)> _kinds = [];
         private List<Type>? _supplied;
 
         public Analysis(XamlScanContext context)
@@ -274,6 +247,19 @@ public sealed class ItemContainerNameRule : IXamlRule
                 return Verdict.NotASubject;
             }
 
+            // An ItemsSource written after an owner outside its chain is its own only where that owner holds its
+            // property, and only through a binding; else it gives it no source.
+            Found source = _themes.Local(host, file, "ItemsSource", type);
+            if (source.IsUnknown)
+            {
+                return Verdict.Undecided(source.Unknown!);
+            }
+
+            if (!source.IsSet)
+            {
+                return Verdict.NotASubject;
+            }
+
             Type? container = _types.ContainerOf(type);
             if (container is null)
             {
@@ -282,13 +268,13 @@ public sealed class ItemContainerNameRule : IXamlRule
                     + "code, so how its items are named is unknown.");
             }
 
-            (Kind kind, string? peerWhy) = KindOf(container);
+            (RowKind kind, string? peerWhy) = KindOf(container);
             if (peerWhy is not null)
             {
                 return Verdict.Undecided(peerWhy);
             }
 
-            if (kind == Kind.None)
+            if (kind == RowKind.None)
             {
                 return Verdict.NotASubject;
             }
@@ -297,11 +283,29 @@ public sealed class ItemContainerNameRule : IXamlRule
             string styleKey = _types.StyleKeyOf(container).Name;
             string rows = $"its {container.Name} containers";
 
-            // A style whose selector is the container type alone names every row, whatever else applies.
+            // A style whose selector is the container type alone names every row, whatever else applies, by Avalonia's
+            // AutomationProperties; where that owner may or may not be Avalonia's, nothing is decided.
             IReadOnlyList<(XamlFile File, XElement Style)> reaching = _scope.StylesReaching(host);
-            if (reaching.Any(entry => Picks(entry.Style, styleKey, chain) == Pick.Every && NamingSetter(entry.Style, entry.File) is not null))
+            (XamlFile File, XElement Setter)? undecided = null;
+            foreach ((XamlFile styleFile, XElement style) in reaching.Where(entry => Picks(entry.Style, styleKey, chain) == Pick.Every))
             {
-                return Verdict.Named;
+                foreach (XElement setter in NamingSetters(style, styleFile))
+                {
+                    if (AutomationOwner(setter) == Automation.Avalonia)
+                    {
+                        return Verdict.Named;
+                    }
+
+                    undecided ??= (styleFile, setter);
+                }
+            }
+
+            if (undecided is { } doubt)
+            {
+                return Verdict.Undecided(
+                    $"A Style at {Where(doubt.File, doubt.Setter)} sets {ResourceScope.SetterProperty(doubt.Setter)} on every one "
+                    + $"of {rows}, and its owner is in an XML namespace that only an assembly's XmlnsDefinition maps to a type, "
+                    + "so whether it is Avalonia's AutomationProperties is not decided from markup.");
             }
 
             // A style that changes which theme or template applies is not evaluated.
@@ -333,13 +337,24 @@ public sealed class ItemContainerNameRule : IXamlRule
             {
                 foreach (string property in (string[])["Name", "LabeledBy"])
                 {
-                    Found set = _themes.InTheme(containerTheme, property);
+                    // Avalonia's AutomationProperties' attached properties: the last setter of theirs, which another
+                    // owner's attached property of the same name, set after it, does not hide; where that last one's
+                    // owner may or may not be Avalonia's, nothing is decided.
+                    Found set = _themes.InTheme(containerTheme, property, setter => AutomationOwner(setter) != Automation.Other);
                     if (set.IsUnknown)
                     {
                         return Verdict.Undecided(set.Unknown!);
                     }
 
-                    if (set.IsSet && IsAutomationProperty(set.Setting!.At) && Names(set.Setting!))
+                    if (set.IsSet && AutomationOwner(set.Setting!.At) == Automation.Undecided)
+                    {
+                        return Verdict.Undecided(
+                            $"A Setter at {Where(set.Setting!.File, set.Setting!.At)} sets {ResourceScope.SetterProperty(set.Setting!.At)}, "
+                            + "whose owner is in an XML namespace that only an assembly's XmlnsDefinition maps to a type, so whether "
+                            + "it is Avalonia's AutomationProperties is not decided from markup.");
+                    }
+
+                    if (set.IsSet && Names(set.Setting!))
                     {
                         return Verdict.Named;
                     }
@@ -352,7 +367,7 @@ public sealed class ItemContainerNameRule : IXamlRule
                 if (Picks(style, styleKey, chain) == Pick.Some && NamingSetter(style, styleFile) is { } some)
                 {
                     return Verdict.Undecided(
-                        $"A Style at {Where(styleFile, some)} sets {some.Attribute("Property")!.Value} on a selector "
+                        $"A Style at {Where(styleFile, some)} sets {ResourceScope.SetterProperty(some)} on a selector "
                         + $"that picks {rows} only in some state or some places, and selectors are not evaluated, so "
                         + "whether it names every row is not decided from markup.");
                 }
@@ -367,13 +382,13 @@ public sealed class ItemContainerNameRule : IXamlRule
                     && NamingSetter(style, styleFile) is { } elsewhere)
                 {
                     return Verdict.Undecided(
-                        $"A Style at {Where(styleFile, elsewhere)} sets {elsewhere.Attribute("Property")!.Value} on "
+                        $"A Style at {Where(styleFile, elsewhere)} sets {ResourceScope.SetterProperty(elsewhere)} on "
                         + $"{rows}, and it is in no scope this markup shows reaching this {hostName}: whether it "
                         + "applies depends on where the view is placed at runtime.");
                 }
             }
 
-            if (kind == Kind.Tree)
+            if (kind == RowKind.Tree)
             {
                 return Verdict.Unnamed(
                     $"The {container.Name} containers this {hostName} generates from ItemsSource have no name. "
@@ -390,8 +405,8 @@ public sealed class ItemContainerNameRule : IXamlRule
         {
             string rows = $"its {container.Name} containers";
 
-            Found display = ThemeReader.Local(host, file, "DisplayMemberBinding");
-            if (!display.IsSet && hostTheme is not null)
+            Found display = _themes.Local(host, file, "DisplayMemberBinding");
+            if (!display.IsSet && !display.IsUnknown && hostTheme is not null)
             {
                 display = _themes.InTheme(hostTheme, "DisplayMemberBinding");
             }
@@ -407,8 +422,8 @@ public sealed class ItemContainerNameRule : IXamlRule
                 return Verdict.Named;
             }
 
-            Found itemTemplate = ThemeReader.Local(host, file, "ItemTemplate");
-            if (!itemTemplate.IsSet && hostTheme is not null)
+            Found itemTemplate = _themes.Local(host, file, "ItemTemplate");
+            if (!itemTemplate.IsSet && !itemTemplate.IsUnknown && hostTheme is not null)
             {
                 itemTemplate = _themes.InTheme(hostTheme, "ItemTemplate");
             }
@@ -449,9 +464,12 @@ public sealed class ItemContainerNameRule : IXamlRule
             else if (root.Name.LocalName is "TextBlock" or "SelectableTextBlock")
             {
                 // A TextBlock's peer reads its text alone, so a name declared on it does not count.
-                if (HasText(root))
+                switch (HasText(root, templateFile))
                 {
-                    return Verdict.Named;
+                    case (true, _):
+                        return Verdict.Named;
+                    case (null, { } unknown):
+                        return Verdict.Undecided(unknown);
                 }
 
                 because = $"the root of the item template at {Where(templateFile, root)} is {A(root.Name.LocalName)} with no text";
@@ -540,61 +558,19 @@ public sealed class ItemContainerNameRule : IXamlRule
         /// Whether <paramref name="container"/>'s automation peer is one whose naming was measured, read
         /// from the <c>newobj</c> in the <c>OnCreateAutomationPeer</c> it resolves to.
         /// </summary>
-        private (Kind Kind, string? Why) KindOf(Type container)
+        private (RowKind Kind, string? Why) KindOf(Type container)
         {
-            if (!_kinds.TryGetValue(container, out (Kind Kind, string? Why) known))
+            if (!_kinds.TryGetValue(container, out (RowKind Kind, string? Why) known))
             {
-                known = ReadKind(container);
+                RowPeer peer = RowPeers.Of(container);
+                known = (peer.Kind, peer.NamesItself
+                    ? $"Its {container.Name} containers are named by their automation peer, {peer.Peer!.Name}, which "
+                      + "writes its own GetNameCore, so how they are named is not decided from markup."
+                    : null);
                 _kinds[container] = known;
             }
 
             return known;
-        }
-
-        private static (Kind Kind, string? Why) ReadKind(Type container)
-        {
-            const BindingFlags Instance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-
-            if (container.GetMethod("OnCreateAutomationPeer", Instance, Type.EmptyTypes) is not { } create)
-            {
-                return (Kind.None, null);
-            }
-
-            Type[] peers = [.. CompiledStrings.ConstructedBy(create).Where(IsPeer).Distinct()];
-            if (peers.Length != 1)
-            {
-                return (Kind.None, null);
-            }
-
-            Type peer = peers[0];
-            (Kind kind, string reads) = Derives(peer, "ListItemAutomationPeer") ? (Kind.Content, "ContentControlAutomationPeer")
-                : Derives(peer, "TreeViewItemAutomationPeer") ? (Kind.Tree, "ControlAutomationPeer")
-                : (Kind.None, string.Empty);
-
-            if (kind == Kind.None)
-            {
-                return (Kind.None, null);
-            }
-
-            return peer.GetMethod("GetNameCore", Instance, Type.EmptyTypes)?.DeclaringType?.FullName == Peers + reads
-                ? (kind, null)
-                : (kind, $"Its {container.Name} containers are named by their automation peer, {peer.Name}, which "
-                         + "writes its own GetNameCore, so how they are named is not decided from markup.");
-        }
-
-        private static bool IsPeer(Type type) => Derives(type, "AutomationPeer");
-
-        private static bool Derives(Type type, string peer)
-        {
-            for (Type? link = type; link is not null; link = link.BaseType)
-            {
-                if (link.FullName == Peers + peer)
-                {
-                    return true;
-                }
-            }
-
-            return false;
         }
 
         /// <summary>
@@ -683,146 +659,56 @@ public sealed class ItemContainerNameRule : IXamlRule
             return null;
         }
 
-        /// <summary>
-        /// How far a style picks containers whose style key is <paramref name="styleKey"/> and whose type
-        /// chain is <paramref name="chain"/>. A type selector matches the style key exactly, as Avalonia's
-        /// does, and <c>:is()</c> matches any type in the chain; a nested style's <c>^</c> is its parent's.
-        /// </summary>
-        private static Pick Picks(XElement style, string styleKey, IReadOnlyCollection<string> chain)
-        {
-            if (style.Attribute("Selector")?.Value is not { } selector)
-            {
-                return Pick.No;
-            }
+        /// <summary>A setter directly in <paramref name="style"/> that names what it applies to, or may, or <c>null</c>.</summary>
+        private static XElement? NamingSetter(XElement style, XamlFile file) => NamingSetters(style, file).FirstOrDefault();
 
-            Pick pick = Pick.No;
-            foreach (string alternative in AtDepthZero(selector, ','))
-            {
-                List<string> compounds = [.. Compounds(alternative)];
-                if (compounds.Count == 0)
-                {
-                    continue;
-                }
-
-                string last = compounds[^1];
-                bool picks;
-                bool alone;
-                if (last.StartsWith('^'))
-                {
-                    picks = style.Parent is { Name.LocalName: "Style" } parent && Picks(parent, styleKey, chain) != Pick.No;
-                    alone = false;
-                }
-                else
-                {
-                    (string? type, bool isIs, string qualifiers) = Split(last);
-                    picks = type is not null && (isIs ? chain.Contains(type, StringComparer.Ordinal) : type == styleKey);
-                    alone = qualifiers.Length == 0 && compounds.Count == 1;
-                }
-
-                if (picks)
-                {
-                    if (alone)
-                    {
-                        return Pick.Every;
-                    }
-
-                    pick = Pick.Some;
-                }
-            }
-
-            return pick;
-        }
-
-        /// <summary>A compound selector's type, whether it is <c>:is()</c>, and what qualifies it.</summary>
-        private static (string? Type, bool IsIs, string Qualifiers) Split(string compound)
-        {
-            if (compound.StartsWith(":is(", StringComparison.Ordinal))
-            {
-                int close = compound.IndexOf(')', StringComparison.Ordinal);
-                return close < 0
-                    ? (null, true, compound)
-                    : (Unprefixed(compound[4..close].Trim()), true, compound[(close + 1)..]);
-            }
-
-            int end = 0;
-            while (end < compound.Length && (char.IsLetterOrDigit(compound[end]) || compound[end] is '_' or '|'))
-            {
-                end++;
-            }
-
-            return end == 0 ? (null, false, compound) : (Unprefixed(compound[..end]), false, compound[end..]);
-        }
-
-        /// <summary>A selector type without its <c>ns|</c> prefix.</summary>
-        private static string Unprefixed(string type) => type[(type.LastIndexOf('|') + 1)..];
-
-        /// <summary>A selector's compound selectors: split at combinators outside parentheses.</summary>
-        private static IEnumerable<string> Compounds(string alternative)
-        {
-            StringBuilder current = new();
-            int depth = 0;
-            foreach (char character in alternative)
-            {
-                depth += character switch { '(' => 1, ')' => -1, _ => 0 };
-                if (depth == 0 && (char.IsWhiteSpace(character) || character == '>'))
-                {
-                    if (current.Length > 0)
-                    {
-                        yield return current.ToString();
-                        current.Clear();
-                    }
-
-                    continue;
-                }
-
-                current.Append(character);
-            }
-
-            if (current.Length > 0)
-            {
-                yield return current.ToString();
-            }
-        }
-
-        /// <summary><paramref name="text"/> split at <paramref name="separator"/> outside parentheses.</summary>
-        private static IEnumerable<string> AtDepthZero(string text, char separator)
-        {
-            int depth = 0;
-            int start = 0;
-            for (int index = 0; index < text.Length; index++)
-            {
-                depth += text[index] switch { '(' => 1, ')' => -1, _ => 0 };
-                if (depth == 0 && text[index] == separator)
-                {
-                    yield return text[start..index];
-                    start = index + 1;
-                }
-            }
-
-            yield return text[start..];
-        }
-
-        /// <summary>A setter directly in <paramref name="style"/> that names what it applies to, or <c>null</c>.</summary>
-        private static XElement? NamingSetter(XElement style, XamlFile file) =>
-            style.Elements().FirstOrDefault(setter =>
+        /// <summary>The setters directly in <paramref name="style"/> that name what it applies to, or may.</summary>
+        private static IEnumerable<XElement> NamingSetters(XElement style, XamlFile file) =>
+            style.Elements().Where(setter =>
                 setter.Name.LocalName == "Setter"
-                && IsAutomationProperty(setter)
+                && AutomationOwner(setter) != Automation.Other
                 && Names(ThemeReader.ValueOf(setter, file)));
 
         /// <summary>
-        /// Whether a setter sets <c>AutomationProperties.Name</c> or <c>AutomationProperties.LabeledBy</c>,
-        /// in any spelling: bare, in parentheses, or with a namespace prefix.
+        /// Whether a setter sets Avalonia's <c>AutomationProperties.Name</c> or <c>AutomationProperties.LabeledBy</c>,
+        /// in any spelling: bare, in parentheses, or with a namespace prefix, in its <c>Property</c> attribute or its
+        /// <c>Setter.Property</c> element, as <see cref="ResourceScope.SetterProperty"/> reads it.
         /// </summary>
-        private static bool IsAutomationProperty(XElement setter)
+        /// <remarks>
+        /// ⚠ <b>An owner is the type its prefix names</b>, as <see cref="Owner"/> reads it: <c>AutomationProperties</c> in
+        /// a framework's namespace, or through <c>using:Avalonia.Automation</c>, is Avalonia's; one in another
+        /// <c>using:</c> or <c>clr-namespace:</c> namespace is another type's; and one in any other URI is not decided.
+        /// Measured: rows whose theme set <c>AutomationProperties.Name</c> and then a consumer's
+        /// <c>AutomationProperties.Name</c> of its own, through a <c>clr-namespace:</c> prefix, were named by their labels.
+        /// </remarks>
+        private static Automation AutomationOwner(XElement setter)
         {
-            if (setter.Attribute("Property")?.Value is not { } written)
+            if (ResourceScope.SetterProperty(setter) is not { } written
+                || ResourceScope.PropertyName(written) is not ("Name" or "LabeledBy")
+                || ResourceScope.OwnerOf(written, setter) is not { Local: "AutomationProperties" } owner)
             {
-                return false;
+                return Automation.Other;
             }
 
-            string property = written.Trim().TrimStart('(').TrimEnd(')').Trim();
-            property = property[(property.LastIndexOf(':') + 1)..];
-            return property is "AutomationProperties.Name" or "AutomationProperties.LabeledBy";
+            if (owner.Clr is { } clr)
+            {
+                return clr == "Avalonia.Automation" ? Automation.Avalonia : Automation.Other;
+            }
+
+            return owner.IsFramework ? Automation.Avalonia : Automation.Undecided;
+        }
+
+        /// <summary>Whose <c>AutomationProperties</c> a setter sets.</summary>
+        private enum Automation
+        {
+            /// <summary>Avalonia's.</summary>
+            Avalonia,
+
+            /// <summary>Another type's, or the setter sets something else.</summary>
+            Other,
+
+            /// <summary>One in a URI that only an assembly's <c>XmlnsDefinition</c> maps, so not decided.</summary>
+            Undecided,
         }
 
         /// <summary>Whether a value names something: an element such as a binding, or text that is not blank or null.</summary>
@@ -830,30 +716,54 @@ public sealed class ItemContainerNameRule : IXamlRule
             setting.Element is not null
             || (setting.Text is { } text && !string.IsNullOrWhiteSpace(text) && !ThemeReader.IsNull(text.Trim()));
 
-        /// <summary>Whether a <c>TextBlock</c> has text: a <c>Text</c> that is not blank, or inline content.</summary>
-        private static bool HasText(XElement textBlock)
+        /// <summary>
+        /// Whether a <c>TextBlock</c> has text: a <c>Text</c> that is not blank, in the one spelling the XAML compiler
+        /// takes it in, as <see cref="ThemeReader.Local"/> reads it, or inline content; <c>null</c>, with why, where a
+        /// spelling may give it text and that is not decided, or where it gives both.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// ⚠ A <c>Text</c> written after <c>SelectableTextBlock</c>, which derives from <c>TextBlock</c>, is a
+        /// <c>TextBlock</c>'s own where it is a binding: measured, rows whose item template's root was
+        /// <c>&lt;TextBlock SelectableTextBlock.Text="{Binding Label}"/&gt;</c> were named by their labels.
+        /// </para>
+        /// <para>
+        /// ⚠ A <c>Text</c> beside inline content decides nothing, as two spellings of <c>Text</c> do not: the framework
+        /// applies each in turn, so which the text block is left with is not decided from markup.
+        /// </para>
+        /// </remarks>
+        private (bool? Has, string? Unknown) HasText(XElement textBlock, XamlFile file)
         {
-            if (textBlock.Attribute("Text") is { } text)
+            Found text = _themes.Local(textBlock, file, "Text");
+            if (text.IsUnknown)
             {
-                return !string.IsNullOrWhiteSpace(text.Value) && !ThemeReader.IsNull(text.Value.Trim());
+                return (null, text.Unknown);
             }
 
-            foreach (XNode node in textBlock.Nodes())
+            bool inline = textBlock.Nodes().Any(node => node switch
             {
-                switch (node)
-                {
-                    case XText run when !string.IsNullOrWhiteSpace(run.Value):
-                        return true;
-                    case XElement inline when !inline.Name.LocalName.Contains('.', StringComparison.Ordinal):
-                        return true;
-                    case XElement property when (property.Name.LocalName.EndsWith(".Text", StringComparison.Ordinal)
-                                                 || property.Name.LocalName.EndsWith(".Inlines", StringComparison.Ordinal))
-                                                && (property.HasElements || !string.IsNullOrWhiteSpace(property.Value)):
-                        return true;
-                }
+                XText run => !string.IsNullOrWhiteSpace(run.Value),
+                XElement child when !child.Name.LocalName.Contains('.', StringComparison.Ordinal) => true,
+                XElement property when property.Name.LocalName.EndsWith(".Inlines", StringComparison.Ordinal) =>
+                    property.HasElements || !string.IsNullOrWhiteSpace(property.Value),
+                _ => false,
+            });
+
+            if (text.Setting is not { } set)
+            {
+                return (inline, null);
             }
 
-            return false;
+            if (inline)
+            {
+                return (null, $"The TextBlock at {Where(file, textBlock)} gives its Text {set.Shown} beside inline content, which the "
+                              + "framework applies in turn, so the text it is left with is not decided from markup.");
+            }
+
+            // An attribute decides; a property element with nothing in it gives no text.
+            return set.At == textBlock
+                ? (!string.IsNullOrWhiteSpace(set.Text) && !ThemeReader.IsNull(set.Text.Trim()), null)
+                : (set.Element is not null || !string.IsNullOrWhiteSpace(set.Text), null);
         }
 
         /// <summary>Whether an element declares <c>AutomationProperties.LabeledBy</c>, in either spelling, with something in it.</summary>
