@@ -127,7 +127,7 @@ internal sealed partial class ResourceScope
                     HashSet<string> mentions = [.. Identifier().Matches(selector.Value).Select(match => match.Value)];
                     foreach (XElement setter in element.Elements().Where(child => child.Name.LocalName == "Setter"))
                     {
-                        if (setter.Attribute("Property")?.Value is { } property)
+                        if (SetterProperty(setter) is { } property)
                         {
                             _styleSetters.Add(new StyleSetter(file, setter, PropertyName(property), mentions));
                         }
@@ -211,6 +211,53 @@ internal sealed partial class ResourceScope
         int dot = name.LastIndexOf('.');
         return dot >= 0 ? name[(dot + 1)..] : name;
     }
+
+    /// <summary>
+    /// The owner a property is written after, in a setter, a <c>TemplateBinding</c> or a binding path: its name, and the
+    /// XML namespace its prefix declares where <paramref name="context"/> is, or the default one there; <c>null</c> when
+    /// the property is written alone.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>An owner is a type, named through its prefix.</b> At 12.1.3 <c>XamlIlAvaloniaPropertyHelper.CreateNode</c>
+    /// resolves it with <c>TypeReferenceResolver.ResolveType</c>, prefix and all: measured, a row theme's setter for
+    /// <c>alt:TemplatedControl.Background</c>, a consumer's class of that name in another namespace, did not set the
+    /// row's <c>Background</c>.
+    /// </remarks>
+    internal static Owner? OwnerOf(string written, XElement context)
+    {
+        string name = written.Trim();
+        int dot = name.LastIndexOf('.');
+        if (dot <= 0)
+        {
+            return null;
+        }
+
+        string owner = name[..dot];
+        int colon = owner.LastIndexOf(':');
+        XNamespace? markup = context.Document?.Root?.Name.Namespace;
+        return colon < 0
+            ? new Owner(owner, context.GetDefaultNamespace(), markup)
+            : new Owner(owner[(colon + 1)..], context.GetNamespaceOfPrefix(owner[..colon]), markup);
+    }
+
+    /// <summary>
+    /// The property a setter names, with any owner it is written after but without the parentheses an attached
+    /// property may be given: its <c>Property</c> attribute, or the text of its <c>Setter.Property</c> element;
+    /// <c>null</c> when it is not a setter.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ At 12.1.3 <c>AvaloniaXamlIlSetterTransformer</c> takes a setter's property from the text of its
+    /// <c>Property</c> value, which an attribute and a property element both give, and
+    /// <c>XamlIlAvaloniaPropertyHelper.CreateNode</c> takes that text alone, after an owner, or either in
+    /// parentheses, as Avalonia's own themes write <c>(ToolTip.Tip)</c>: measured, a setter that named its
+    /// property in parentheses or in a <c>Setter.Property</c> element set it as one naming it plainly did.
+    /// </remarks>
+    internal static string? SetterProperty(XElement setter) =>
+        setter.Name.LocalName != "Setter"
+            ? null
+            : (setter.Attribute("Property")?.Value
+               ?? setter.Elements().FirstOrDefault(child => child.Name.LocalName.EndsWith(".Property", StringComparison.Ordinal))?.Value)
+              ?.Trim().Trim('(', ')').Trim();
 
     /// <summary>The file an element is in, or <c>null</c> when it is not in the scan.</summary>
     internal XamlFile? FileOf(XElement element) =>

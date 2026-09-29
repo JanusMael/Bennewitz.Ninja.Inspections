@@ -221,6 +221,210 @@ public sealed class KeyBindingFocusRuleTests : IDisposable
         AssertDead(Run());
     }
 
+    /// <summary>
+    /// Focusable is read in every spelling the XAML compiler takes: a setter's name in parentheses or in a
+    /// Setter.Property element, in a theme or a style, and an attribute after the list's own type or a base, but
+    /// not after an owner that holds another property, such as an attached one of its own.
+    /// </summary>
+    [Fact]
+    public void TheOtherSpellingsOfFocusable_Count()
+    {
+        foreach (string setter in (string[])
+                 [
+                     "<Setter Property=\"(InputElement.Focusable)\" Value=\"False\" />",
+                     "<Setter Value=\"False\"><Setter.Property>Focusable</Setter.Property></Setter>",
+                     "<Setter><Setter.Property>Focusable</Setter.Property>False</Setter>",
+                 ])
+        {
+            Write("View.axaml", View("", List(
+                "<ListBox.ItemContainerTheme><ControlTheme TargetType=\"ListBoxItem\">" + setter + "</ControlTheme></ListBox.ItemContainerTheme>" + TextRows)));
+            AssertDead(Run());
+        }
+
+        Write("View.axaml", View("<UserControl.Resources>" + UnfocusableRow.Replace("<ControlTheme ", "<ControlTheme x:Key=\"Row\" ", StringComparison.Ordinal)
+                                 + "</UserControl.Resources>", List(TextRows, "ItemsControl.ItemContainerTheme=\"{StaticResource Row}\"")));
+        AssertDead(Run());
+
+        foreach (string owner in (string[])["ListBox", "InputElement"])
+        {
+            Write("View.axaml", View("", UnfocusableRows(attributes: owner + ".Focusable=\"True\"")));
+            AssertLive(Run());
+        }
+
+        Write("View.axaml", View("", UnfocusableRows(attributes: "Wrapping.Focusable=\"True\"")));
+        AssertDead(Run());
+        Write("View.axaml", View("", UnfocusableRows("<InputElement.Focusable>True</InputElement.Focusable>" + TextRows)));
+        AssertLive(Run());
+        Write("View.axaml", View("", UnfocusableRows("<Wrapping.Focusable>True</Wrapping.Focusable>" + TextRows)));
+        AssertDead(Run());
+
+        Write("View.axaml", View("", UnfocusableRows()));
+        foreach (string setter in (string[])
+                 [
+                     "<Setter Property=\"(InputElement.Focusable)\" Value=\"True\" />",
+                     "<Setter Value=\"True\"><Setter.Property>Focusable</Setter.Property></Setter>",
+                 ])
+        {
+            Write("Styles.axaml", $"<Styles {Header}><Style Selector=\"ListBox > ListBoxItem\">{setter}</Style></Styles>");
+            Assert.Contains("Styles.axaml", AssertSkipped(Run()).Reason, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// A property written after an owner the list is not is the list's where that owner holds the same one, through a
+    /// binding, the one value the XAML compiler takes there: measured, a list given a focusable row theme by
+    /// <c>ComboBox.ItemContainerTheme="{DynamicResource ...}"</c>, or by it as a property element, over an implicit
+    /// unfocusable one, took focus in its rows and ran its key binding. A literal there does not load, and an owner
+    /// that holds another property sets nothing of the list's.
+    /// </summary>
+    [Fact]
+    public void PropertiesAfterAnotherOwner_AreTheListsByABinding()
+    {
+        string themes = "<UserControl.Resources>" + ImplicitUnfocusableRow
+                        + "<ControlTheme x:Key=\"Focusable\" TargetType=\"ListBoxItem\"><Setter Property=\"Focusable\" Value=\"True\" /></ControlTheme>"
+                        + "</UserControl.Resources>";
+
+        Write("View.axaml", View(themes, List(TextRows, "ComboBox.ItemContainerTheme=\"{DynamicResource Focusable}\"")));
+        AssertLive(Run());
+        Write("View.axaml", View(themes, List("<ComboBox.ItemContainerTheme><DynamicResource ResourceKey=\"Focusable\" /></ComboBox.ItemContainerTheme>" + TextRows)));
+        AssertLive(Run());
+        Write("View.axaml", View(themes, List(TextRows, "Paint.ItemContainerTheme=\"{DynamicResource Focusable}\"")));
+        AssertDead(Run());
+        Write("View.axaml", View(themes, List(TextRows, "ComboBox.ItemContainerTheme=\"{StaticResource Focusable}\"")));
+        Assert.Contains("only if it is a binding", AssertSkipped(Run()).Reason, StringComparison.Ordinal);
+
+        Write("View.axaml", View("", UnfocusableRows(attributes: "Border.Focusable=\"{Binding CanFocus}\"")));
+        AssertSkipped(Run());
+        Write("View.axaml", View("", UnfocusableRows(attributes: "Border.Focusable=\"True\"")));
+        AssertDead(Run());
+    }
+
+    /// <summary>
+    /// A property written after an owner whose type does not resolve may be the one the rule reads, wherever it reads
+    /// one: on the list, in a theme's setter, on what the rows hold, on an item declared in the list, and where a
+    /// list's theme would give what the list does not. Each is said, not guessed.
+    /// </summary>
+    [Fact]
+    public void AnOwnerThatCannotBeRead_IsSkipped()
+    {
+        Write("View.axaml", View("", UnfocusableRows(attributes: "Unknowable.Focusable=\"True\"")));
+        AssertSkipped(Run());
+        Write("View.axaml", View("", List("<ListBox.ItemContainerTheme><ControlTheme TargetType=\"ListBoxItem\">"
+                                          + "<Setter Property=\"(Unknowable.Focusable)\" Value=\"True\" /></ControlTheme></ListBox.ItemContainerTheme>" + TextRows)));
+        AssertSkipped(Run());
+        Write("View.axaml", View("", UnfocusableRows("<ListBox.ItemTemplate><DataTemplate><Button Unknowable.Focusable=\"False\" /></DataTemplate></ListBox.ItemTemplate>")));
+        AssertSkipped(Run());
+        Write("View.axaml", View("", $"<ListBox><ListBox.KeyBindings>{Binding}</ListBox.KeyBindings><ListBoxItem Unknowable.Theme=\"{{StaticResource Other}}\">One</ListBoxItem></ListBox>"));
+        AssertSkipped(Run());
+        Write("View.axaml", View("", UnfocusableRows(string.Empty, "Unknowable.DisplayMemberBinding=\"{Binding Label}\"")));
+        Assert.Contains("could not be read", AssertSkipped(Run()).Reason, StringComparison.Ordinal);
+
+        static string ListTheme(string setter) =>
+            "<UserControl.Resources><ControlTheme x:Key=\"{x:Type ListBox}\" TargetType=\"ListBox\">" + setter + "</ControlTheme>" + ImplicitUnfocusableRow + "</UserControl.Resources>";
+        Write("View.axaml", View(ListTheme("<Setter Property=\"ItemTemplate\"><DataTemplate><Button /></DataTemplate></Setter>"),
+            List(string.Empty, "Unknowable.ItemTemplate=\"{StaticResource Other}\"")));
+        AssertSkipped(Run());
+        Write("View.axaml", View(ListTheme("<Setter Property=\"Template\"><ControlTemplate><Button /></ControlTemplate></Setter>"),
+            List(TextRows, "Unknowable.Template=\"{StaticResource Other}\"")));
+        AssertSkipped(Run());
+
+        Write("View.axaml", View(
+            "<UserControl.Resources><ControlTheme x:Key=\"{x:Type TabControl}\" TargetType=\"TabControl\"><Setter Property=\"ContentTemplate\">"
+            + "<DataTemplate><Button /></DataTemplate></Setter></ControlTheme></UserControl.Resources>",
+            $"<TabControl ItemsSource=\"{{Binding Pages}}\" Unknowable.ContentTemplate=\"{{StaticResource Other}}\"><TabControl.KeyBindings>{Binding}</TabControl.KeyBindings>"
+            + "<TabControl.ItemContainerTheme><ControlTheme TargetType=\"TabItem\"><Setter Property=\"Focusable\" Value=\"False\" /></ControlTheme></TabControl.ItemContainerTheme>"
+            + "<TabControl.ItemTemplate><DataTemplate><TextBlock Text=\"{Binding Title}\" /></DataTemplate></TabControl.ItemTemplate>"
+            + "</TabControl>"));
+        Assert.Contains("could not be read", AssertSkipped(Run()).Reason, StringComparison.Ordinal);
+
+        // A Focusable after an owner whose class constructor fails in the rule's process.
+        Write("View.axaml", View("", UnfocusableRows(attributes: "UnreadablePanel.Focusable=\"{Binding CanFocus}\"")));
+        Assert.Contains("could not be read", AssertSkipped(Run()).Reason, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A list that gives Focusable two ways decides nothing: the framework applies each in turn; measured, a list
+    /// written <c>Focusable="False" InputElement.Focusable="True"</c> took focus and ran its key binding.
+    /// </summary>
+    [Fact]
+    public void FocusableGivenTwoWays_DecidesNothing()
+    {
+        Write("View.axaml", View("", UnfocusableRows(attributes: "Focusable=\"False\" InputElement.Focusable=\"True\"")));
+        Assert.Contains("which the framework applies in turn", AssertSkipped(Run()).Reason, StringComparison.Ordinal);
+        Write("View.axaml", View("", UnfocusableRows(attributes: "Focusable=\"False\" Button.Focusable=\"{DynamicResource Yes}\"")));
+        AssertSkipped(Run());
+    }
+
+    /// <summary>
+    /// A Focusable written after an owner with accessors of its own, whose field holds the list's, is the list's
+    /// whatever its value: measured, a list whose theme made it unfocusable, written
+    /// <c>FocusAlias.Focusable="True"</c>, where <c>FocusAlias</c> is a static class whose field holds a control's
+    /// Focusable, took focus and ran its key binding.
+    /// </summary>
+    [Fact]
+    public void AFocusableAfterAnAttachedOwnerOfTheListsOwn_TakesAnyValue()
+    {
+        const string UnfocusableList = "<UserControl.Resources><ControlTheme x:Key=\"{x:Type ListBox}\" TargetType=\"ListBox\">"
+                                       + "<Setter Property=\"Focusable\" Value=\"False\" /></ControlTheme></UserControl.Resources>";
+        Write("View.axaml", View(UnfocusableList, UnfocusableRows(attributes: "FocusAlias.Focusable=\"True\"")));
+        AssertLive(Run());
+        Write("View.axaml", View(UnfocusableList, UnfocusableRows()));
+        AssertDead(Run());
+    }
+
+    /// <summary>
+    /// A setter's owner names what its most-derived public field holds, the control's own type included: measured, a
+    /// list whose theme set <c>Focusable</c> to <c>True</c> and then <c>ShadowList.Focusable</c> to <c>False</c>, where
+    /// <c>ShadowList</c> derives from <c>ListBox</c> and declares a public field of another property, took focus and ran
+    /// its key binding.
+    /// </summary>
+    [Fact]
+    public void ASettersOwnerThatHidesTheField_NamesAnotherProperty()
+    {
+        static string Shadow(string setters) =>
+            "<UserControl.Resources><ControlTheme x:Key=\"{x:Type ShadowList}\" TargetType=\"ShadowList\">" + setters
+            + "</ControlTheme></UserControl.Resources>";
+        string list = "<ShadowList ItemsSource=\"{Binding Rows}\"><ShadowList.KeyBindings>" + Binding + "</ShadowList.KeyBindings>"
+                      + "<ShadowList.ItemContainerTheme>" + UnfocusableRow + "</ShadowList.ItemContainerTheme>" + TextRows + "</ShadowList>";
+        Write("View.axaml", View(Shadow("<Setter Property=\"Focusable\" Value=\"True\" /><Setter Property=\"ShadowList.Focusable\" Value=\"False\" />"), list));
+        AssertLive(Run());
+        Write("View.axaml", View(Shadow("<Setter Property=\"ListBox.Focusable\" Value=\"False\" />"), list));
+        AssertDead(Run());
+    }
+
+    /// <summary>
+    /// A theme applies only where its <c>TargetType</c> is assignable from the control's style key: measured, a list whose
+    /// <c>StyleKeyOverride</c> is <c>ListBox</c>, given a theme whose <c>TargetType</c> is the list's own type, took none of
+    /// its setters, as did one whose <c>StyleKeyOverride</c> returned <c>ListBox</c> through a field. What applies instead
+    /// is not read, and a key returned other than by a <c>typeof</c> is not either, so the binding is named in
+    /// <c>Skipped</c>.
+    /// </summary>
+    [Fact]
+    public void AThemeThatIsNotTheStyleKeys_IsNotFollowed()
+    {
+        Write("View.axaml", View(
+            "<UserControl.Resources><ControlTheme x:Key=\"Mine\" TargetType=\"local:BorrowingListBox\">"
+            + "<Setter Property=\"Focusable\" Value=\"True\" /></ControlTheme></UserControl.Resources>",
+            $"<local:BorrowingListBox ItemsSource=\"{{Binding Rows}}\" Theme=\"{{StaticResource Mine}}\"><local:BorrowingListBox.KeyBindings>{Binding}"
+            + $"</local:BorrowingListBox.KeyBindings><local:BorrowingListBox.ItemContainerTheme>{UnfocusableRow}</local:BorrowingListBox.ItemContainerTheme>"
+            + $"{TextRows}</local:BorrowingListBox>"));
+        Assert.Contains("does not apply it", AssertSkipped(Run()).Reason, StringComparison.Ordinal);
+
+        // So it is for the rows: a list's ListBoxItem containers take nothing from a theme for ComboBoxItem.
+        Write("View.axaml", View("", List("<ListBox.ItemContainerTheme><ControlTheme TargetType=\"ComboBoxItem\">"
+                                          + "<Setter Property=\"Focusable\" Value=\"True\" /></ControlTheme></ListBox.ItemContainerTheme>" + TextRows)));
+        Assert.Contains("does not apply it", AssertSkipped(Run()).Reason, StringComparison.Ordinal);
+
+        // A key its StyleKeyOverride returns through a field is not one its getter shows, so no theme for it is followed.
+        Write("View.axaml", View(
+            "<UserControl.Resources><ControlTheme x:Key=\"Mine\" TargetType=\"local:FieldKeyListBox\">"
+            + "<Setter Property=\"Focusable\" Value=\"True\" /></ControlTheme></UserControl.Resources>",
+            $"<local:FieldKeyListBox ItemsSource=\"{{Binding Rows}}\" Theme=\"{{StaticResource Mine}}\"><local:FieldKeyListBox.KeyBindings>{Binding}"
+            + $"</local:FieldKeyListBox.KeyBindings><local:FieldKeyListBox.ItemContainerTheme>{UnfocusableRow}</local:FieldKeyListBox.ItemContainerTheme>"
+            + $"{TextRows}</local:FieldKeyListBox>"));
+        Assert.Contains("StyleKeyOverride", AssertSkipped(Run()).Reason, StringComparison.Ordinal);
+    }
+
     /// <summary>A container theme that a list's theme writes as a setter's content is followed like one it names.</summary>
     [Fact]
     public void AnItemContainerThemeWrittenAsASettersContent_IsFollowed()

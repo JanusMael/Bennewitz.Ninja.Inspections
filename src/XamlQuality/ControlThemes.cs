@@ -36,13 +36,42 @@ internal static class ControlThemes
     }
 
     /// <summary>
-    /// The control a <c>ControlTheme</c> targets, as a bare type name.
+    /// The control a <c>ControlTheme</c> targets, as a bare type name; <c>null</c> when it names none.
     /// </summary>
     /// <remarks>
     /// ⚠ Both spellings occur and each is idiomatic: <c>TargetType="local:Thing"</c> and
-    /// <c>TargetType="{x:Type local:Thing}"</c>. Handling one silently halves a rule's reach.
+    /// <c>TargetType="{x:Type local:Thing}"</c>. Handling one silently halves a rule's reach. <c>ThemeReader</c>
+    /// reads a theme's setters against the control it targets, so it reads the target here too.
     /// </remarks>
-    private static string? TargetTypeOf(XElement theme)
+    internal static string? TargetTypeOf(XElement theme)
+    {
+        if (WrittenTargetType(theme) is not { } raw)
+        {
+            return null;
+        }
+
+        int colon = raw.LastIndexOf(':');
+        string name = colon >= 0 ? raw[(colon + 1)..] : raw;
+        return name.Length == 0 ? null : name;
+    }
+
+    /// <summary>
+    /// The prefix a <c>ControlTheme</c>'s <c>TargetType</c> is written with, in either spelling; <c>null</c> when it has
+    /// none or names no type.
+    /// </summary>
+    internal static string? TargetTypePrefixOf(XElement theme)
+    {
+        if (WrittenTargetType(theme) is not { } raw)
+        {
+            return null;
+        }
+
+        int colon = raw.LastIndexOf(':');
+        return colon > 0 ? raw[..colon] : null;
+    }
+
+    /// <summary>The type a <c>TargetType</c> names as it is written, prefix and all, out of an <c>x:Type</c> if it is in one.</summary>
+    private static string? WrittenTargetType(XElement theme)
     {
         string? raw = theme.Attributes()
             .FirstOrDefault(a => string.Equals(a.Name.LocalName, "TargetType", StringComparison.Ordinal))
@@ -60,8 +89,6 @@ internal static class ControlThemes
             raw = raw.TrimEnd('}').Split(' ', StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? raw;
         }
 
-        int colon = raw.LastIndexOf(':');
-        string name = colon >= 0 ? raw[(colon + 1)..] : raw;
-        return name.Length == 0 ? null : name;
+        return raw;
     }
 }
