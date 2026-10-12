@@ -208,7 +208,7 @@ counts.
 | `BNXQ1007` counts only an explicit, non-blank id: `AutomationProperties.AutomationId` in either spelling, or MAUI's plain `AutomationId`. An `x:Name` is not one, a blank attribute is reported as empty, and an empty property element sets nothing | A control found only by the id a framework derives from its field name passes, or a blank id that hides the derived one passes | `AutomationIdentifier` remarks and `AutomationIdentifier.Of`; tests `InteractiveAutomationIdRuleTests.XName_IsNotAnExplicitId`, `InteractiveAutomationIdRuleTests.AnEmptyOrBlankAttribute_IsReportedAsEmpty`, `InteractiveAutomationIdRuleTests.AnEmptyPropertyElement_IsNotAnId`, `InteractiveAutomationIdRuleTests.AnAutomationName_IsNotAnId`, `InteractiveAutomationIdRuleTests.MauisPlainAutomationId_Counts` |
 | `BNXQ1007` covers `Expander`, which `BNXQ1002` leaves to `BNXQ1001` | An Expander's id is checked by no rule | `InteractiveAutomationIdRule` remarks; test `InteractiveAutomationIdRuleTests.AnExpander_IsCovered` |
 | `BNXQ1003` counts a `PART_` literal only when the next call is a lookup whose name starts with `Find` or `Get`, and never the bare prefix | Compiled XAML's element-name registrations read as parts, and compiled theme classes show up as controls | `TemplatePartRule` (its private `IsLookup` and `IsPartName`), `CompiledStrings.LoadedBy`; tests `TemplatePartRuleTests.ALiteralThatNamesAnElement_IsNotALookup`, `TemplatePartRuleTests.ANameBuiltAtRuntime_IsNotReadAsAPart` |
-| `BNXQ1003` reads every type an assembly loads, public or not, and credits a lambda's literals to the control that declares it | A part looked up from an internal control, or inside a lambda, goes unchecked | `TemplatePartRule` (its private `TypesOf` and `ReadControls`); tests `TemplatePartRuleTests.AnInternalControlWithAPrivateConstant_IsChecked`, `TemplatePartRuleTests.ALiteralInsideALambda_IsCreditedToItsControl` |
+| `BNXQ1003` reads every type an assembly loads, public or not, and credits a lambda's literals to the control that declares it | A part looked up from an internal control, or inside a lambda, goes unchecked | `TemplatePartRule` (its private `ReadControls`), `LoadedTypes.Of`; tests `TemplatePartRuleTests.AnInternalControlWithAPrivateConstant_IsChecked`, `TemplatePartRuleTests.ALiteralInsideALambda_IsCreditedToItsControl` |
 | `BNXQ1003` credits a lookup to each control that hands the method making it its template or the template's name scope: from the `OnApplyTemplate` the control resolves to, its base's included, through calls and constructors in the scanned assemblies. A method no control hands its template to keeps its lookups as its own type's, and a parameter of type `object` does not take a template | A helper's lookups are checked against no theme and reach a consumer only as a skip's prose, or a handler on another control's template is charged to a control that never handed it one | `TemplatePartRule` (its private `ReadControls`, `HandedTemplate` and `Takes`), `CompiledStrings.CalledBy`; tests `TemplatePartRuleTests.AHelperHandedTheTemplate_HasItsLookupsCheckedAgainstTheControlsTheme`, `TemplatePartRuleTests.AHelperHandedTheTemplate_IsNamedOnlyForTheLookupsNoControlHandsIt`, `TemplatePartRuleTests.TwoControlsHandingOneHelper_AreEachChecked`, `TemplatePartRuleTests.AHandedNameScope_IsFollowed`, `TemplatePartRuleTests.AChainOfHelpers_IsFollowed`, `TemplatePartRuleTests.ABaseClassesLookups_AreCheckedAgainstTheSubclassesTheme`, `TemplatePartRuleTests.AnObjectParameter_DoesNotTakeTheTemplate`, `TemplatePartRuleTests.AHelperConstructedWithTheTemplate_IsFollowed` |
 | `BNXQ1003` matches parts inside their own `ControlTheme`, and reports only a part the code looks up and the theme omits | One theme satisfies another's lookups, or a name that exists only for a style selector is reported as a defect | `TemplatePartRule` remarks; tests `TemplatePartRuleTests.OneThemeDoesNotSatisfyAnother_InTheSameFile`, `TemplatePartRuleTests.APartNamedOnlyForAStyleSelector_IsNotAViolation` |
 | IL is decoded instruction by instruction, each operand stepped over by its declared size | An operand byte that happens to equal the `ldstr` opcode is misread as a string load | `CompiledStrings` remarks |
@@ -270,6 +270,25 @@ dotnet pack XamlQuality.slnx -c Release -p:Version=0.0.0-local --output ./packag
   because the rules compare paths (`.github/workflows/ci.yml`).
 
 ### 3. Checklists
+
+#### Budgeting a change, before it starts
+
+- **Set the review budget first.** A new rule, or a change to one, is ready when the suite passes, the
+  mutations planted in the code it touches each fail a test, the real-code comparison against `main`
+  holds (TailBlazer before and after `e8e851c`, and ClaudeForge), and at most two independent reviews
+  have run. After that, only a false claim on real code holds the merge back; anything else a review
+  finds goes into `PROGRESS.md`'s backlog with its measurement. A rule is opt-in and a wrong finding is
+  fixed by the next release, while a review with no end holds back everything queued behind it.
+- **One concern per pull request.** A change to shared code that alters another rule's output ships in
+  a pull request of its own, not inside a new rule's, so that each is reviewed on its own ground.
+- **Two lanes.** While a rule is in review, replies to other repositories, documentation entries and
+  patches for other repositories go out as small pull requests from `main`, and none of them waits for
+  the rule. `PROGRESS.md`'s requests table lists every request from another repository with the date it
+  arrived.
+- **A document states the contract; the tests hold the cases.** A remark, a README paragraph or a row
+  here says what a rule requires, what it skips and why; the edge cases live in tests, which run. Each
+  sentence a document adds is a claim a review can refute and a fix must rewrite. Keep a pull request's
+  description to about a page.
 
 #### Adding a rule
 

@@ -71,6 +71,24 @@ moves its pin past `2026.3.924` renames them in its test names, messages and com
   proposed the peer check, written as `BNXQ1006` in PR #27, and the reading of a helper's lookups that
   `BNXQ1003` gained in PR #30.
 
+## Requests from other repositories
+
+Every request another repository has made of this one, with the date it arrived, so that its age is
+seen. A lesson for `docs/avalonia-gotchas.md` or `docs/ai-drivable-ui.md` is checked before it lands,
+and its sender hears landed, changed or declined; one that needs a real window and real input waits for
+a time the developer names.
+
+| Arrived | From | Request | State |
+|---|---|---|---|
+| 2026-09-28 | DiffView | Five lessons from its plan 00029: raising a menu item's `Click` does not toggle it, key bindings run before `KeyDown`, and three facts about driving X11 | Received, and a receipt sent on 2026-10-10. Not checked |
+| 2026-09-30 | DiffView | A headless hit-test reads the last composed frame, not the layout | Received, and a receipt sent on 2026-10-10. Not checked |
+| 2026-10-03 | DiffView | A public `BNXQ1003` reading: per control, the parts it looks up as distinct from the `PART_` constants it only declares, and which code makes each lookup | Accepted; second in the code lane, after the verification tooling |
+| 2026-10-08 | DiffView | Twelve findings from driving an Avalonia app on Windows through UI Automation | Received, and a receipt sent on 2026-10-10. Not checked |
+| 2026-10-08 | TailBlazer | A correction to the render-tier entry, the cost of the software renderer, and a headless click that lands where a control used to be | Received, and a receipt sent on 2026-10-10. Not checked |
+| 2026-10-09 | DiffView | Two driving lessons: a drag's success is not its effect, and a menu's automation window is not the popup it is drawn in | Received, and a receipt sent on 2026-10-10. Not checked |
+| 2026-10-09 | Templates | Trimming, side 2: when a repository trims, every `Bennewitz.Ninja.*` package in its restore graph carries `IsTrimmable` | Accepted, and the approach agreed on 2026-10-10; waits for Templates' side 1 to merge |
+| 2026-10-10 | DiffView | Three lessons for the guide: a harness that counts silence as success, the automation patterns of stock template parts, and asking before borrowing the desktop | Received, and a receipt sent on 2026-10-10. Not checked |
+
 ## Rule backlog
 
 Ids are permanent, and the README's rules table is generated from them, so an id is assigned only
@@ -92,6 +110,12 @@ None open.
 
 ## Follow-ups
 
+- **The verification tooling moves into the repository**, first in the code lane, by the developer's
+  decisions of 2026-10-09 and 2026-10-10: the headless probe that measures rows under Fluent, Simple
+  and Semi, the real-code comparison against `main` with its inputs pinned, and the mutation runner
+  that rebuilds only the library, under `tools/`, so that each check is one command and CI can run
+  the real-code comparison. Until then they live in working sessions' folders, and every round
+  rebuilds them.
 - **BNXQ1004 reads five things more narrowly than the framework, and `BNXQ1008` shares three of
   them through `GridLayout`.** The first four were found while building PR #20, and each is left
   for a change of its own, because each can add findings or skips on a consumer's markup:
