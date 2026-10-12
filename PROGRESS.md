@@ -11,6 +11,21 @@ released, who depends on what, and the rule backlog with any questions open for 
 | `main` | carries `BNXQ1010`, a new rule, and the docs changes listed below |
 | Next release | Once `BNXQ1003`'s public reading and `BNXQ1009`'s `ItemsSource` follow-up have landed, not on `BNXQ1010` alone, by the developer's decision of 2026-10-12. One release per calendar day |
 | Agent skill | `drivable-ui`, served from `main` as a Claude Code plugin since PR #47, by the developer's decision of 2026-09-29: `claude plugin marketplace add JanusMael/Bennewitz.Ninja.XamlQuality`, then `claude plugin install drivable-ui@xamlquality`. It is in neither package, so it ships on merge, not on a tag |
+| Verification tooling | Under `tools/`, by [`plans/00001`](plans/00001-verification-tooling.md), complete: the real-code comparison, `tools/real-code.cs`, since PR #53; the mutation runner, `tools/mutate.cs`, since PR #54; and the headless probe, `tools/probe.cs` over `tools/probe/`, since PR #56. CI's required `Verification tools` job runs the first two and builds the third. Where they depart from the plan is listed below |
+
+### Where the verification tooling departs from plan 00001
+
+- `--from` reads a local clone with `git clone --shared` and a checkout, not with `git archive`, so
+  that an input fetched and one taken from a clone are both git checkouts when they build.
+- `tools/mutate.cs` keeps the shared compiler server on, which a run can leave running as any
+  `dotnet build` does, where the plan said no process a run started is left: turning it off took
+  each defect from 2.7 s to 10 s. It also refuses a baseline that runs fewer tests than the class's
+  `[Fact]` tests, and reports a run that ran no test or exited non-zero naming none, where
+  `pmutate_fast.py` read both as clean.
+- A probe case that names a compiled view reads the view's markup from beside the probe's build
+  output, where `tools/probe/Probe/Probe.csproj` copies it, not from a folder beside the build. The
+  plan allowed the probe to change only where warnings as errors stopped it compiling, and none did;
+  the folder the cases read existed only in the scratch layout the probe came from.
 
 ### On `main`, not yet released
 
@@ -113,20 +128,28 @@ None open.
 
 ## Follow-ups
 
-- **The verification tooling moves into the repository**, first in the code lane, by the developer's
-  decisions of 2026-10-09 and 2026-10-10, as [`plans/00001`](plans/00001-verification-tooling.md),
-  approved on 2026-10-12. The real-code comparison, the mutation runner and the headless probe move
-  under `tools/`, one command each, in that order and a pull request each, and a required CI job,
-  `Verification tools`, runs the real-code comparison over ClaudeForge, DiffView and ScopedEditors.
-  Step 2, the real-code comparison, landed as `tools/real-code.cs` in PR #53, and step 3, the
-  mutation runner, as `tools/mutate.cs` in PR #54. Step 4, the probe, has not, so it still lives in
-  working sessions' folders. Drift from the plan: `--from` reads a local clone with
-  `git clone --shared` and a checkout, not with `git archive`, so that an input fetched and one taken
-  from a clone are both git checkouts when they build. `tools/mutate.cs` keeps the shared compiler
-  server on, which a run can leave running as any `dotnet build` does, where the plan said no process
-  a run started is left: turning it off took each defect from 2.7 s to 10 s. It also refuses a
-  baseline that runs fewer tests than the class's `[Fact]` tests, and reports a run that ran no test
-  or exited non-zero naming none, where `pmutate_fast.py` read both as clean.
+- **The probe's run over every case flags 18 `BNXQ1009` verdicts nobody has read.** `tools/probe.cs`
+  judges all three rules on every case it runs, and over all 603 it flags 23 verdicts. Three are
+  `U6F1`, `U6F2` and `U6F3`, which judge 16 flagged and declared. Two are limits `BNXQ1010` declares:
+  `K11c`, whose rows' code sets their `Background` through `SetValue`, which
+  `ElementTypes.CodeSetsPaint` does not see, and `S11b`, whose style asks for a property the rows'
+  theme binds to each item and so is taken to paint only some rows. The other 18 are `BNXQ1009` clean
+  verdicts on cases written to measure `BNXQ1010`, where every row's peer reports its item's
+  `ToString()`: `J08`, `J08b`, `J08c`, `K24`, `Q05`, `Q05c`, `Q15`, `Q16`, `R03`, `R04`, `R20`,
+  `R20b`, `V908`, `V911`, `V911b`, `X9`, `Z17` and `Z32`. By their descriptions, their rows present
+  the item through something other than the item template, or present nothing, as `X9`'s
+  `{x:Null}` template does, while `BNXQ1009` takes the item template's `TextBlock` root to name them.
+  None has been read against the rule; reading them is a change of its own, since a fix can add
+  findings.
+- **One case reads differently now that every case shares one assembly.** `W03b`, a row template
+  whose `ContentControl` holds a `Border` bound to the `ListBoxItem` ancestor in the logical tree, was
+  a `BNXQ1010` finding when the scan was given judge 12's build of the probe, and is a skip in
+  `tools/probe`'s. That build also holds judge 16's `FpProbe6.Alt16.ContentControl`, a `ListBoxItem`,
+  and `ElementTypes.Resolve` takes a type the scan is given over the framework's of the same local
+  name, so the rule counts the `ContentControl` as a nearer `ListBoxItem` and cannot say the binding
+  reaches the row. Elements are matched by local name by design, so wherever the scan is given an
+  input element named after a framework one, every element markup writes by that name is read as the
+  consumer's type; here it costs a skip.
 - **`tools/mutate.cs` names only a class's `[Fact]` tests among those no defect failed**, as
   `pmutate_fast.py` did, so a `[Theory]` that no defect fails goes unnamed, and
   `ItemContainerNameRuleTests` holds seventeen. Discovering theories too is a change of its own.
