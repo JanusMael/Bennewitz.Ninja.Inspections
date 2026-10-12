@@ -188,32 +188,45 @@ Note `BorderThickness` may stay an attribute — nothing styles it, so there's n
 
 Working reference: `Button.hint-segment` / `.active` in `GuidedRuleBuilderView.axaml` — its default `Background="Transparent"` is a *Style setter*, which is exactly why its conditional `.active` override works.
 
-### A control's `Styles` apply to its DESCENDANTS, not to itself
+### A control's `Styles` apply to the control itself, as well as to its descendants
 
-**Symptom:** A `<Style Selector="Border.foo">` placed inside that very Border's `<Border.Styles>` never matches it.
+**Symptom:** A style meant for the controls inside another, such as `<Style Selector="Border">` in a
+`Border`'s own `<Border.Styles>`, restyles that `Border` too.
 
-**Cause:** Styles hosted by a control are applied down the tree; the host is not matched by its own `Styles` collection.
+**Cause:** A control applies the styles in each ancestor's `Styles` collection, the outermost first,
+and then the styles in its own (`StyledElement.ApplyStyles`, read at 12.1.3), so its own collection is
+matched against it like any other. Measured on 12.1.3, headless, under Fluent, Simple and Semi
+12.1.0.1: a `Border` whose own `Border.Styles` held `Border.foo`, with `Classes.foo` bound to a
+property that is `true`, took that style's `Background`, and so did a `Border` in a control template
+styled from its own `Border.Styles`.
 
-**Fix:** Hoist the style to the **parent** (or to `UserControl.Styles` / `App.axaml`). The codebase convention is visible in `MainWindow.axaml`, where `<TreeView.Styles>` only ever targets descendants (`TreeView > TreeViewItem`, `TreeViewItem:selected /template/ …`).
+**Fix:** Give a style meant only for what a control holds a selector the control itself does not
+match, such as a class only those controls carry. A style for the control itself reaches it from its
+own `Styles` as well as from an ancestor's. If a class-driven style does nothing, look for a local
+value first: an attribute that sets the same property outranks every style, as the entry above
+explains.
 
 ```xml
-<!-- BAD: never matches the Border hosting it -->
-<Border Classes.foo="{Binding Flag}">
+<!-- Restyles the outer Border as well as the inner one -->
+<Border>
     <Border.Styles>
-        <Style Selector="Border.foo">...</Style>
+        <Style Selector="Border">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
     </Border.Styles>
+    <Border />
 </Border>
 
-<!-- GOOD: style lives on the parent, Border is a descendant -->
-<StackPanel>
-    <StackPanel.Styles>
-        <Style Selector="Border.foo">...</Style>
-    </StackPanel.Styles>
-    <Border Classes.foo="{Binding Flag}" />
-</StackPanel>
+<!-- Restyles only the inner Border -->
+<Border>
+    <Border.Styles>
+        <Style Selector="Border.inner">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+    </Border.Styles>
+    <Border Classes="inner" />
+</Border>
 ```
-
-Both traps can be present at once and mask each other — fixing only the scoping still leaves the LocalValue beating the setter. If a class-driven style does nothing, check **both**.
 
 ### In a selector with a comma, an unqualified setter property is looked up on the alternatives' common base
 
