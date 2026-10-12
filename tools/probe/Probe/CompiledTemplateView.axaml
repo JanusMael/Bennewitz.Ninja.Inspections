@@ -1,0 +1,12 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="FpProbe6.CompiledTemplateView">
+  <UserControl.Resources>
+    <DataTemplate x:Key="Unused">
+      <Border Background="Red"><TextBlock Text="unused"/></Border>
+    </DataTemplate>
+  </UserControl.Resources>
+  <Grid>
+    <TextBlock Text="view" HorizontalAlignment="Left"/>
+  </Grid>
+</UserControl>

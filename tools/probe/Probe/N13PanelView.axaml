@@ -1,0 +1,24 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="FpProbe6.N13PanelView">
+  <ListBox Name="Inner" Width="300" Height="200" ItemsSource="{ReflectionBinding Rows}">
+    <ListBox.ItemContainerTheme>
+      <ControlTheme TargetType="ListBoxItem">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Template">
+          <ControlTemplate>
+            <Panel Border.Background="{TemplateBinding Background}">
+              <ContentPresenter Name="PART_ContentPresenter"
+                                Content="{TemplateBinding Content}"
+                                ContentTemplate="{TemplateBinding ContentTemplate}"
+                                Padding="{TemplateBinding Padding}"
+                                HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"/>
+            </Panel>
+          </ControlTemplate>
+        </Setter>
+      </ControlTheme>
+    </ListBox.ItemContainerTheme>
+    <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{ReflectionBinding Label}" HorizontalAlignment="Left"/></DataTemplate></ListBox.ItemTemplate>
+  </ListBox>
+</UserControl>

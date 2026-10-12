@@ -1,0 +1,8 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="FpProbe6.CompiledPlainView">
+  <Grid>
+    <TextBlock Text="view" HorizontalAlignment="Left"/>
+    <TextBlock Text="!" HorizontalAlignment="Right"/>
+  </Grid>
+</UserControl>

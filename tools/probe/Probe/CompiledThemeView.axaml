@@ -1,0 +1,16 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="FpProbe6.CompiledThemeView">
+  <UserControl.Resources>
+    <ControlTheme x:Key="UnusedTheme" TargetType="ContentControl">
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border Background="Red"><ContentPresenter Content="{TemplateBinding Content}"/></Border>
+        </ControlTemplate>
+      </Setter>
+    </ControlTheme>
+  </UserControl.Resources>
+  <Grid>
+    <TextBlock Text="view" HorizontalAlignment="Left"/>
+  </Grid>
+</UserControl>

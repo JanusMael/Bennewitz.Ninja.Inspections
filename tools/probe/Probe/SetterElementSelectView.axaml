@@ -1,0 +1,28 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="FpProbe6.SetterElementSelectView">
+  <ListBox Name="Inner" Width="300" Height="200" ItemsSource="{ReflectionBinding Rows}">
+    <ListBox.ItemContainerTheme>
+      <ControlTheme TargetType="ListBoxItem">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Template">
+          <ControlTemplate>
+            <ContentPresenter Name="PART_ContentPresenter"
+                              Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              Padding="{TemplateBinding Padding}"
+                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"/>
+          </ControlTemplate>
+        </Setter>
+        <Setter Value="True"><Setter.Property>IsSelected</Setter.Property></Setter>
+        <Style Selector="^:selected">
+          <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Red"/>
+          </Style>
+        </Style>
+      </ControlTheme>
+    </ListBox.ItemContainerTheme>
+    <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{ReflectionBinding Label}" HorizontalAlignment="Left"/></DataTemplate></ListBox.ItemTemplate>
+  </ListBox>
+</UserControl>

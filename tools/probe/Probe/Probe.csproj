@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The headless probe: the cases the reviews of BNXQ1005, BNXQ1009 and BNXQ1010 wrote, each
+       measured under Fluent, Simple and Semi and dumped as markup for the rules to read.
+       tools/probe.cs drives it.
+       ⛔ The assembly and its namespace keep the name FpProbe6. Every case's markup names it
+       (clr-namespace:FpProbe6;assembly=FpProbe6), and the measurements and the rules' messages quote
+       it, so the records the cases were judged by compare only while it stays. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>FpProbe6</AssemblyName>
+    <RootNamespace>FpProbe6</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Headless" />
+    <PackageReference Include="Avalonia.Markup.Xaml.Loader" />
+    <PackageReference Include="Avalonia.Skia" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Themes.Simple" />
+    <PackageReference Include="Semi.Avalonia" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../ProbeLib/ProbeLib.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Each compiled view's markup, copied beside the build output, so a case that names the view
+         dumps the markup that was compiled. Content rather than None: Avalonia's build removes every
+         .axaml from None. -->
+    <Content Include="*.axaml" Link="views/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
