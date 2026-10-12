@@ -31,4 +31,18 @@
          like everything in this group: the rules library still takes no package reference. -->
     <PackageVersion Include="Bennewitz.Ninja.AssemblyQuality" Version="2026.3.928" />
   </ItemGroup>
+
+  <ItemGroup Label="Verification">
+    <!-- The headless probe under tools/probe only, which measures what Avalonia does under its
+         Fluent, Simple and Semi themes. ⛔ The rules LIBRARY takes none of these, as the Tool group
+         says: it reads markup as text, and nothing under tools/ ships. 12.1.3 is the Avalonia the
+         rules' framework claims were measured on. -->
+    <PackageVersion Include="Avalonia" Version="12.1.3" />
+    <PackageVersion Include="Avalonia.Headless" Version="12.1.3" />
+    <PackageVersion Include="Avalonia.Markup.Xaml.Loader" Version="12.1.3" />
+    <PackageVersion Include="Avalonia.Skia" Version="12.1.3" />
+    <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.3" />
+    <PackageVersion Include="Avalonia.Themes.Simple" Version="12.1.3" />
+    <PackageVersion Include="Semi.Avalonia" Version="12.1.0.1" />
+  </ItemGroup>
 </Project>

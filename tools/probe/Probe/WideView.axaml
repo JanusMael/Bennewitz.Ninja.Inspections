@@ -1,0 +1,5 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="FpProbe6.WideView">
+  <Border Width="600" Height="20" Background="Transparent"/>
+</UserControl>

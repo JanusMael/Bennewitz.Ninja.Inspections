@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A consumer's control library for the probe's cases: FpProbe6 references it and the rules are
+       not given it, so a case can ask what code in an assembly the scan reaches only by reference
+       does to a row. -->
+  <PropertyGroup>
+    <RootNamespace>ProbeLib</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+  </ItemGroup>
+</Project>

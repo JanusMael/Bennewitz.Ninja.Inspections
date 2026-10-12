@@ -1,0 +1,13 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="FpProbe6.CompiledBadgeView">
+  <UserControl.Resources>
+    <DataTemplate x:Key="Badge">
+      <Border Background="Red"><TextBlock Text="{Binding}"/></Border>
+    </DataTemplate>
+  </UserControl.Resources>
+  <Grid>
+    <TextBlock Text="view" HorizontalAlignment="Left"/>
+    <ContentPresenter Content="!" ContentTemplate="{StaticResource Badge}" HorizontalAlignment="Right"/>
+  </Grid>
+</UserControl>
