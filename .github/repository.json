@@ -15,7 +15,8 @@
     "Build & Test (windows-latest)",
     "Build & Test (macos-latest)",
     "Pack (verify the packages build)",
-    "conventions"
+    "conventions",
+    "Verification tools"
   ],
   "content": [],
   "undocumented": {

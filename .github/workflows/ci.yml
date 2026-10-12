@@ -88,3 +88,34 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: dotnet run --file scripts/repo-conventions.cs -- check
+
+  # The verification tooling of plans/00001. The real-code comparison runs every rule over the
+  # consumers' markup and build output that tools/real-code/inputs.json pins, and fails when what
+  # they print differs from the record of what main printed, tools/real-code/expected/. One
+  # platform is enough: the records are text, and the library writes their paths with '/'.
+  #
+  # ⚠ The job name is a required check in .github/repository.json, as the others are.
+  verification:
+    name: Verification tools
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      # Each input is fetched and built once; the key changes with the inputs, the SDK and the way
+      # real-code.cs builds them, any of which makes a cached build stale.
+      - name: Restore the real-code inputs
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/real-code
+          key: real-code-${{ runner.os }}-${{ hashFiles('tools/real-code/inputs.json', 'tools/real-code.cs', 'global.json') }}
+
+      - name: Real-code comparison
+        env:
+          XQ_REAL_CODE_CACHE: ${{ runner.temp }}/real-code
+        run: dotnet run --file tools/real-code.cs
