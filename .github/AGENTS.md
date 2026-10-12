@@ -4,7 +4,7 @@ The workflows and the repository's GitHub settings.
 
 | File | What it is |
 |---|---|
-| `workflows/ci.yml` | On every push and pull request: build with `-warnaserror` and test on Linux, Windows and macOS; pack both projects; the `conventions` job, which runs `scripts/repo-conventions.cs check`; and `Verification tools`, which runs the real-code comparison, `tools/real-code.cs`, on Linux |
+| `workflows/ci.yml` | On every push and pull request: build with `-warnaserror` and test on Linux, Windows and macOS; pack both projects; the `conventions` job, which runs `scripts/repo-conventions.cs check`; and `Verification tools`, which runs the real-code comparison, `tools/real-code.cs`, and the mutation runner's smoke catalog, `tools/mutate/smoke.json`, on Linux |
 | `workflows/release.yml` | One `publish` job. On a `v*.*.*` tag, or a dispatch with `version` filled in, it refuses to run without `NUGET_USER`, then builds, tests, packs at the tag's version, logs in through `NuGet/login`, pushes both packages with `--skip-duplicate`, and creates the GitHub Release. Dispatched with `version` blank, it only logs in and reports the preflight in the run summary |
 | `repository.json` | What this repository's GitHub settings vary by: description, topics, required checks, shipped content paths and exemptions. `scripts/repo-conventions.cs` applies and checks it |
 | `copilot-instructions.md` | A pointer to the root `AGENTS.md` for tools that look here |
