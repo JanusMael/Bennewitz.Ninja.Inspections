@@ -92,7 +92,8 @@ jobs:
   # The verification tooling of plans/00001. The real-code comparison runs every rule over the
   # consumers' markup and build output that tools/real-code/inputs.json pins, and fails when what
   # they print differs from the record of what main printed, tools/real-code/expected/. One
-  # platform is enough: the records are text, and the library writes their paths with '/'.
+  # platform is enough: the records are text, and the library writes their paths with '/'. The
+  # mutation runner's smoke catalog then shows tools/mutate.cs still works.
   #
   # ⚠ The job name is a required check in .github/repository.json, as the others are.
   verification:
@@ -119,3 +120,8 @@ jobs:
         env:
           XQ_REAL_CODE_CACHE: ${{ runner.temp }}/real-code
         run: dotnet run --file tools/real-code.cs
+
+      # Two defects in code that rarely changes, each failing one known test: the mutation runner
+      # still plants, rebuilds, runs and puts back, on a platform other than the one it was written on.
+      - name: Mutation runner smoke
+        run: dotnet run --file tools/mutate.cs -- ExpanderAutomationNameRuleTests tools/mutate/smoke.json --workers 2
