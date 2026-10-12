@@ -120,6 +120,9 @@ None open.
   `Verification tools`, runs the real-code comparison over ClaudeForge, DiffView and ScopedEditors.
   Step 2, the real-code comparison, landed as `tools/real-code.cs` in PR #53. Steps 3 and 4, the
   mutation runner and the probe, have not, so those two still live in working sessions' folders.
+  Drift from the plan: `--from` reads a local clone with `git clone --shared` and a checkout, not
+  with `git archive`, so that an input fetched and one taken from a clone are both git checkouts
+  when they build.
 - **BNXQ1004 reads five things more narrowly than the framework, and `BNXQ1008` shares three of
   them through `GridLayout`.** The first four were found while building PR #20, and each is left
   for a change of its own, because each can add findings or skips on a consumer's markup:
