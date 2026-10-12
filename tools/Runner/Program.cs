@@ -10,11 +10,16 @@ using Bennewitz.Ninja.XamlQuality;
 // keeps it out of the record.
 //
 // args: <rules> <markup root> <bin folder> [<assembly file in the bin folder>...]
+//       <rules> --each <folder> <bin folder> [<assembly file in the bin folder>...]
 //   <rules> is "all", every rule the library defines, or a comma-separated list of rule ids.
+//   --each runs the rules over every folder in <folder> as a markup root of its own, in ordinal order,
+//   each under a line naming it, "[<name>]", all in this one process: tools/probe.cs reads each of the
+//   probe's cases so.
 
-if (args.Length < 3)
+bool each = args.Length > 1 && args[1] == "--each";
+if (args.Length < (each ? 4 : 3))
 {
-    Console.Error.WriteLine("usage: Runner <all|BNXQnnnn,...> <markup root> <bin folder> [<assembly file>...]");
+    Console.Error.WriteLine("usage: Runner <all|BNXQnnnn,...> <markup root | --each <folder>> <bin folder> [<assembly file>...]");
     return 2;
 }
 
@@ -25,7 +30,8 @@ Console.OutputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false
 Assembly library = typeof(IXamlRule).Assembly;
 Console.WriteLine($"library {Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(library.Location)))[..16]}");
 
-string bin = Path.GetFullPath(args[2]);
+string markup = each ? args[2] : args[1];
+string bin = Path.GetFullPath(each ? args[3] : args[2]);
 AssemblyLoadContext.Default.Resolving += (context, name) =>
 {
     string candidate = Path.Combine(bin, name.Name + ".dll");
@@ -47,21 +53,34 @@ IXamlRule[] chosen = args[0] == "all"
     : [.. args[0].Split(',').Select(id => every.FirstOrDefault(rule => rule.Id == id)
         ?? throw new ArgumentException($"no rule has the id '{id}'"))];
 
-Assembly[] assemblies = [.. args.Skip(3).Select(file => AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.Combine(bin, file)))];
-XamlScanContext scan = XamlScanContext.Load(args[1]).WithAssemblies(assemblies);
-
-foreach (IXamlRule rule in chosen)
+Assembly[] assemblies = [.. args.Skip(each ? 4 : 3).Select(file => AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.Combine(bin, file)))];
+if (!each)
 {
-    XamlRuleResult result = rule.Analyze(scan);
+    Report(XamlScanContext.Load(markup).WithAssemblies(assemblies));
+    return 0;
+}
 
-    Console.WriteLine($"{rule.Id}: inspected {result.Inspected}, findings {result.Findings.Count}, skipped {result.Skipped.Count}");
-    foreach (string line in result.Findings
-                 .Select(finding => $"  finding {finding.RelativePath}:{finding.Line} {finding.Message}")
-                 .Concat(result.Skipped.Select(skip => $"  skipped {skip.RelativePath}:{skip.Line} {skip.Subject}: {skip.Reason}"))
-                 .Order(StringComparer.Ordinal))
-    {
-        Console.WriteLine(line);
-    }
+foreach (string root in Directory.GetDirectories(markup).Order(StringComparer.Ordinal))
+{
+    Console.WriteLine($"[{Path.GetFileName(root)}]");
+    Report(XamlScanContext.Load(root).WithAssemblies(assemblies));
 }
 
 return 0;
+
+void Report(XamlScanContext scan)
+{
+    foreach (IXamlRule rule in chosen)
+    {
+        XamlRuleResult result = rule.Analyze(scan);
+
+        Console.WriteLine($"{rule.Id}: inspected {result.Inspected}, findings {result.Findings.Count}, skipped {result.Skipped.Count}");
+        foreach (string line in result.Findings
+                     .Select(finding => $"  finding {finding.RelativePath}:{finding.Line} {finding.Message}")
+                     .Concat(result.Skipped.Select(skip => $"  skipped {skip.RelativePath}:{skip.Line} {skip.Subject}: {skip.Reason}"))
+                     .Order(StringComparer.Ordinal))
+        {
+            Console.WriteLine(line);
+        }
+    }
+}

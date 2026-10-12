@@ -179,7 +179,10 @@ commits `tools/real-code/inputs.json` pins, and compares what they print with a 
 what `main` printed. A change that alters what a rule says about real code shows it in its own diff,
 and CI's `Verification tools` job holds every pull request to the record. The mutation runner plants
 each defect a catalog lists in a copy of the working tree, one at a time, and reports whether exactly
-the tests the catalog expects failed. `tools/AGENTS.md` says how.
+the tests the catalog expects failed. The headless probe measures what Avalonia does with the cases
+the reviews of `BNXQ1005`, `BNXQ1009` and `BNXQ1010` wrote, under its Fluent, Simple and Semi themes,
+and judges what each of those rules says about each case against the measurements; CI builds it and
+does not run it. `tools/AGENTS.md` says how.
 
 ## Who consumes this
 
@@ -262,6 +265,7 @@ counts.
 | The marketplace lists the `drivable-ui` plugin by a relative path that holds its manifest and skill, the guide gives the commands that install it, and neither manifest pins a `version` | Every `claude plugin install drivable-ui@xamlquality` fails or installs a plugin with no skill, the guide's commands name a plugin nobody serves, or every install stays on a stale copy of the skill | `.claude-plugin/marketplace.json`; `docs/ai-drivable-ui/plugin/`; tests `PluginMarketplaceTests.The_marketplace_lists_the_plugin_by_a_path_that_holds_its_manifest`, `PluginMarketplaceTests.The_skill_is_where_the_plugin_loads_skills_and_is_named_for_its_folder`, `PluginMarketplaceTests.No_version_is_pinned_so_an_update_picks_up_every_change`, `PluginMarketplaceTests.The_skill_sends_its_reader_to_the_guide_that_exists`, `PluginMarketplaceTests.The_guide_gives_the_commands_the_marketplace_answers_to` |
 | Nothing under `tools/` ships: it is never packed, no project of it is in `XamlQuality.slnx`, and nothing in `src` or `tests` references it | A measuring tool lands in the folder beside the two packages a release names, or the library gains a dependency through a tool | `tools/Directory.Build.props` (`IsPackable`); `XamlQuality.slnx` |
 | `tools/real-code/expected/` is what `main`'s rules print over the inputs `tools/real-code/inputs.json` pins, and a pull request that changes it says why | A change to what a rule says about real code merges unseen, or a record `main` no longer prints fails every pull request after it | `tools/real-code.cs`; CI job `Verification tools`, a required check in `.github/repository.json` |
+| A case of the headless probe keeps its id and what it measures; a new question is a new case | A review's verdict, which cites a case by its id, silently comes to describe another measurement | `tools/probe/Probe`, whose `Cases.Every` lists every case; `tools/AGENTS.md`'s rules |
 
 ### 2. Commands
 
@@ -273,6 +277,7 @@ dotnet pack XamlQuality.slnx -c Release -p:Version=0.0.0-local --output ./packag
 dotnet run --file tools/real-code.cs
 dotnet run --file tools/real-code.cs -- --update
 dotnet run --file tools/mutate.cs -- <TestClass> <catalog.json>
+dotnet run --file tools/probe.cs -- <pattern>
 ```
 
 - The third regenerates the README's rules table (`RulesCatalogTests`). Commit the result; the build
@@ -281,6 +286,9 @@ dotnet run --file tools/mutate.cs -- <TestClass> <catalog.json>
   sixth rewrites the record from this tree. Read every line that moved before committing it.
 - The seventh plants each defect of a catalog in a copy of the tree and runs one test class; it
   refuses a run estimated past 30 minutes.
+- The eighth measures the headless probe's cases whose id matches the pattern, a trailing `*` taking
+  a prefix, and judges what `BNXQ1005`, `BNXQ1009` and `BNXQ1010` say about each against the
+  measurements; it exits 1 when a measurement refutes a verdict.
 - Tests run on Microsoft.Testing.Platform (`global.json`), so `dotnet test` takes `--solution` and
   rejects VSTest-only switches such as `--nologo`.
 - Write `-p:` rather than `/p:`. The workflows use `/p:` because they run on Linux; Git Bash on
@@ -295,10 +303,12 @@ dotnet run --file tools/mutate.cs -- <TestClass> <catalog.json>
 - **Set the review budget first.** A new rule, or a change to one, is ready when the suite passes, the
   mutations planted in the code it touches each fail a test (`tools/mutate.cs`), the real-code comparison holds
   (`tools/real-code.cs`, over ClaudeForge, DiffView and ScopedEditors), its record rewritten in the
-  same pull request wherever the change means to alter it, and at most two independent reviews have
-  run. After that, only a false claim on real code holds the merge back; anything else a review
-  finds goes into `PROGRESS.md`'s backlog with its measurement. A rule is opt-in and a wrong finding is
-  fixed by the next release, while a review with no end holds back everything queued behind it.
+  same pull request wherever the change means to alter it, what it claims the framework does is
+  measured headless under Fluent, Simple and Semi (`tools/probe.cs`), and at most two independent
+  reviews have run. After that, only a false claim on real code holds the merge back; anything else
+  a review finds goes into `PROGRESS.md`'s backlog with its measurement. A rule is opt-in and a wrong
+  finding is fixed by the next release, while a review with no end holds back everything queued
+  behind it.
 - **One concern per pull request.** A change to shared code that alters another rule's output ships in
   a pull request of its own, not inside a new rule's, so that each is reviewed on its own ground.
 - **Two lanes.** While a rule is in review, replies to other repositories, documentation entries and
@@ -327,7 +337,9 @@ dotnet run --file tools/mutate.cs -- <TestClass> <catalog.json>
    markers.
 7. Run it on real code before it lands: a consumer's markup and, for a rule that reads assemblies,
    its build output. Fixtures written from the report that motivated a rule reproduce the report,
-   not the codebase.
+   not the codebase. Where it claims what the framework does, measure the claim headless under
+   Fluent, Simple and Semi, as the cases in `tools/probe/Probe` measure the claims of `BNXQ1005`,
+   `BNXQ1009` and `BNXQ1010`.
 8. If the rule began as an entry in `docs/avalonia-gotchas.md`, leave a line in that entry naming the
    id.
 9. Add it to `PROGRESS.md`'s unreleased list, with its effect on a consumer.
