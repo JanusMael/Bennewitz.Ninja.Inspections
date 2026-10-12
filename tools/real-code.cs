@@ -247,6 +247,12 @@ static class Inputs
     // clean. An application copies its packages already; this makes a library do the same.
     private static readonly string[] BuildProperties = ["-p:CopyLocalLockFileAssemblies=true"];
 
+    // ⛔ Avalonia's build telemetry starts a process that outlives the build with its working directory
+    // in the project's folder, so the folder cannot be deleted when the input is prepared again.
+    // AVALONIA_TELEMETRY_OPTOUT is what Avalonia.BuildServices reads to stay off, and another
+    // project's build is not this repository's to report.
+    private static readonly Dictionary<string, string> BuildEnvironment = new() { ["AVALONIA_TELEMETRY_OPTOUT"] = "1" };
+
     /// <summary>
     /// The stamp names what was built and how, so a changed project, or a changed way of building it,
     /// is built again at the same commit.
@@ -281,7 +287,9 @@ static class Inputs
             ];
         foreach (string[] step in steps)
         {
-            (int exit, string output, string errors) = Shell.Run("git", folder, step);
+            // ⚠ Windows refuses a path past 260 characters unless git is told to accept it, and an
+            // input's deepest files sit far below a cache that is itself deep.
+            (int exit, string output, string errors) = Shell.Run("git", folder, ["-c", "core.longpaths=true", .. step]);
             if (exit != 0)
             {
                 return $"git {string.Join(' ', step)} failed:\n" + Shell.Tail(output + errors);
@@ -294,10 +302,11 @@ static class Inputs
             return $"the checkout is at '{head.Trim()}', not {input.Commit}.";
         }
 
-        // ⚠ From the input's own folder, so its global.json chooses the SDK and its NuGet.config the feeds.
+        // ⚠ From the input's own folder, so its global.json chooses the SDK and its NuGet.config the feeds,
+        // and with no node reuse, so no MSBuild node outlives the build either.
         string bin = Path.Combine(folder, "bin");
-        (int buildExit, string build, string buildErrors) = Shell.Run("dotnet", source,
-            ["build", Path.Combine(source, input.Project), "-c", "Release", "-o", bin, "-nologo", "-v:q", .. BuildProperties]);
+        (int buildExit, string build, string buildErrors) = Shell.RunWith(BuildEnvironment, "dotnet", source,
+            ["build", Path.Combine(source, input.Project), "-c", "Release", "-o", bin, "-nologo", "-v:q", "-nodeReuse:false", .. BuildProperties]);
         if (buildExit != 0)
         {
             return "the build failed:\n" + Shell.Tail(build + buildErrors);
@@ -315,7 +324,11 @@ static class Inputs
 
 static class Shell
 {
-    public static (int Exit, string Output, string Errors) Run(string file, string directory, params string[] arguments)
+    public static (int Exit, string Output, string Errors) Run(string file, string directory, params string[] arguments) =>
+        RunWith(null, file, directory, arguments);
+
+    public static (int Exit, string Output, string Errors) RunWith(IReadOnlyDictionary<string, string>? environment,
+        string file, string directory, params string[] arguments)
     {
         ProcessStartInfo start = new(file)
         {
@@ -325,6 +338,11 @@ static class Shell
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8,
         };
+        foreach ((string name, string value) in environment ?? new Dictionary<string, string>())
+        {
+            start.Environment[name] = value;
+        }
+
         foreach (string argument in arguments)
         {
             start.ArgumentList.Add(argument);
