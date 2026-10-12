@@ -118,11 +118,18 @@ None open.
   approved on 2026-10-12. The real-code comparison, the mutation runner and the headless probe move
   under `tools/`, one command each, in that order and a pull request each, and a required CI job,
   `Verification tools`, runs the real-code comparison over ClaudeForge, DiffView and ScopedEditors.
-  Step 2, the real-code comparison, landed as `tools/real-code.cs` in PR #53. Steps 3 and 4, the
-  mutation runner and the probe, have not, so those two still live in working sessions' folders.
-  Drift from the plan: `--from` reads a local clone with `git clone --shared` and a checkout, not
-  with `git archive`, so that an input fetched and one taken from a clone are both git checkouts
-  when they build.
+  Step 2, the real-code comparison, landed as `tools/real-code.cs` in PR #53, and step 3, the
+  mutation runner, as `tools/mutate.cs` in PR #54. Step 4, the probe, has not, so it still lives in
+  working sessions' folders. Drift from the plan: `--from` reads a local clone with
+  `git clone --shared` and a checkout, not with `git archive`, so that an input fetched and one taken
+  from a clone are both git checkouts when they build. `tools/mutate.cs` keeps the shared compiler
+  server on, which a run can leave running as any `dotnet build` does, where the plan said no process
+  a run started is left: turning it off took each defect from 2.7 s to 10 s. It also refuses a
+  baseline that runs fewer tests than the class's `[Fact]` tests, and reports a run that ran no test
+  or exited non-zero naming none, where `pmutate_fast.py` read both as clean.
+- **`tools/mutate.cs` names only a class's `[Fact]` tests among those no defect failed**, as
+  `pmutate_fast.py` did, so a `[Theory]` that no defect fails goes unnamed, and
+  `ItemContainerNameRuleTests` holds seventeen. Discovering theories too is a change of its own.
 - **BNXQ1004 reads five things more narrowly than the framework, and `BNXQ1008` shares three of
   them through `GridLayout`.** The first four were found while building PR #20, and each is left
   for a change of its own, because each can add findings or skips on a consumer's markup:
