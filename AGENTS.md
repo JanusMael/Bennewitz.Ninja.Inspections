@@ -177,7 +177,9 @@ issue when none is running, and cite them by path. Each document's header says s
 runs every rule over ClaudeForge's, DiffView's and ScopedEditors' markup and build output, at the
 commits `tools/real-code/inputs.json` pins, and compares what they print with a committed record of
 what `main` printed. A change that alters what a rule says about real code shows it in its own diff,
-and CI's `Verification tools` job holds every pull request to the record. `tools/AGENTS.md` says how.
+and CI's `Verification tools` job holds every pull request to the record. The mutation runner plants
+each defect a catalog lists in a copy of the working tree, one at a time, and reports whether exactly
+the tests the catalog expects failed. `tools/AGENTS.md` says how.
 
 ## Who consumes this
 
@@ -270,12 +272,15 @@ XQ_UPDATE_DOCS=1 dotnet test --solution XamlQuality.slnx
 dotnet pack XamlQuality.slnx -c Release -p:Version=0.0.0-local --output ./packages/local
 dotnet run --file tools/real-code.cs
 dotnet run --file tools/real-code.cs -- --update
+dotnet run --file tools/mutate.cs -- <TestClass> <catalog.json>
 ```
 
 - The third regenerates the README's rules table (`RulesCatalogTests`). Commit the result; the build
   never writes a tracked file.
 - The fifth compares what every rule prints over the pinned real code with `main`'s record, and the
   sixth rewrites the record from this tree. Read every line that moved before committing it.
+- The seventh plants each defect of a catalog in a copy of the tree and runs one test class; it
+  refuses a run estimated past 30 minutes.
 - Tests run on Microsoft.Testing.Platform (`global.json`), so `dotnet test` takes `--solution` and
   rejects VSTest-only switches such as `--nologo`.
 - Write `-p:` rather than `/p:`. The workflows use `/p:` because they run on Linux; Git Bash on
@@ -288,7 +293,7 @@ dotnet run --file tools/real-code.cs -- --update
 #### Budgeting a change, before it starts
 
 - **Set the review budget first.** A new rule, or a change to one, is ready when the suite passes, the
-  mutations planted in the code it touches each fail a test, the real-code comparison holds
+  mutations planted in the code it touches each fail a test (`tools/mutate.cs`), the real-code comparison holds
   (`tools/real-code.cs`, over ClaudeForge, DiffView and ScopedEditors), its record rewritten in the
   same pull request wherever the change means to alter it, and at most two independent reviews have
   run. After that, only a false claim on real code holds the merge back; anything else a review
@@ -316,7 +321,8 @@ dotnet run --file tools/real-code.cs -- --update
    a property is involved, the cases where the rule must stay silent, and one asserting `Inspected`
    is zero.
 5. Prove each test can fail. Remove the behaviour it covers, watch exactly that test fail, then
-   restore it by the inverse edit.
+   restore it by the inverse edit. `tools/mutate.cs` does this for a catalog of such defects, each in
+   a copy of the tree, which it never edits.
 6. Regenerate the README table. Prose about how the rule overlaps another goes outside the generated
    markers.
 7. Run it on real code before it lands: a consumer's markup and, for a rule that reads assemblies,
