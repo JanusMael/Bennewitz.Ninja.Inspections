@@ -51,7 +51,9 @@ imports the root's and sets `IsPackable` to `false`, and no project here is in `
   ends in `*`, every case whose id starts with what precedes it; `'*'` alone takes them all. It builds
   the probe and the runner, measures the cases in two passes under each of Fluent, Simple and Semi,
   dumps their markup, runs the three rules over every case in one process, and judges each verdict. It
-  exits 0 when no verdict is FALSE or MISSED, and 1, naming them, when one is.
+  exits 0 when no verdict is FALSE or MISSED, and 1, naming them, when one is. Over every case it
+  exits 1 today, on verdicts `PROGRESS.md` records, so what a change should leave as it was is the
+  list of flagged verdicts, not the exit code.
 - A verdict is judged as the reviews of these rules judged it, which `probe.cs`'s header spells out:
   a finding holds where the measurements show what it claims under every theme, a clean verdict is
   MISSED where they show the defect, and a skip, or any verdict on markup that does not load under
@@ -59,7 +61,7 @@ imports the root's and sets `IsPackable` to `false`, and no project here is in `
 - Its output lands in `artifacts/probe/`: `facts.txt` and `bound.txt`, the two passes; `cases/`, each
   case's markup as the rules read it; `rules.txt`; and `table.txt`, every verdict beside what was
   measured, then the counts and the verdicts the measurements refute.
-- The `U6` cases take under two minutes, and every case eight to ten, well inside the 30 minutes a
+- The `U6` cases take under two minutes, and every case under ten, well inside the 30 minutes a
   verification run is allowed.
 - A claim about what Avalonia does is measured by a case. A new question is a new case, with an id
   of its own, in a `Cases*.cs` file whose array `Cases.Every` lists.

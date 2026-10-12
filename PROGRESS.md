@@ -26,6 +26,9 @@ released, who depends on what, and the rule backlog with any questions open for 
   output, where `tools/probe/Probe/Probe.csproj` copies it, not from a folder beside the build. The
   plan allowed the probe to change only where warnings as errors stopped it compiling, and none did;
   the folder the cases read existed only in the scratch layout the probe came from.
+- `BNXQ1010` over judge 12's 391 cases prints judge 16's fix record for 390 of them, where the plan
+  asked for all. `W03b` reads as a skip, because the probe is now one assembly holding every
+  review's types; the follow-up on `W03b` below says how.
 
 ### On `main`, not yet released
 
@@ -136,11 +139,8 @@ None open.
   theme binds to each item and so is taken to paint only some rows. The other 18 are `BNXQ1009` clean
   verdicts on cases written to measure `BNXQ1010`, where every row's peer reports its item's
   `ToString()`: `J08`, `J08b`, `J08c`, `K24`, `Q05`, `Q05c`, `Q15`, `Q16`, `R03`, `R04`, `R20`,
-  `R20b`, `V908`, `V911`, `V911b`, `X9`, `Z17` and `Z32`. By their descriptions, their rows present
-  the item through something other than the item template, or present nothing, as `X9`'s
-  `{x:Null}` template does, while `BNXQ1009` takes the item template's `TextBlock` root to name them.
-  None has been read against the rule; reading them is a change of its own, since a fix can add
-  findings.
+  `R20b`, `V908`, `V911`, `V911b`, `X9`, `Z17` and `Z32`. None has been read against the rule;
+  reading them is a change of its own, since a fix can add findings.
 - **One case reads differently now that every case shares one assembly.** `W03b`, a row template
   whose `ContentControl` holds a `Border` bound to the `ListBoxItem` ancestor in the logical tree, was
   a `BNXQ1010` finding when the scan was given judge 12's build of the probe, and is a skip in
