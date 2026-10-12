@@ -1,0 +1,28 @@
+{
+  "inputs": [
+    {
+      "name": "claudeforge",
+      "repository": "https://github.com/JanusMael/ClaudeForge.git",
+      "commit": "70dc71354df261cbd823123ef10edd4da129325c",
+      "markup": "src",
+      "project": "src/ClaudeForge/ClaudeForge.csproj",
+      "assemblies": ["ClaudeForge.Avalonia.dll", "ClaudeForge.dll"]
+    },
+    {
+      "name": "diffview",
+      "repository": "https://github.com/JanusMael/Bennewitz.Ninja.DiffView.git",
+      "commit": "bf6b734df620a0f096a4663dc30da68871abd400",
+      "markup": "src/DiffView.Avalonia",
+      "project": "src/DiffView.Avalonia/DiffView.Avalonia.csproj",
+      "assemblies": ["DiffView.Avalonia.dll", "DiffView.Core.dll"]
+    },
+    {
+      "name": "scopededitors",
+      "repository": "https://github.com/JanusMael/Bennewitz.Ninja.ScopedEditors.git",
+      "commit": "8ff7363a9535a8e9535464976ac51c8b63f8a01a",
+      "markup": "src/ScopedEditors.AvaloniaUI",
+      "project": "src/ScopedEditors.AvaloniaUI/ScopedEditors.AvaloniaUI.csproj",
+      "assemblies": ["ScopedEditors.AvaloniaUI.dll", "ScopedEditors.ViewModels.dll", "ScopedEditors.Abstractions.dll"]
+    }
+  ]
+}

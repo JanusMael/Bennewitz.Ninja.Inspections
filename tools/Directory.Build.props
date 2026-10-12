@@ -1,0 +1,12 @@
+<Project>
+  <!-- MSBuild applies only the CLOSEST Directory.Build.props, so the repository root's settings are
+       imported explicitly: the target framework, nullable, warnings as errors and the
+       AutoVersioning reference hold here as everywhere else. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <!-- ⛔ Nothing under tools/ ships. The release names the two packages it publishes, and a tool
+         packed by accident would still land in the folder beside them. -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+</Project>
