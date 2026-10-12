@@ -93,7 +93,8 @@ jobs:
   # consumers' markup and build output that tools/real-code/inputs.json pins, and fails when what
   # they print differs from the record of what main printed, tools/real-code/expected/. One
   # platform is enough: the records are text, and the library writes their paths with '/'. The
-  # mutation runner's smoke catalog then shows tools/mutate.cs still works.
+  # mutation runner's smoke catalog then shows tools/mutate.cs still works, and the headless probe
+  # and tools/probe.cs, which runs it, still build.
   #
   # ⚠ The job name is a required check in .github/repository.json, as the others are.
   verification:
@@ -125,3 +126,13 @@ jobs:
       # still plants, rebuilds, runs and puts back, on a platform other than the one it was written on.
       - name: Mutation runner smoke
         run: dotnet run --file tools/mutate.cs -- ExpanderAutomationNameRuleTests tools/mutate/smoke.json --workers 2
+
+      # Built, not run: measuring the probe's cases here would gate every rule change on them, which
+      # plans/00001 leaves to a decision of its own. AVALONIA_TELEMETRY_OPTOUT keeps Avalonia's build
+      # telemetry, a process that outlives the build, from starting.
+      - name: Headless probe builds
+        env:
+          AVALONIA_TELEMETRY_OPTOUT: 1
+        run: |
+          dotnet build tools/probe/Probe/Probe.csproj -c Release
+          dotnet build tools/probe.cs
