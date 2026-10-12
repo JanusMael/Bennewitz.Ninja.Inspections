@@ -52,7 +52,8 @@ moves its pin past `2026.3.924` renames them in its test names, messages and com
   condenses the guide, lives here too since PR #47, moved from bb-skills, whose `feat/drivable-ui`
   branch the same decision retired once it merged; its history is kept there as the tag
   `archive/feat-drivable-ui`. Moving either file, or retitling a section or entry someone cites,
-  means telling them.
+  means telling them, TailBlazer excepted: by the developer's decision of 2026-10-12 it is told
+  nothing more.
 - **OpenForge2k's tests**, jmui's `ClaudeForge.Tests`, pin `2026.3.925` on `main`, test-only, since
   JanusMael/ClaudeForge#91 merged on 2026-09-25, and run BNXQ1001 alone. They use
   `XamlScanContext.Load`, `ExpanderAutomationNameRule`, and `XamlRuleResult.Inspected` /
@@ -75,8 +76,10 @@ moves its pin past `2026.3.924` renames them in its test names, messages and com
 
 Every request another repository has made of this one, with the date it arrived, so that its age is
 seen. A lesson for `docs/avalonia-gotchas.md` or `docs/ai-drivable-ui.md` is checked before it lands,
-and its sender hears landed, changed or declined; one that needs a real window and real input waits for
-a time the developer names.
+and its sender hears landed, changed or declined. One that needs a real window and real input is
+measured in Windows Sandbox, a desktop of its own, in a batch launched when the developer says so; one
+that needs X11 or an ARM64 machine is not reproduced here, and stays out of the documents. Both are
+the developer's decisions of 2026-10-12.
 
 | Arrived | From | Request | State |
 |---|---|---|---|
@@ -84,7 +87,7 @@ a time the developer names.
 | 2026-09-30 | DiffView | A headless hit-test reads the last composed frame, not the layout | Received, and a receipt sent on 2026-10-10. Not checked |
 | 2026-10-03 | DiffView | A public `BNXQ1003` reading: per control, the parts it looks up as distinct from the `PART_` constants it only declares, and which code makes each lookup | Accepted; second in the code lane, after the verification tooling |
 | 2026-10-08 | DiffView | Twelve findings from driving an Avalonia app on Windows through UI Automation | Received, and a receipt sent on 2026-10-10. Not checked |
-| 2026-10-08 | TailBlazer | A correction to the render-tier entry, the cost of the software renderer, and a headless click that lands where a control used to be | Received, and a receipt sent on 2026-10-10. Not checked |
+| 2026-10-08 | TailBlazer | A correction to the render-tier entry, the cost of the software renderer, and a headless click that lands where a control used to be | Received, and a receipt sent on 2026-10-10. Not checked. What lands gets no reply: TailBlazer is told nothing more, by the developer's decision of 2026-10-12 |
 | 2026-10-09 | DiffView | Two driving lessons: a drag's success is not its effect, and a menu's automation window is not the popup it is drawn in | Received, and a receipt sent on 2026-10-10. Not checked |
 | 2026-10-09 | Templates | Trimming, side 2: when a repository trims, every `Bennewitz.Ninja.*` package in its restore graph carries `IsTrimmable` | Accepted, and the approach agreed on 2026-10-10; waits for Templates' side 1 to merge |
 | 2026-10-10 | DiffView | Three lessons for the guide: a harness that counts silence as success, the automation patterns of stock template parts, and asking before borrowing the desktop | Received, and a receipt sent on 2026-10-10. Not checked |
@@ -111,11 +114,11 @@ None open.
 ## Follow-ups
 
 - **The verification tooling moves into the repository**, first in the code lane, by the developer's
-  decisions of 2026-10-09 and 2026-10-10: the headless probe that measures rows under Fluent, Simple
-  and Semi, the real-code comparison against `main` with its inputs pinned, and the mutation runner
-  that rebuilds only the library, under `tools/`, so that each check is one command and CI can run
-  the real-code comparison. Until then they live in working sessions' folders, and every round
-  rebuilds them.
+  decisions of 2026-10-09 and 2026-10-10, as [`plans/00001`](plans/00001-verification-tooling.md),
+  approved on 2026-10-12. The real-code comparison, the mutation runner and the headless probe move
+  under `tools/`, one command each, in that order and a pull request each, and a required CI job,
+  `Verification tools`, runs the real-code comparison over ClaudeForge, DiffView and ScopedEditors.
+  None of the plan's steps 2 to 4 has landed, so the tools still live in working sessions' folders.
 - **BNXQ1004 reads five things more narrowly than the framework, and `BNXQ1008` shares three of
   them through `GridLayout`.** The first four were found while building PR #20, and each is left
   for a change of its own, because each can add findings or skips on a consumer's markup:
