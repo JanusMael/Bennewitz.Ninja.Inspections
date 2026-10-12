@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Prints what the rules say about a consumer's markup and build output. It is built against
+       this tree's library, so it runs whatever the branch holds; tools/real-code.cs drives it. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/XamlQuality/XamlQuality.csproj" />
+  </ItemGroup>
+</Project>

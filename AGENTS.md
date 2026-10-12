@@ -171,6 +171,14 @@ promoted to a rule, and the entry keeps a line pointing at the rule's id, as `BN
 Other repositories contribute to both documents by message to the session working here, or by an
 issue when none is running, and cite them by path. Each document's header says so.
 
+## The verification tooling
+
+`tools/` holds what a change to a rule is checked with, by `plans/00001`. The real-code comparison
+runs every rule over ClaudeForge's, DiffView's and ScopedEditors' markup and build output, at the
+commits `tools/real-code/inputs.json` pins, and compares what they print with a committed record of
+what `main` printed. A change that alters what a rule says about real code shows it in its own diff,
+and CI's `Verification tools` job holds every pull request to the record. `tools/AGENTS.md` says how.
+
 ## Who consumes this
 
 Other repositories in the same family consume both packages. ScopedEditors' tests run the rules, and
@@ -250,6 +258,8 @@ counts.
 | The release names each package it publishes; no step globs `*.nupkg` | A future packable project is published permanently, or attached to a GitHub Release nobody chose it for | `.github/workflows/release.yml`; tests `ReleaseWorkflowTests.The_release_workflow_names_every_package_it_publishes`, `ReleaseWorkflowTests.The_release_workflow_still_has_both_publishing_steps` |
 | `NUGET_USER` is a repository variable holding the nuget.org profile name, and a release refuses to run without it | A masked value hides why a login fails, and a tag with it unset creates a GitHub Release for a package that never shipped | `.github/workflows/release.yml`, step `Refuse to release without NUGET_USER`; `docs/publishing.md` |
 | The marketplace lists the `drivable-ui` plugin by a relative path that holds its manifest and skill, the guide gives the commands that install it, and neither manifest pins a `version` | Every `claude plugin install drivable-ui@xamlquality` fails or installs a plugin with no skill, the guide's commands name a plugin nobody serves, or every install stays on a stale copy of the skill | `.claude-plugin/marketplace.json`; `docs/ai-drivable-ui/plugin/`; tests `PluginMarketplaceTests.The_marketplace_lists_the_plugin_by_a_path_that_holds_its_manifest`, `PluginMarketplaceTests.The_skill_is_where_the_plugin_loads_skills_and_is_named_for_its_folder`, `PluginMarketplaceTests.No_version_is_pinned_so_an_update_picks_up_every_change`, `PluginMarketplaceTests.The_skill_sends_its_reader_to_the_guide_that_exists`, `PluginMarketplaceTests.The_guide_gives_the_commands_the_marketplace_answers_to` |
+| Nothing under `tools/` ships: it is never packed, no project of it is in `XamlQuality.slnx`, and nothing in `src` or `tests` references it | A measuring tool lands in the folder beside the two packages a release names, or the library gains a dependency through a tool | `tools/Directory.Build.props` (`IsPackable`); `XamlQuality.slnx` |
+| `tools/real-code/expected/` is what `main`'s rules print over the inputs `tools/real-code/inputs.json` pins, and a pull request that changes it says why | A change to what a rule says about real code merges unseen, or a record `main` no longer prints fails every pull request after it | `tools/real-code.cs`; CI job `Verification tools`, a required check in `.github/repository.json` |
 
 ### 2. Commands
 
@@ -258,10 +268,14 @@ dotnet build XamlQuality.slnx -c Release
 dotnet test --solution XamlQuality.slnx
 XQ_UPDATE_DOCS=1 dotnet test --solution XamlQuality.slnx
 dotnet pack XamlQuality.slnx -c Release -p:Version=0.0.0-local --output ./packages/local
+dotnet run --file tools/real-code.cs
+dotnet run --file tools/real-code.cs -- --update
 ```
 
 - The third regenerates the README's rules table (`RulesCatalogTests`). Commit the result; the build
   never writes a tracked file.
+- The fifth compares what every rule prints over the pinned real code with `main`'s record, and the
+  sixth rewrites the record from this tree. Read every line that moved before committing it.
 - Tests run on Microsoft.Testing.Platform (`global.json`), so `dotnet test` takes `--solution` and
   rejects VSTest-only switches such as `--nologo`.
 - Write `-p:` rather than `/p:`. The workflows use `/p:` because they run on Linux; Git Bash on
@@ -274,9 +288,10 @@ dotnet pack XamlQuality.slnx -c Release -p:Version=0.0.0-local --output ./packag
 #### Budgeting a change, before it starts
 
 - **Set the review budget first.** A new rule, or a change to one, is ready when the suite passes, the
-  mutations planted in the code it touches each fail a test, the real-code comparison against `main`
-  holds (TailBlazer before and after `e8e851c`, and ClaudeForge), and at most two independent reviews
-  have run. After that, only a false claim on real code holds the merge back; anything else a review
+  mutations planted in the code it touches each fail a test, the real-code comparison holds
+  (`tools/real-code.cs`, over ClaudeForge, DiffView and ScopedEditors), its record rewritten in the
+  same pull request wherever the change means to alter it, and at most two independent reviews have
+  run. After that, only a false claim on real code holds the merge back; anything else a review
   finds goes into `PROGRESS.md`'s backlog with its measurement. A rule is opt-in and a wrong finding is
   fixed by the next release, while a review with no end holds back everything queued behind it.
 - **One concern per pull request.** A change to shared code that alters another rule's output ships in
