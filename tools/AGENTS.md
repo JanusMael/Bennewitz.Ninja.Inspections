@@ -9,9 +9,12 @@ imports the root's and sets `IsPackable` to `false`, and no project here is in `
 | `real-code.cs` | Runs every rule over the inputs `real-code/inputs.json` pins, and compares what they print with `real-code/expected/<input>.txt` | `dotnet run --file tools/real-code.cs`; CI's `Verification tools` job |
 | `real-code/inputs.json` | Each input's repository and commit, the folder its markup is read from, the project its assemblies are built from, and the assemblies the rules read | `real-code.cs` |
 | `real-code/expected/` | What `main`'s rules print over each input, the library's hash left out: the record a change is compared with | written by `real-code.cs --update` |
-| `Runner/` | Prints what the rules say about markup and build output, built against this tree's library | `real-code.cs` |
+| `Runner/` | Prints what the rules say about markup and build output, built against this tree's library; `--each` reads every folder in a folder as markup of its own, in one process | `real-code.cs`; `probe.cs` |
 | `mutate.cs` | Plants each defect a catalog lists in a copy of the working tree, one at a time, runs one test class, and reports whether exactly the tests the catalog expects failed | `dotnet run --file tools/mutate.cs -- <TestClass> <catalog.json>`; CI's `Verification tools` job, over `mutate/smoke.json` |
 | `mutate/smoke.json` | Two defects in code that rarely changes, each failing one known test of `ExpanderAutomationNameRuleTests`: the catalog CI runs to show the runner still works | `mutate.cs` |
+| `probe.cs` | Measures the probe's cases headless under Avalonia's Fluent, Simple and Semi themes, runs `BNXQ1010`, `BNXQ1009` and `BNXQ1005` over each, and judges every verdict against what was measured | `dotnet run --file tools/probe.cs -- <pattern>`; CI's `Verification tools` job builds it |
+| `probe/Probe/` | The headless probe, built as `FpProbe6`: the cases the reviews of those three rules wrote, each a list, combo or tab control, and the passes that measure them | `probe.cs`; CI's `Verification tools` job builds it |
+| `probe/ProbeLib/` | A consumer's control library, which the probe references and the rules are not given | `probe/Probe/` |
 
 ## The real-code comparison
 
@@ -42,6 +45,25 @@ imports the root's and sets `IsPackable` to `false`, and no project here is in `
   and a run estimated past 30 minutes is refused unless given `--over-30-minutes`.
 - Ctrl+C stops every process the run started and puts each planted file back; nothing is written.
 
+## The headless probe
+
+- `dotnet run --file tools/probe.cs -- <pattern>` takes the cases whose id is the pattern or, where it
+  ends in `*`, every case whose id starts with what precedes it; `'*'` alone takes them all. It builds
+  the probe and the runner, measures the cases in two passes under each of Fluent, Simple and Semi,
+  dumps their markup, runs the three rules over every case in one process, and judges each verdict. It
+  exits 0 when no verdict is FALSE or MISSED, and 1, naming them, when one is.
+- A verdict is judged as the reviews of these rules judged it, which `probe.cs`'s header spells out:
+  a finding holds where the measurements show what it claims under every theme, a clean verdict is
+  MISSED where they show the defect, and a skip, or any verdict on markup that does not load under
+  some theme, claims nothing.
+- Its output lands in `artifacts/probe/`: `facts.txt` and `bound.txt`, the two passes; `cases/`, each
+  case's markup as the rules read it; `rules.txt`; and `table.txt`, every verdict beside what was
+  measured, then the counts and the verdicts the measurements refute.
+- The `U6` cases take under two minutes, and every case eight to ten, well inside the 30 minutes a
+  verification run is allowed.
+- A claim about what Avalonia does is measured by a case. A new question is a new case, with an id
+  of its own, in a `Cases*.cs` file whose array `Cases.Every` lists.
+
 ## Rules
 
 | Rule | Why | Guarded by |
@@ -59,3 +81,9 @@ imports the root's and sets `IsPackable` to `false`, and no project here is in `
 | A run that ran no test, or exited non-zero without naming a failed one, is reported, never read as clean | Either would otherwise read as a defect no test caught, or one a test caught, by accident | `Worker.Mutate` |
 | Its builds take no MSBuild node reuse, and keep the shared compiler server | A reused node outlives the build, so a run, or one stopped with Ctrl+C, would leave processes behind; the compiler server serves every build on the machine, and turning it off took each defect from 2.7 s to 10 s | `Worker.Build` |
 | "Tests never failed" names a class's `[Fact]` tests only, as `pmutate_fast.py` did | A `[Theory]` that no defect fails is not named; `ItemContainerNameRuleTests` holds seventeen | `Worker.DiscoverTests`; `PROGRESS.md`'s follow-up |
+| A probe case keeps its id and what it measures; a new question is a new case | The reviews' verdicts cite cases by id, so an edited case silently changes what they say was measured | `probe/Probe/`; the root `AGENTS.md`'s invariants |
+| The probe's assembly and namespace stay `FpProbe6` | Every case's markup names it, and the measurements and the rules' messages quote it, so under another name the records stop comparing | `probe/Probe/Probe.csproj` |
+| The probe measures with `J16_CCTOR_OK` set and `J15_CCTOR_OK` unset, and the rules run with neither | Two reviews' cases hold a class constructor that fails unless its review's switch is set, as one that needs what a scan's process lacks does. Judge 16 measured its cases with its switch set and judge 15 its own with it unset, so `U5B5` measures its constructor failing; set either otherwise and a measurement moves from the one its review judged, and read with either, the rules never meet the failure the cases are for | `measuring` and `scanning` in `probe.cs` |
+| The rules read every case in one runner process | A process a case loads the library, the probe and Avalonia once for each case; one process prints what one a case printed, which the change that moved the probe here checked against the reviews' records | `--each` in `Runner/Program.cs`; `probe.cs` |
+| A compiled view's markup is copied beside the probe's build output, and a case's dump reads it there | A case that names a compiled view must dump the markup that was compiled, and the build output is the one place the probe can find it wherever it runs | the `Content` item in `probe/Probe/Probe.csproj`; `SourceView` in `probe/Probe/Program.cs` |
+| The probe builds with `AVALONIA_TELEMETRY_OPTOUT` set, and `probe.cs` builds it without node reuse | As for the real-code inputs: Avalonia's build telemetry starts a process that outlives the build, and so does a reused MSBuild node | `building` in `probe.cs`; the `Verification tools` job's step that builds it |
