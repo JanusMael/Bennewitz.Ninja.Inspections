@@ -118,7 +118,8 @@ None open.
   approved on 2026-10-12. The real-code comparison, the mutation runner and the headless probe move
   under `tools/`, one command each, in that order and a pull request each, and a required CI job,
   `Verification tools`, runs the real-code comparison over ClaudeForge, DiffView and ScopedEditors.
-  None of the plan's steps 2 to 4 has landed, so the tools still live in working sessions' folders.
+  Step 2, the real-code comparison, landed as `tools/real-code.cs` in PR #53. Steps 3 and 4, the
+  mutation runner and the probe, have not, so those two still live in working sessions' folders.
 - **BNXQ1004 reads five things more narrowly than the framework, and `BNXQ1008` shares three of
   them through `GridLayout`.** The first four were found while building PR #20, and each is left
   for a change of its own, because each can add findings or skips on a consumer's markup:
