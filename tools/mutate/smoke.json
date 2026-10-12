@@ -1,0 +1,16 @@
+[
+  {
+    "id": "S1-markup-under-obj-is-scanned",
+    "file": "src/XamlQuality/XamlScanContext.cs",
+    "old": "excludedDirectories ?? [\"bin\", \"obj\"],",
+    "new": "excludedDirectories ?? [\"bin\"],",
+    "expect": ["MarkupUnderObj_IsNotScanned"]
+  },
+  {
+    "id": "S2-an-empty-property-element-is-a-name",
+    "file": "src/XamlQuality/AutomationName.cs",
+    "old": "propertyElement.HasElements || !string.IsNullOrWhiteSpace(propertyElement.Value);",
+    "new": "propertyElement.HasElements || propertyElement.Name.LocalName.Length > 0;",
+    "expect": ["AnExpanderNamedByAnEmptyPropertyElement_IsReported"]
+  }
+]
