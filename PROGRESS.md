@@ -105,14 +105,14 @@ here, and stays out of the documents, by the developer's decision of 2026-10-12.
 | Arrived | From | Request | State |
 |---|---|---|---|
 | 2026-09-28 | DiffView | Five lessons from its plan 00029: raising a menu item's `Click` does not toggle it, key bindings run before `KeyDown`, and three facts about driving X11 | Received, and a receipt sent on 2026-10-10. Not checked |
-| 2026-09-30 | DiffView | A headless hit-test reads the last composed frame, not the layout | Received, and a receipt sent on 2026-10-10. Not checked |
-| 2026-10-03 | DiffView | A public `BNXQ1003` reading: per control, the parts it looks up as distinct from the `PART_` constants it only declares, and which code makes each lookup | Accepted; second in the code lane, after the verification tooling |
-| 2026-10-08 | DiffView | Twelve findings from driving an Avalonia app on Windows through UI Automation | Received, and a receipt sent on 2026-10-10. Not checked |
+| 2026-09-30 | DiffView | A headless hit-test reads the last composed frame, not the layout | Received, and a receipt sent on 2026-10-10. Measured in Windows Sandbox on 2026-10-13: it holds on a real window too, until the next frame is composed, in 10 rounds of 10. Not landed, and no outcome sent yet |
+| 2026-10-03 | DiffView | A public `BNXQ1003` reading: per control, the parts it looks up as distinct from the `PART_` constants it only declares, and which code makes each lookup | Accepted; second in the code lane, after the verification tooling. Plan 00002, revised on 2026-10-13 into two steps, the reading with the parts each theme declares, then a parts report the theme audit writes and checks, awaits the developer's approval of its text |
+| 2026-10-08 | DiffView | Twelve findings from driving an Avalonia app on Windows through UI Automation | Received, and a receipt sent on 2026-10-10. Items 1, 2, 3, 5, 6, 7, 8 and 11 measured in Windows Sandbox on 2026-10-13, on Avalonia 12.1.3: 1, 2, 3, 5 and 11 hold; 6 holds but for its claim that a process holding no foreground is always refused it, since one that had just sent input took it; 8 is narrowed, keys reaching a window with nothing focused but only its own bindings; 7 did not reproduce. Not landed, and no outcome sent yet |
 | 2026-10-08 | TailBlazer | A correction to the render-tier entry, the cost of the software renderer, and a headless click that lands where a control used to be | Received, and a receipt sent on 2026-10-10. Not checked. What lands gets no reply: TailBlazer is told nothing more, by the developer's decision of 2026-10-12 |
-| 2026-10-09 | DiffView | Two driving lessons: a drag's success is not its effect, and a menu's automation window is not the popup it is drawn in | Received, and a receipt sent on 2026-10-10. Not checked |
+| 2026-10-09 | DiffView | Two driving lessons: a drag's success is not its effect, and a menu's automation window is not the popup it is drawn in | Received, and a receipt sent on 2026-10-10. Measured in Windows Sandbox on 2026-10-13: the drag's holds; the menu's is changed, its items being under the main window's element and nearest the popup's window, which is where they are drawn, alike for a menu in XAML, one built in code and a context menu. Not landed, and no outcome sent yet |
 | 2026-10-09 | Issue #48 | Two AT-SPI bridge behaviours: a list keeps the children it first reported, and a list's scroll bars are not in the tree | Measured on Linux on 2026-10-13, and both landed with their fixes in PR #57, each narrowed: a list keeps the nodes it first reported, which a scroll renames after the rows their containers hold, and its scroll bars are missing only where it had rows when first asked. The bars' fix gains a warning, measured: a bar written through it stops following the list. Where the surfaced bars sit in the tree, which depends on the application's own layout, is left out. Nothing is sent back |
 | 2026-10-09 | Templates | Trimming, side 2: when a repository trims, every `Bennewitz.Ninja.*` package in its restore graph carries `IsTrimmable` | Accepted, and the approach agreed on 2026-10-10; waits for Templates' side 1 to merge |
-| 2026-10-10 | DiffView | Three lessons for the guide: a harness that counts silence as success, the automation patterns of stock template parts, and asking before borrowing the desktop | Received, and a receipt sent on 2026-10-10. Not checked |
+| 2026-10-10 | DiffView | Three lessons for the guide: a harness that counts silence as success, the automation patterns of stock template parts, and asking before borrowing the desktop | Received, and a receipt sent on 2026-10-10. The second measured in Windows Sandbox on 2026-10-13: it holds, and a checkable `MenuItem` offers no Toggle pattern on Windows, a defect in Avalonia's automation that a peer of the application's own works around, measured headless. The first and third are method. Not landed, and no outcome sent yet |
 | 2026-10-12 | Issue #55 | Four more AT-SPI bridge behaviours, two X11 window findings, and a correction to the guide: driving over AT-SPI is verified | Measured on Linux on 2026-10-13, and landed in PR #57, with changes: `SelectChild` adds only where the list allows more than one selection; an open combo's items are missing from its children for the reason a list's late rows are, the bridge keeping the children it was first asked for, so the two are one entry; the move's fix may instead lay the window out before moving it, measured, and the frame's waits for the frame to change rather than polling, measured through `FrameSizeProperty`; the active frame's fix names `_NET_ACTIVE_WINDOW` and the bridge's own events rather than `_NET_WM_STATE_FOCUSED`, none of them measured, since no window became active in the headless session; and the move's claims about Windows are left out, unmeasured. Nothing is sent back |
 
 ## Rule backlog
@@ -132,10 +132,33 @@ startup assertion or a headless test.
 
 ## Questions for the developer
 
-None open.
+- **Plan 00002's text.** Revised on 2026-10-13 into two steps, the reading with the parts each theme
+  declares, then a parts report the theme audit writes and checks; it awaits approval before its pull
+  request.
 
 ## Follow-ups
 
+- **The Windows Sandbox's GPU setting did not take.** In the batch of 2026-10-13,
+  `<VGpu>Disable</VGpu>`, as Microsoft's sample configuration spells it, left GPU sharing on: the
+  guest listed three of the host's AMD adapters before the Basic Render Driver.
+  `docs/ai-drivable-ui/SandboxHarnessJournal.md` rests its safety rule on that setting. The next
+  session, on the developer's go of 2026-10-13, tries the reference spelling, `<vGPU>Disable</vGPU>`,
+  reads the guest's adapters before anything draws, and lands the finding with the batch's outcomes.
+- **The runtime check of the themes, as a source-only package (the developer's decision of
+  2026-10-13).** DiffView's `ThemeResolutionTests` switch the application's theme and variant and ask
+  `TryGetResource` for each key, against gap lists the audit already reports. Shipped from here as
+  `.cs` files that compile into each consumer against its own Avalonia, with the gaps taken from the
+  audit's result, the check serves any Avalonia consumer without this repository referencing Avalonia.
+  Plan 00003, after plan 00002.
+- **Avalonia-specific rules in a package of their own, for later (the developer, 2026-10-13).** The
+  library is compile-time and references no framework, and `BNXQ1005`, `BNXQ1009` and `BNXQ1010`
+  already read Avalonia's behaviour by reflection. Moving them, with `ThemeReader`, `ResourceScope`,
+  `RowPeers`, `StyleSelectors` and the Avalonia parts of `ElementTypes`, into a package of their own
+  would make the core framework-neutral in fact and pair the package with `docs/avalonia-gotchas.md`.
+  It changes no dependency and keeps every rule id, but type forwarding cannot soften it, since the
+  two packages would reference each other, so a consumer of those rules adds the package. With or
+  without it, an explicit check that a scan is Avalonia's would let those rules say so in `Skipped`
+  rather than match nothing. Revisit when a second framework's nuances arrive.
 - **The probe's run over every case flags 18 `BNXQ1009` verdicts nobody has read.** `tools/probe.cs`
   judges all three rules on every case it runs, and over all 603 it flags 23 verdicts. Three are
   `U6F1`, `U6F2` and `U6F3`, which judge 16 flagged and declared. Two are limits `BNXQ1010` declares:
