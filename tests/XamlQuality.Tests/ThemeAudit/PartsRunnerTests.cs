@@ -62,6 +62,20 @@ public sealed class PartsRunnerTests : IDisposable
         Assert.Empty(reading.Skipped);
     }
 
+    /// <summary>A folder inside another the configuration names, listed before it or after, or one named twice, is read once.</summary>
+    [Fact]
+    public void AFolderInsideAnotherOrNamedTwice_IsReadOnce()
+    {
+        Theme("first", "PART_Dial");
+        Theme("first/themes", "PART_Needle");
+
+        TemplatePartReading reading = PartsRunner.Read(Config("first/themes", "first", "first/", "first/themes/"));
+
+        Assert.Equal(
+            ["first/Gauge.axaml:2", "first/themes/Gauge.axaml:2"],
+            Assert.Single(reading.Controls).Themes.Select(theme => $"{theme.File}:{theme.Line}"));
+    }
+
     [Fact]
     public void AConfigurationWithNoPartsReport_IsAConfigurationError()
     {

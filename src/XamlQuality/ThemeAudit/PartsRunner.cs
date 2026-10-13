@@ -22,7 +22,8 @@ namespace Bennewitz.Ninja.XamlQuality.ThemeAudit;
 /// </para>
 /// <para>
 /// ⚠ <b>A theme's file is relative to the configuration</b>, as every path in the audit's reports is, so themes read
-/// from two markup folders are told apart, ordered by file, then line.
+/// from two markup folders are told apart, ordered by file, then line. A folder inside another the configuration names,
+/// or named twice, is read once, with the folder that holds it, so no theme is read twice.
 /// </para>
 /// </remarks>
 public static class PartsRunner
@@ -41,9 +42,8 @@ public static class PartsRunner
         Assembly[] assemblies = [.. files.Select(context.LoadFromAssemblyPath)];
 
         List<TemplatePartReading> readings = [];
-        foreach (string folder in parts.Markup)
+        foreach (string root in Outermost(parts.Markup.Select(config.Resolve)))
         {
-            string root = config.Resolve(folder);
             TemplatePartReading reading = TemplatePartRule.ReadParts(XamlScanContext.Load(root).WithAssemblies(assemblies));
             readings.Add(reading with
             {
@@ -76,6 +76,36 @@ public static class PartsRunner
                 }),
             ],
         };
+    }
+
+    /// <summary>
+    /// The folders to read, in the order given: each but those inside another of them, or named before, whose files the
+    /// folder holding them reads.
+    /// </summary>
+    private static List<string> Outermost(IEnumerable<string> folders)
+    {
+        List<string> kept = [];
+        foreach (string folder in folders.Select(path => Path.TrimEndingDirectorySeparator(Path.GetFullPath(path))))
+        {
+            if (kept.Any(outer => IsWithin(outer, folder)))
+            {
+                continue;
+            }
+
+            kept.RemoveAll(inner => IsWithin(folder, inner));
+            kept.Add(folder);
+        }
+
+        return kept;
+    }
+
+    /// <summary>Whether <paramref name="folder"/> is <paramref name="outer"/> or a folder below it, as the platform compares paths.</summary>
+    private static bool IsWithin(string outer, string folder)
+    {
+        string relative = Path.GetRelativePath(outer, folder);
+        return !Path.IsPathRooted(relative)
+               && relative != ".."
+               && !relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal);
     }
 
     /// <summary>Loads assemblies apart from the tool's own, each dependency from the first of the folders that holds it.</summary>
