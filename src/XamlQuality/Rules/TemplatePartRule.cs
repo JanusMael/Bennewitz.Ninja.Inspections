@@ -28,6 +28,12 @@ namespace Bennewitz.Ninja.XamlQuality.Rules;
 /// the case worth catching.
 /// </para>
 /// <para>
+/// ⭐ <b>Its reading is public.</b> <see cref="ReadParts"/> returns what the rule reads: each control's
+/// constants, each lookup with the code that makes it, and the parts each of its themes declares.
+/// <see cref="Analyze"/> derives its findings from that same reading, so a parts reference a consumer
+/// builds from it lists exactly what the rule checked.
+/// </para>
+/// <para>
 /// ⚠ <b>What the rule sees but cannot check is named in <see cref="XamlRuleResult.Skipped"/>.</b>
 /// A control with a theme in the scan and no part found in its code contributes nothing to
 /// <see cref="XamlRuleResult.Inspected"/>, and neither does one whose parts are known but whose
@@ -86,18 +92,19 @@ public sealed class TemplatePartRule : IXamlRule
             };
         }
 
-        Reading reading = ReadControls(context.Assemblies);
+        Reading reading = ReadControls(context);
+        Dictionary<string, ControlTemplateParts> controls = reading.Parts.Controls.ToDictionary(control => control.Name, StringComparer.Ordinal);
 
         List<XamlFinding> findings = [];
         List<XamlSkip> skipped = [];
         HashSet<string> themed = new(StringComparer.Ordinal);
         int inspected = 0;
 
-        foreach ((XamlFile file, XElement theme, string target, int? line) in ControlThemes.In(context))
+        foreach ((XamlFile file, string target, int? line, ThemeParts? theme) in reading.Themes)
         {
             themed.Add(target);
 
-            if (!reading.Declared.TryGetValue(target, out SortedSet<string>? wanted))
+            if (theme is null)
             {
                 if (reading.Known.Contains(target))
                 {
@@ -131,9 +138,9 @@ public sealed class TemplatePartRule : IXamlRule
                 continue;
             }
 
-            HashSet<string> present = PartsNamedUnder(theme);
+            HashSet<string> present = new(theme.Declared.Select(part => part.Name), StringComparer.Ordinal);
 
-            foreach (string part in wanted)
+            foreach (string part in Wanted(controls[target]))
             {
                 inspected++;
                 if (present.Contains(part))
@@ -163,13 +170,11 @@ public sealed class TemplatePartRule : IXamlRule
             }
         }
 
-        foreach ((string control, SortedSet<string> parts) in reading.Declared
-                     .Where(entry => !themed.Contains(entry.Key))
-                     .OrderBy(entry => entry.Key, StringComparer.Ordinal))
+        foreach (ControlTemplateParts control in reading.Parts.Controls.Where(control => !themed.Contains(control.Name)))
         {
             skipped.Add(new XamlSkip(
-                control,
-                $"It declares {string.Join(", ", parts)}, but no ControlTheme for it is in the scanned "
+                control.Name,
+                $"It declares {string.Join(", ", Wanted(control))}, but no ControlTheme for it is in the scanned "
                 + "markup, so those parts were not checked. Its theme may ship from another package; "
                 + "if it is yours, scan the folder that holds it."));
         }
@@ -178,8 +183,41 @@ public sealed class TemplatePartRule : IXamlRule
     }
 
     /// <summary>
-    /// The part names each type declares in its compiled code, and the name of every type the scan
-    /// can see.
+    /// What this rule reads from a scan: each control's template parts, the code that looks each up, and the parts
+    /// each of its themes declares.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⭐ <b>The reading <see cref="Analyze"/> checks, made public.</b> A consumer that builds a parts reference from
+    /// it lists the parts the rule checked, read as the rule read them: the constants a control declares apart from
+    /// the parts some code looks up, whether each lookup is the control's own code, a base class's or a helper's it
+    /// hands its template to, and what each of its themes declares, with the element and the automation id. Read
+    /// twice, by the rule and by a consumer, one fact drifts.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>It reads what <see cref="Analyze"/> reads, the context's markup and assemblies, and nothing else.</b> A
+    /// base class in an assembly the scan was not given is not read, so pass the library that defines it to
+    /// <see cref="XamlScanContext.WithAssemblies"/> as well. Given no assemblies, it reads nothing, and one skip says
+    /// so.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>An entry is every type the rule credits a part to</b>, by the simple name a <c>ControlTheme</c>'s
+    /// <c>TargetType</c> gives. That is a control, or a helper no control hands the template its lookups are made on,
+    /// whose lookups the rule keeps as its own. A themed control that declares no part has no entry: the rule names
+    /// it in a skip instead.
+    /// </para>
+    /// </remarks>
+    /// <param name="context">The scan, with the assemblies that define its controls.</param>
+    /// <returns>Each control's parts, in an order that compares as text, and what could not be read.</returns>
+    public static TemplatePartReading ReadParts(XamlScanContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return ReadControls(context).Parts;
+    }
+
+    /// <summary>
+    /// The part names each type declares in its compiled code, with the code that looks each up, the parts each
+    /// theme in the scan declares, and the name of every type the scan can see.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -211,6 +249,8 @@ public sealed class TemplatePartRule : IXamlRule
     /// assemblies that passes either on. A base class's lookups reach a subclass the same way, since the
     /// base's <c>OnApplyTemplate</c> runs on the subclass's template. A method no control hands its
     /// template to keeps its lookups as its own type's, as a handler on another control's template does.
+    /// Each lookup keeps where it came from: the control's own code, a base class's, or another type's,
+    /// and that type's full name, its method's compiled name and its assembly's.
     /// </para>
     /// <para>
     /// ⚠ <b>Lambdas, local functions and iterators compile into nested types</b>, so their literals
@@ -224,24 +264,32 @@ public sealed class TemplatePartRule : IXamlRule
     /// into a child control's template is checked against this type's theme, and reported there.
     /// </para>
     /// </remarks>
-    private static Reading ReadControls(IReadOnlyList<Assembly> assemblies)
+    private static Reading ReadControls(XamlScanContext context)
     {
-        Reading reading = new(
-            new Dictionary<string, SortedSet<string>>(StringComparer.Ordinal),
-            new HashSet<string>(StringComparer.Ordinal),
-            new Dictionary<string, string>(StringComparer.Ordinal),
-            new Dictionary<string, (string Source, string Cause)>(StringComparer.Ordinal));
+        HashSet<string> known = new(StringComparer.Ordinal);
+        Dictionary<string, string> partlyRead = new(StringComparer.Ordinal);
+        Dictionary<string, (string Source, string Cause)> notLoaded = new(StringComparer.Ordinal);
 
-        HashSet<Assembly> scanned = [.. assemblies];
-        Dictionary<(Module Module, int Token), (string Owner, List<string> Parts)> lookups = [];
+        if (context.Assemblies.Count == 0)
+        {
+            XamlSkip nothingRead = new(
+                "Assemblies",
+                "The scan was given no assemblies, so no template part was read. Call WithAssemblies with the "
+                + "assemblies that define the controls, and with any library that defines a base class of theirs.");
+            return new Reading(new TemplatePartReading([], [nothingRead]), [], known, partlyRead, notLoaded);
+        }
+
+        HashSet<Assembly> scanned = [.. context.Assemblies];
+        Dictionary<string, SortedSet<string>> constants = new(StringComparer.Ordinal);
+        Dictionary<(Module Module, int Token), Lookup> lookups = [];
         List<Type> topLevel = [];
 
-        foreach (Assembly assembly in assemblies)
+        foreach (Assembly assembly in context.Assemblies)
         {
             LoadedTypes types = LoadedTypes.Of(assembly);
             foreach ((string name, string cause) in types.NotLoaded)
             {
-                reading.NotLoaded.TryAdd(name, (types.Source, cause));
+                notLoaded.TryAdd(name, (types.Source, cause));
             }
 
             foreach (Type type in types.Loaded)
@@ -254,59 +302,165 @@ public sealed class TemplatePartRule : IXamlRule
                     continue;
                 }
 
-                reading.Known.Add(owner.Name);
+                known.Add(owner.Name);
                 if (owner == type)
                 {
                     topLevel.Add(type);
                 }
 
-                (List<string> constants, List<(MethodBase Method, List<string> Parts)> made) = PartNamesIn(type, out string? unread);
-                foreach (string constant in constants)
+                (List<string> declared, List<(MethodBase Method, List<string> Parts)> made) = PartNamesIn(type, out string? unread);
+                foreach (string constant in declared)
                 {
-                    Declare(reading, owner.Name, constant);
+                    if (!constants.TryGetValue(owner.Name, out SortedSet<string>? named))
+                    {
+                        named = new SortedSet<string>(StringComparer.Ordinal);
+                        constants[owner.Name] = named;
+                    }
+
+                    named.Add(constant);
                 }
 
                 foreach ((MethodBase method, List<string> parts) in made)
                 {
-                    lookups[KeyOf(method)] = (owner.Name, parts);
+                    lookups[KeyOf(method)] = new Lookup(owner, method.Name, types.Source, parts);
                 }
 
                 if (unread is not null)
                 {
-                    reading.PartlyRead.TryAdd(owner.Name, unread);
+                    partlyRead.TryAdd(owner.Name, unread);
                 }
             }
         }
 
         // Which controls hand each method their template.
-        Dictionary<(Module Module, int Token), SortedSet<string>> handedBy = [];
+        Dictionary<(Module Module, int Token), List<Type>> handedBy = [];
         foreach (Type control in topLevel)
         {
             foreach ((Module Module, int Token) reached in HandedTemplate(control, scanned))
             {
-                if (!handedBy.TryGetValue(reached, out SortedSet<string>? hosts))
+                if (!handedBy.TryGetValue(reached, out List<Type>? hosts))
                 {
-                    hosts = new SortedSet<string>(StringComparer.Ordinal);
+                    hosts = [];
                     handedBy[reached] = hosts;
                 }
 
-                hosts.Add(control.Name);
+                hosts.Add(control);
             }
         }
 
-        foreach (((Module Module, int Token) method, (string owner, List<string> parts)) in lookups)
+        Dictionary<string, HashSet<TemplatePartLookup>> credited = new(StringComparer.Ordinal);
+        foreach (((Module Module, int Token) method, Lookup lookup) in lookups)
         {
-            IEnumerable<string> creditedTo = handedBy.TryGetValue(method, out SortedSet<string>? hosts) ? hosts : [owner];
-            foreach (string host in creditedTo)
+            IEnumerable<(string Host, TemplatePartOrigin Origin)> creditedTo = handedBy.TryGetValue(method, out List<Type>? hosts)
+                ? hosts.Select(host => (host.Name, OriginOf(lookup.Owner, host)))
+                : [(lookup.Owner.Name, TemplatePartOrigin.Own)];
+
+            foreach ((string host, TemplatePartOrigin origin) in creditedTo)
             {
-                foreach (string part in parts)
+                if (!credited.TryGetValue(host, out HashSet<TemplatePartLookup>? parts))
                 {
-                    Declare(reading, host, part);
+                    parts = [];
+                    credited[host] = parts;
+                }
+
+                foreach (string part in lookup.Parts)
+                {
+                    parts.Add(new TemplatePartLookup(part, origin, lookup.Owner.FullName ?? lookup.Owner.Name, lookup.Method, lookup.Assembly));
                 }
             }
         }
 
-        return reading;
+        // The themes, in the scan's order: by file, and within a file as they are written.
+        Dictionary<string, List<ThemeParts>> themesOf = new(StringComparer.Ordinal);
+        List<ThemeSeen> themes = [];
+        foreach ((XamlFile file, XElement theme, string target, int? line) in ControlThemes.In(context))
+        {
+            ThemeParts? parts = null;
+            if (constants.ContainsKey(target) || credited.ContainsKey(target))
+            {
+                parts = new ThemeParts(file.RelativePath, line, PartsDeclaredIn(theme));
+                if (!themesOf.TryGetValue(target, out List<ThemeParts>? targeting))
+                {
+                    targeting = [];
+                    themesOf[target] = targeting;
+                }
+
+                targeting.Add(parts);
+            }
+
+            themes.Add(new ThemeSeen(file, target, line, parts));
+        }
+
+        ControlTemplateParts[] controls =
+        [
+            .. constants.Keys.Union(credited.Keys, StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal)
+                .Select(name => new ControlTemplateParts(
+                    name,
+                    constants.TryGetValue(name, out SortedSet<string>? named) ? [.. named] : [],
+                    credited.TryGetValue(name, out HashSet<TemplatePartLookup>? looked)
+                        ?
+                        [
+                            .. looked.OrderBy(lookup => lookup.Part, StringComparer.Ordinal)
+                                .ThenBy(lookup => lookup.Type, StringComparer.Ordinal)
+                                .ThenBy(lookup => lookup.Method, StringComparer.Ordinal)
+                                .ThenBy(lookup => lookup.Assembly, StringComparer.Ordinal)
+                                .ThenBy(lookup => lookup.Origin),
+                        ]
+                        : [],
+                    themesOf.TryGetValue(name, out List<ThemeParts>? targeting) ? targeting : [])),
+        ];
+
+        XamlSkip[] skipped =
+        [
+            .. notLoaded.Select(entry => new XamlSkip(
+                    entry.Key,
+                    $"{entry.Value.Source}, which the scan was given, defines it, but it could not be loaded: "
+                    + $"{entry.Value.Cause}. Its parts were not read. {LoadedTypes.Remedy}"))
+                .Concat(partlyRead.Select(entry => new XamlSkip(
+                    entry.Key,
+                    $"Part of its code could not be read: {entry.Value}. A part it looks up there is not in this "
+                    + $"reading, though the parts found in the rest are. {LoadedTypes.Remedy}")))
+                .OrderBy(skip => skip.Subject, StringComparer.Ordinal)
+                .ThenBy(skip => skip.Reason, StringComparer.Ordinal),
+        ];
+
+        return new Reading(new TemplatePartReading(controls, skipped), themes, known, partlyRead, notLoaded);
+    }
+
+    /// <summary>
+    /// What a control's themes must declare: its constants and the parts looked up on its template, in ordinal order.
+    /// </summary>
+    private static SortedSet<string> Wanted(ControlTemplateParts control) =>
+        new([.. control.Constants, .. control.Lookups.Select(lookup => lookup.Part)], StringComparer.Ordinal);
+
+    /// <summary>
+    /// Whose code a lookup is, as seen from <paramref name="host"/>, which hands <paramref name="owner"/>'s method its
+    /// template: its own, a base class's, or another type's.
+    /// </summary>
+    private static TemplatePartOrigin OriginOf(Type owner, Type host)
+    {
+        if (owner == host)
+        {
+            return TemplatePartOrigin.Own;
+        }
+
+        try
+        {
+            for (Type? link = host.BaseType; link is not null; link = link.BaseType)
+            {
+                if ((link.IsConstructedGenericType ? link.GetGenericTypeDefinition() : link) == owner)
+                {
+                    return TemplatePartOrigin.BaseClass;
+                }
+            }
+        }
+        catch (Exception ex) when (ElementTypes.IsUnreadable(ex))
+        {
+            // A chain that cannot be read names no base, and the lookup is read as another type's.
+        }
+
+        return TemplatePartOrigin.Helper;
     }
 
     /// <summary>
@@ -456,18 +610,6 @@ public sealed class TemplatePartRule : IXamlRule
         callee.GetParameters().Any(parameter =>
             parameter.ParameterType != typeof(object) && handed.Any(type => parameter.ParameterType.IsAssignableFrom(type)));
 
-    /// <summary>Records that <paramref name="control"/> declares <paramref name="part"/>.</summary>
-    private static void Declare(Reading reading, string control, string part)
-    {
-        if (!reading.Declared.TryGetValue(control, out SortedSet<string>? parts))
-        {
-            parts = new SortedSet<string>(StringComparer.Ordinal);
-            reading.Declared[control] = parts;
-        }
-
-        parts.Add(part);
-    }
-
     /// <summary>A method's identity across the reads that find it: its module and metadata token.</summary>
     private static (Module Module, int Token) KeyOf(MethodBase method) => (method.Module, method.MetadataToken);
 
@@ -521,35 +663,44 @@ public sealed class TemplatePartRule : IXamlRule
         call is not null
         && (call.StartsWith("Find", StringComparison.Ordinal) || call.StartsWith("Get", StringComparison.Ordinal));
 
-    /// <summary>Part names declared on elements inside this theme, in either naming spelling.</summary>
-    private static HashSet<string> PartsNamedUnder(XElement theme)
+    /// <summary>
+    /// The parts a theme declares: each element inside it named as a part, in either naming spelling, in the order the
+    /// theme declares them, with the element's local name and the automation id it declares.
+    /// </summary>
+    private static List<DeclaredPart> PartsDeclaredIn(XElement theme)
     {
-        HashSet<string> present = new(StringComparer.Ordinal);
+        List<DeclaredPart> declared = [];
 
         foreach (XElement element in theme.Descendants())
         {
             foreach (XAttribute attribute in element.Attributes())
             {
                 // "Name" and x:"Name" both land here as the local name "Name".
-                if (string.Equals(attribute.Name.LocalName, "Name", StringComparison.Ordinal)
-                    && attribute.Value.StartsWith(PartPrefix, StringComparison.Ordinal))
+                if (string.Equals(attribute.Name.LocalName, "Name", StringComparison.Ordinal) && IsPartName(attribute.Value))
                 {
-                    present.Add(attribute.Value);
+                    declared.Add(new DeclaredPart(attribute.Value, element.Name.LocalName, AutomationIdentifier.ValueOf(element)));
                 }
             }
         }
 
-        return present;
+        return declared;
     }
 
     /// <summary>
-    /// What the compiled code says: each control's part names, the name of every type that loaded,
-    /// each control whose code could not all be read with why, and each type the assemblies define
-    /// that did not load, with the assembly that defines it and why.
+    /// What the scan says: the public reading; every theme in the scan's order, with the parts it declares where it
+    /// targets a type with parts; the name of every type that loaded; each type whose code could not all be read,
+    /// with why; and each type the assemblies define that did not load, with the assembly that defines it and why.
     /// </summary>
     private sealed record Reading(
-        Dictionary<string, SortedSet<string>> Declared,
+        TemplatePartReading Parts,
+        IReadOnlyList<ThemeSeen> Themes,
         HashSet<string> Known,
         Dictionary<string, string> PartlyRead,
         Dictionary<string, (string Source, string Cause)> NotLoaded);
+
+    /// <summary>A theme in the scan, and the parts it declares where it targets a type with parts, else <c>null</c>.</summary>
+    private sealed record ThemeSeen(XamlFile File, string Target, int? Line, ThemeParts? Parts);
+
+    /// <summary>A method's lookups: the outermost type that declares it, its compiled name, that type's assembly, and the parts.</summary>
+    private sealed record Lookup(Type Owner, string Method, string Assembly, List<string> Parts);
 }

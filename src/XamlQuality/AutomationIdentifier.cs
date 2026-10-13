@@ -69,6 +69,47 @@ internal static class AutomationIdentifier
         return blank ? AutomationIdDeclaration.Blank : AutomationIdDeclaration.None;
     }
 
+    /// <summary>
+    /// The automation id <paramref name="element"/> declares, as written, or <c>null</c> where <see cref="Of"/> finds none.
+    /// </summary>
+    /// <remarks>
+    /// Read in <see cref="Of"/>'s order, so the two agree on whether there is one: a non-blank attribute's value, else
+    /// the trimmed text of a property element that sets one, or, where that holds an object such as a binding and no
+    /// text, the object's type in braces, <c>{Binding}</c>; else a blank attribute's value, which is not an id but hides
+    /// the one the framework derives.
+    /// </remarks>
+    internal static string? ValueOf(XElement element)
+    {
+        string? blank = null;
+
+        foreach (XAttribute attribute in element.Attributes())
+        {
+            if (!IsIdAttribute(attribute.Name.LocalName))
+            {
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(attribute.Value))
+            {
+                return attribute.Value;
+            }
+
+            blank ??= attribute.Value;
+        }
+
+        foreach (XElement child in element.Elements())
+        {
+            if (IsIdPropertyElement(child.Name.LocalName, element.Name.LocalName) && HasContent(child))
+            {
+                return string.IsNullOrWhiteSpace(child.Value)
+                    ? "{" + child.Elements().First().Name.LocalName + "}"
+                    : child.Value.Trim();
+            }
+        }
+
+        return blank;
+    }
+
     private static bool IsIdAttribute(string localName) =>
         string.Equals(localName, Plain, StringComparison.Ordinal)
         || localName.EndsWith(Attribute, StringComparison.Ordinal);

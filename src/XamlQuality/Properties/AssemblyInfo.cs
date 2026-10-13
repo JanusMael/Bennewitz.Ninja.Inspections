@@ -20,3 +20,9 @@ using System.Runtime.CompilerServices;
 // The test project asserts against the ported analysis directly, exactly as it did before the
 // move — which is what makes those fourteen files evidence that the move changed no behaviour.
 [assembly: InternalsVisibleTo("XamlQuality.Tests")]
+
+// The rules' surface is public as well, and as permanent: each IXamlRule, the scan model, and
+// BNXQ1003's reading, TemplatePartRule.ReadParts with its six types, TemplatePartReading,
+// ControlTemplateParts, TemplatePartLookup, TemplatePartOrigin, ThemeParts and DeclaredPart. The
+// reading is public by plans/00002, so that a consumer's parts reference is the reading the rule
+// checks rather than a second one; its names bind once a release carries them.
