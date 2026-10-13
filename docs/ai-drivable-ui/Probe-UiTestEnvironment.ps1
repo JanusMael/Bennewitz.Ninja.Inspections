@@ -9,7 +9,8 @@
 # verification to reach for; this reports what the machine offers.
 #
 # It asserts nothing: the output is the point, and the exit code is 0 unless the probe itself fails.
-# Only the Windows verdicts come from measurement. Every other verdict is where to start measuring.
+# Only the Windows verdicts, and verdict A under GNOME on Wayland, come from measurement. Every other
+# verdict is where to start measuring.
 #
 # Dot-sourcing it, as an editor's F5 does, runs it too; set UITESTPROBE_NOEXEC to load it without
 # running it. It leaves the caller's variables and the thread's DPI awareness as it found them.
@@ -159,12 +160,17 @@ namespace UiTestProbe {
         Verdict 'C' 'isolated desktop (Xvfb)' $null 'start Xvfb and set DISPLAY - UNVERIFIED here'
     }
     elseif ($server -like 'Wayland*') {
-        Verdict 'A' 'automation APIs, no synthetic input' $null 'AT-SPI carries Avalonia 12''s peers; a harness driving them is UNVERIFIED'
+        if ($env:XDG_CURRENT_DESKTOP -match 'GNOME') {
+            Verdict 'A' 'automation APIs, no synthetic input' $true 'AT-SPI carries Avalonia 12''s peers, and a harness drives them (measured, the app under Xwayland)'
+        }
+        else {
+            Verdict 'A' 'automation APIs, no synthetic input' $null 'AT-SPI carries Avalonia 12''s peers; driving them is measured under GNOME only - UNVERIFIED here'
+        }
         Verdict 'B' 'synthetic input to the real desktop' $false 'Wayland has no XTEST; injection is compositor-specific and may not exist'
         Verdict 'C' 'isolated desktop' $null 'Xvfb is X11 only; a nested or headless compositor is the Wayland answer - UNVERIFIED here'
     }
     else {
-        Verdict 'A' 'automation APIs, no synthetic input' $null 'AT-SPI carries Avalonia 12''s peers; a harness driving them is UNVERIFIED'
+        Verdict 'A' 'automation APIs, no synthetic input' $null 'AT-SPI carries Avalonia 12''s peers; driving them is measured under GNOME on Wayland only - UNVERIFIED here'
         Verdict 'B' 'synthetic input to the real desktop' $null 'X11 has XTEST, usually yes - UNVERIFIED here'
         Verdict 'C' 'isolated desktop (Xvfb / Xephyr)' $null 'usually yes on X11 - UNVERIFIED here'
     }
@@ -172,9 +178,9 @@ namespace UiTestProbe {
     Verdict 'D' 'fully headless toolkit rendering' $true 'always available; proves nothing about chrome, focus or Z-order'
 
     Write-Host ''
-    Write-Host '  Only the Windows verdicts are measured, by the harnesses this was written for. Treat any'
-    Write-Host '  other verdict as where to start measuring. docs/ai-drivable-ui.md, section 4, says which'
-    Write-Host '  layer of verification to reach for.'
+    Write-Host '  The Windows verdicts are measured, by the harnesses this was written for, and so is A'
+    Write-Host '  under GNOME on Wayland. Treat any other verdict as where to start measuring.'
+    Write-Host '  docs/ai-drivable-ui.md, section 4, says which layer of verification to reach for.'
     Write-Host ''
 }
 
