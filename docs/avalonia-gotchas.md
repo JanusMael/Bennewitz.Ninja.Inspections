@@ -89,6 +89,19 @@ This one is GOOD — it's how the nav-tree icon column hides on sub-items withou
 
 **Fix:** Skip a control whose `IsEffectivelyVisible` is `false` before reading its `Bounds`. Checking `IsVisible` misses the children of a hidden parent.
 
+### A hit-test answers from the last frame drawn, so right after a layout change it finds what was there before
+
+**Symptom:** A control is shown that pushes others aside, layout is run, and `InputHitTest` at the centre of the control's new bounds returns the control that used to be drawn there. The control's `Bounds` have moved already. Code that hit-tests to learn what a click would reach is told the old answer.
+
+**Cause:** `InputHitTest` asks the renderer, through `GetVisualAt` and the presentation source's `HitTester`, and the renderer tests each composition visual against its readback: the transform and bounds it had in the frame last composed. `CompositionTarget.HitTestVisual` passes over a visual with no valid readback, or whose last bounds miss the point. Layout moves the visuals at once, and their readback moves only when the next frame is composed. Read in the source at 12.1.3.
+
+Measured on Avalonia 12.1.3 with the Fluent theme: a bar 60 tall was shown in an `Auto` row above a pane, `UpdateLayout()` was called, and the bar's centre was hit-tested.
+
+- Headless with Skia: the pane at once, in 20 rounds of 20; after `Dispatcher.UIThread.RunJobs()`, still the pane in 9 of 10; after `AvaloniaHeadlessPlatform.ForceRenderTimerTick()`, or after `CaptureRenderedFrame()` alone, the bar, in 10 of 10 each.
+- On a real window on Windows, in Windows Sandbox: the pane at once and after a `RequestAnimationFrame` callback, in 10 of 10; the bar 50 ms later, in 10 of 10.
+
+**Fix:** Hit-test only once the next frame has been composed. In a headless test, draw one first with `CaptureRenderedFrame()` or `AvaloniaHeadlessPlatform.ForceRenderTimerTick()`; `RunJobs` alone is not enough. On a real window a `RequestAnimationFrame` callback is still too early, so poll the hit-test, with a deadline, until it answers what the layout says is there. Where the question is only where layout put a control, ask the layout, through `Bounds` or `TranslatePoint`, not a hit-test.
+
 ### There is no automatic LAYOUT CLIP — a control too big for its slot is laid out anyway, and whether it is *drawn* depends on the container
 
 **Symptom:** a child inside a `Grid` row or column smaller than the child wants does not disappear. Depending on what is above it, it is either painted on top of its neighbours or invisible-but-still-present — and in both cases it keeps its full size in the automation tree, so a UI test or a screen reader sees a pane the user cannot.
@@ -567,6 +580,48 @@ The `/template/` combinator is not optional — a selector without it does not r
 **Cause:** In `ItemsControlAutomationPeer`, every `IScrollProvider` member reads a private `_scroller` field, and the only assignment to it is inside the `protected virtual Scroller` getter, which nothing in `ItemsControlAutomationPeer`, `SelectingItemsControlAutomationPeer` or `ListBoxAutomationPeer` calls. The field stays null, so every member falls back to its default. The same getter holds a second defect: it marks the search done even when `ListBox.Scroll` is still null, so a peer created before its template is applied would stay inert even if the getter were called. Read in Avalonia's source at tag 12.1.3. Reported upstream as [AvaloniaUI/Avalonia#22038](https://github.com/AvaloniaUI/Avalonia/issues/22038), which its author closed without a fix.
 
 **Fix:** Drive scrolling through the `ScrollViewer`'s peer, or through the scrollbar's `RangeValue` pattern, never through the list's `ScrollPattern`. A test that reads the list's scroll values is reading constants. Over AT-SPI, a list that had rows when it was first asked leaves its scroll bars out of the tree; see the entry on them under Linux platform integration.
+
+### A `MenuItem` offers UI Automation no way to open or run it, and on Windows a checkable one no `Toggle` either
+
+**Symptom:** Through UI Automation on Windows, an Avalonia `MenuItem` advertises `ScrollItem` and nothing else, alike in a menu declared in XAML, one built in code and a context menu. There is no `Invoke` to run an item and no `ExpandCollapse` to open a submenu, and a `ToggleType="CheckBox"` item has no `Toggle`, so its checked state can be neither read nor set. The window's System menu item, in its title bar, does offer `ExpandCollapse`, but it is Windows' own, not Avalonia's.
+
+**Cause:** `MenuItemAutomationPeer` implements neither `IInvokeProvider` nor `IExpandCollapseProvider`. Since 12.1.0 it implements `IToggleProvider` for a checkable item ([AvaloniaUI/Avalonia#21541](https://github.com/AvaloniaUI/Avalonia/pull/21541)), but its `GetProviderCore` reads the item's `ToggleType`, a styled property, to decide whether to offer it. The Windows bridge asks for a pattern's provider (`AutomationNode.GetPatternProvider`) on UI Automation's thread, without the marshalling to the UI thread that it gives every property it reads. Off the UI thread the read throws, and the client finds no `Toggle`. `ScrollItem` comes from the bridge itself, for every element. Read in the source at 12.1.3. Measured headless: the peer's `GetProvider<IToggleProvider>()` answered on the UI thread and threw `InvalidOperationException` on another, where a `CheckBox`'s answered on both.
+
+**Fix:** Open menus and run their items by clicking, not through patterns. For `Toggle`, give the item a peer that reads `ToggleType` on the UI thread and answers from what it read:
+
+```csharp
+public sealed class CheckableMenuItem : MenuItem
+{
+    protected override Type StyleKeyOverride => typeof(MenuItem);
+
+    protected override AutomationPeer OnCreateAutomationPeer() => new Peer(this);
+
+    private sealed class Peer : MenuItemAutomationPeer
+    {
+        private volatile bool _toggles;
+
+        public Peer(MenuItem owner)
+            : base(owner)
+        {
+            _toggles = owner.ToggleType != MenuItemToggleType.None;
+            owner.PropertyChanged += (_, e) =>
+            {
+                if (e.Property == ToggleTypeProperty)
+                {
+                    _toggles = owner.ToggleType != MenuItemToggleType.None;
+                }
+            };
+        }
+
+        protected override object? GetProviderCore(Type providerType) =>
+            providerType == typeof(IToggleProvider)
+                ? (_toggles ? this : null)
+                : base.GetProviderCore(providerType);
+    }
+}
+```
+
+Measured on Avalonia 12.1.3 with the Fluent theme, in Windows Sandbox: beside a stock checkable item that offered `ScrollItem` alone, this one offered `Toggle` and `ScrollItem`, read `Off`, and read `On` after `Toggle()`, with `IsChecked` true. ⚠ `Toggle()` sets `IsChecked` and does nothing else, by the source and as measured: it raises no `Click`, so a `Command` on the item does not run, and the menu stays open.
 
 ### A `ListBox` is NOT focusable, so `Focus()` on one is a silent no-op
 
@@ -1059,7 +1114,7 @@ They are the price of referencing DataGrid, not a defect to hunt for in your cod
 
 **Cause:** A node whose peer offers `ISelectionProvider` lists only its selection-item descendants, when it has any, and drops everything between: the scroll bars, and the `ScrollViewer` whose own scroll provider works. The list's own `ScrollPattern` answers nothing, as the entry on it above says. Read in the bridge's source at 12.1.3.
 
-**Fix:** Surface the bars from a parent. Give the control that hosts the list a peer whose `GetChildrenCore` appends the `ScrollBar` peers found under the list's `ScrollViewer`, and that calls `InvalidateChildren()` once the list's template is applied. The bridge gives each bar `Value`, and writing half the vertical bar's maximum scrolled a 300-line list to its 145th line. Do it off Windows only: UI Automation's control view already shows the bars under the list, since the template parts between them are not control elements, by the source, and would show them twice.
+**Fix:** Surface the bars from a parent. Give the control that hosts the list a peer whose `GetChildrenCore` appends the `ScrollBar` peers found under the list's `ScrollViewer`, and that calls `InvalidateChildren()` once the list's template is applied. The bridge gives each bar `Value`, and writing half the vertical bar's maximum scrolled a 300-line list to its 145th line. Do it off Windows only: UI Automation's control view already shows the bars under the list, since the template parts between them are not control elements, and would show them twice. Measured on Windows, in Windows Sandbox: a list's children in the control view were its realised rows and its `PART_VerticalScrollBar`.
 
 ⚠ **A write leaves the bar behind.** The bar's peer sets `ScrollBar.Value` as a local value, which outranks the binding that keeps it at the list's offset. Measured: after the application scrolled the list back to line 21, the bar still answered 5500, over AT-SPI and in the application. After writing a bar, read the position from the rows, never from the bar.
 
@@ -1198,6 +1253,16 @@ window.MouseUp(end, MouseButton.Left);
 ⚠ Press where the control draws. A press below the one line of a stretched `SelectableTextBlock` does not reach it, for the reason in the entry on a row whose `Background` is null.
 
 Measured on Avalonia 12.1.3, headless with Skia and the Fluent theme.
+
+### A `PrintWindow` capture of an Avalonia window is solid black, and reports success, without `PW_RENDERFULLCONTENT`
+
+**Symptom:** `PrintWindow(hwnd, hdc, 0)` returns true, `GetLastError` answers 0, and every pixel of the capture is black. Nothing says the capture failed, so a check that compares colours compares black.
+
+**Cause:** Not traced. By default on Windows, Avalonia draws a window through ANGLE on Direct3D 11, and `PrintWindow` without `PW_RENDERFULLCONTENT` copies none of what it draws. The black is written: a bitmap filled with another colour beforehand comes back black in every pixel.
+
+**Fix:** Pass `PW_RENDERFULLCONTENT` (2), and check the pixels anyway, against a colour the window is known to draw, since the failed capture reports success and leaves no pixel untouched. `PW_CLIENTONLY | PW_RENDERFULLCONTENT` (3) captures exactly the client area, drawn at the bitmap's origin: 360 × 260 of a 376 × 299 window.
+
+Measured on Avalonia 12.1.3 with the Fluent theme, in Windows Sandbox: every capture without the flag was black, three in each of two runs, with the window covered by another or not, once with the host's GPU shared and once with only the software renderer; every capture with it held the window's own client colour exactly where the client is, covered or not.
 
 ---
 
