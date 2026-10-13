@@ -9,9 +9,9 @@ namespace Bennewitz.Ninja.XamlQuality.Rules;
 /// </summary>
 /// <remarks>
 /// <para>
-/// ⭐ <b>A pure function of the reading.</b> Its order, invariant numbers, LF line endings, paths as the reading gives
-/// them relative to the scan root, and no timestamp, so a fresh report equals the committed one until the code or a
-/// theme changes, on every platform. The format is a contract: a consumer commits the report and holds it to a fresh
+/// ⭐ <b>A pure function of the reading.</b> Its order, invariant numbers, LF line endings, code spans that nothing in
+/// them can end or break, paths as the reading gives them relative to the scan root, and no timestamp, so a fresh report
+/// equals the committed one until the code or a theme changes, on every platform. The format is a contract: a consumer commits the report and holds it to a fresh
 /// run, so a change here regenerates every committed copy.
 /// </para>
 /// <para>
@@ -205,6 +205,24 @@ internal static class TemplatePartReport
 
     private static string Joined(IEnumerable<string> cells) => string.Join(", ", cells.Distinct(StringComparer.Ordinal));
 
-    /// <summary>Text in a code span, its pipes escaped so a table cell stays one cell.</summary>
-    private static string Code(string text) => "`" + text.Replace("|", "\\|", StringComparison.Ordinal) + "`";
+    /// <summary>
+    /// Text in a code span nothing in it can end or break: its line breaks read as spaces and its pipes are escaped, so a
+    /// table cell stays one cell on one line, and its fence is one backtick longer than any run of them inside, padded
+    /// with a space where the text starts or ends with one, as CommonMark reads a fence.
+    /// </summary>
+    private static string Code(string text)
+    {
+        string flat = text.ReplaceLineEndings(" ").Replace("|", "\\|", StringComparison.Ordinal);
+        int longest = 0;
+        int run = 0;
+        foreach (char c in flat)
+        {
+            run = c == '`' ? run + 1 : 0;
+            longest = Math.Max(longest, run);
+        }
+
+        string fence = new('`', longest + 1);
+        string pad = flat.StartsWith('`') || flat.EndsWith('`') ? " " : string.Empty;
+        return fence + pad + flat + pad + fence;
+    }
 }

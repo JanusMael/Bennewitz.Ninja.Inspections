@@ -109,4 +109,27 @@ public sealed class TemplatePartReportTests
         Assert.Contains("| `PART_Item` | **missing** |  |  | ✓ |\n", report, StringComparison.Ordinal);
         Assert.EndsWith("## Not read\n\nNothing.\n", report, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// A code span holds whatever a name or an id holds: a generic type's arity mark, a backtick at either end, a pipe, and
+    /// a line break, which reads as a space, so a heading stays one span and a row one line.
+    /// </summary>
+    [Fact]
+    public void ACodeSpan_IsFencedPastAnyBacktickInIt_AndKeepsItsRowOnOneLine()
+    {
+        TemplatePartReading reading = new(
+            [
+                new ControlTemplateParts(
+                    "Box`1",
+                    [],
+                    [new TemplatePartLookup("PART_Grid", TemplatePartOrigin.Helper, "Lib.Controller`1", "Wire", "Lib")],
+                    [new ThemeParts("Themes/Box.axaml", 3, [new DeclaredPart("PART_Grid", "Grid", "two\nlines|`edge`")])]),
+            ],
+            []);
+
+        string report = reading.ToMarkdown();
+
+        Assert.Contains("## ``Box`1``\n", report, StringComparison.Ordinal);
+        Assert.Contains("| `PART_Grid` | `Grid` | `` two lines\\|`edge` `` |  | ``Controller`1`` |\n", report, StringComparison.Ordinal);
+    }
 }
