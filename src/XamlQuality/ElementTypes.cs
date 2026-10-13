@@ -207,10 +207,10 @@ internal sealed class ElementTypes
     /// returns with a <c>typeof</c>, else the control's own type.
     /// </summary>
     /// <remarks>
-    /// ⭐ <b>A custom control usually borrows its base's theme this way</b>, as TailBlazer's
-    /// <c>LinesListBox</c> does with <c>StyleKeyOverride =&gt; typeof(ListBox)</c>, and then the implicit
-    /// theme that reaches it is its base's, not one keyed by its own name. The <c>typeof</c> is an
-    /// <c>ldtoken</c> in the getter's IL, read without running the control.
+    /// ⭐ <b>A custom control usually borrows its base's theme this way</b>, as a WPF-to-Avalonia
+    /// port's <c>LinesListBox</c> does with <c>StyleKeyOverride =&gt; typeof(ListBox)</c>, and then the
+    /// implicit theme that reaches it is its base's, not one keyed by its own name. The <c>typeof</c> is
+    /// an <c>ldtoken</c> in the getter's IL, read without running the control.
     /// </remarks>
     internal Type StyleKeyOf(Type type) => StyleKeyRead(type).Key;
 

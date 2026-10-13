@@ -277,7 +277,7 @@ public class ComboBox : ItemsControl
     protected override Control CreateContainerForItemOverride() => new ComboBoxItem();
 }
 
-/// <summary>A custom list that borrows its base's theme key, as TailBlazer's <c>LinesListBox</c> does.</summary>
+/// <summary>A custom list that borrows its base's theme key, as a WPF-to-Avalonia port's <c>LinesListBox</c> does.</summary>
 public class BorrowingListBox : ListBox
 {
     /// <inheritdoc />

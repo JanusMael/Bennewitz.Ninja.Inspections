@@ -140,8 +140,8 @@ public sealed class KeyBindingFocusRuleTests : IDisposable
     }
 
     /// <summary>
-    /// ⭐ TailBlazer's arrangement: the list names a theme, in another file, and THAT theme sets the
-    /// container theme. A rule reading only the element itself would never see it.
+    /// ⭐ A WPF-to-Avalonia port's arrangement: the list names a theme, in another file, and THAT
+    /// theme sets the container theme. A rule reading only the element itself would never see it.
     /// </summary>
     [Fact]
     public void AnItemContainerThemeSetByTheListsOwnTheme_IsReported()
@@ -176,8 +176,9 @@ public sealed class KeyBindingFocusRuleTests : IDisposable
     }
 
     /// <summary>
-    /// ⭐ A custom list that borrows its base's theme key gets its base's implicit theme, as TailBlazer's
-    /// <c>LinesListBox</c> would: a theme keyed by the custom list's own name would never reach it.
+    /// ⭐ A custom list that borrows its base's theme key gets its base's implicit theme, as a
+    /// WPF-to-Avalonia port's <c>LinesListBox</c> would: a theme keyed by the custom list's own name
+    /// would never reach it.
     /// </summary>
     [Fact]
     public void AListThatBorrowsItsBasesThemeKey_GetsItsBasesImplicitTheme()
@@ -642,7 +643,7 @@ public sealed class KeyBindingFocusRuleTests : IDisposable
         AssertLive(Run());
     }
 
-    /// <summary>A container theme that leaves Focusable alone leaves the rows focusable: TailBlazer's actual state.</summary>
+    /// <summary>A container theme that leaves Focusable alone leaves the rows focusable: a WPF-to-Avalonia port's actual state.</summary>
     [Fact]
     public void AContainerThemeThatLeavesFocusableAlone_IsLive()
     {

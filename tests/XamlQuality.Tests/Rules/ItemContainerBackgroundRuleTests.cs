@@ -1184,8 +1184,8 @@ public sealed class ItemContainerBackgroundRuleTests : IDisposable
 
     /// <summary>
     /// States leave a null base as it starts, and so does a style that paints only the rows it picks by a
-    /// property the theme binds to each row's item, which the data decides row by row, as TailBlazer's
-    /// recent-line highlight does.
+    /// property the theme binds to each row's item, which the data decides row by row, as a
+    /// WPF-to-Avalonia port's recent-line highlight does.
     /// </summary>
     [Fact]
     public void StatesAndPropertyStyles_LeaveANullBaseNull() =>
