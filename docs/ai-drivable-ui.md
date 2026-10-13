@@ -150,7 +150,7 @@ wrong finding the port ever published.
 
 ---
 
-## 4. Four layers of verification, and which to reach for
+## 4. Five layers of verification, and which to reach for
 
 | Layer | Needs | Use it for |
 |---|---|---|
@@ -158,6 +158,10 @@ wrong finding the port ever published.
 | **Runtime harnesses through UI Automation, no input** | A running app and a desktop | What only a real window says: real sizes, real OS, the real file system, the command line, multi-process behaviour. **Runs beside a working person** |
 | **Runtime harnesses that need the foreground** | The window holding focus | Light-dismissing controls (combo boxes, menus, overlay drawers) and activation-dependent behaviour; an Avalonia menu, which offers no pattern that opens it, needs real input as well. **Needs an undisturbed machine** |
 | **Runtime harnesses that send real input** | An isolated session (Windows Sandbox, Xvfb, a nested compositor) | Keyboard and mouse paths that genuinely need a keystroke. Keep this set small |
+| **Attended runs that send real input on the person's own desktop** | The person's go, at the machine, and the window unobstructed and focused, checked before every event | An application whose peers offer no pattern for the path, where no isolated session is to hand. Refuse to run when the check fails, and guard every event as section 5 says |
+
+**An attended run is never part of an unattended sweep**, and its summary names the person who watched
+it.
 
 **Ask the machine which of these it can run.**
 [`Probe-UiTestEnvironment.ps1`](ai-drivable-ui/Probe-UiTestEnvironment.ps1) prints the session, the
