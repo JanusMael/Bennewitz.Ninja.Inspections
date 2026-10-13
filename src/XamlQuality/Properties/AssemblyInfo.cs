@@ -25,4 +25,7 @@ using System.Runtime.CompilerServices;
 // BNXQ1003's reading, TemplatePartRule.ReadParts with its six types, TemplatePartReading,
 // ControlTemplateParts, TemplatePartLookup, TemplatePartOrigin, ThemeParts and DeclaredPart. The
 // reading is public by plans/00002, so that a consumer's parts reference is the reading the rule
-// checks rather than a second one; its names bind once a release carries them.
+// checks rather than a second one; its names bind once a release carries them. Its step B adds four
+// public ThemeAudit types, as permanent: OutputDrift and DriftState, the drift check a consumer's
+// test shares with the tool, and PartsConfig and PartsRunner, the parts report's configuration and
+// reading.
