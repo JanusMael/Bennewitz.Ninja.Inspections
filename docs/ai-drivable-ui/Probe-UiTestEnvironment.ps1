@@ -161,10 +161,10 @@ namespace UiTestProbe {
     }
     elseif ($server -like 'Wayland*') {
         if (Get-Process -Name gnome-shell -ErrorAction SilentlyContinue) {
-            Verdict 'A' 'automation APIs, no synthetic input' $true 'AT-SPI carries Avalonia 12''s peers, and a harness drives them (measured under GNOME Shell, the app under Xwayland)'
+            Verdict 'A' 'automation APIs, no synthetic input' $true 'AT-SPI carries Avalonia 12''s peers from its X11 backend, under Xwayland, and a harness drives them (measured under GNOME Shell); an app on the Wayland backend is not on the bus'
         }
         else {
-            Verdict 'A' 'automation APIs, no synthetic input' $null 'AT-SPI carries Avalonia 12''s peers; driving them is measured under GNOME only - UNVERIFIED here'
+            Verdict 'A' 'automation APIs, no synthetic input' $null 'AT-SPI carries Avalonia 12''s peers from its X11 backend, under Xwayland, not from the Wayland backend; driving them is measured under GNOME only - UNVERIFIED here'
         }
         Verdict 'B' 'synthetic input to the real desktop' $false 'Wayland has no XTEST; injection is compositor-specific and may not exist'
         Verdict 'C' 'isolated desktop' $null 'Xvfb is X11 only; a nested or headless compositor is the Wayland answer - UNVERIFIED here'
