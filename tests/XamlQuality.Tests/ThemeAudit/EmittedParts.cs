@@ -1,15 +1,19 @@
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.Loader;
 
 namespace XamlQuality.Tests.ThemeAudit;
 
 /// <summary>
-/// A control library on disk for <c>theme-audit parts</c> to load: <c>PartsFixture.dll</c>, emitted at test time.
+/// A control library on disk for <c>theme-audit parts</c> to load: <c>PartsFixture.dll</c>, emitted at test time, and
+/// the base class it derives from, in <c>PartsBase.dll</c> beside it.
 /// </summary>
 /// <remarks>
 /// <para>
 /// <c>Fixtures.Gauge</c> declares the constant <c>PART_Needle</c>, and its <c>Apply</c> looks <c>PART_Dial</c> up through
-/// a <c>Find</c> of its own. It references nothing but the core library, so it loads from its file anywhere.
+/// a <c>Find</c> of its own. It derives from <c>Fixtures.GaugeBase</c>, which nothing in this process loads into the
+/// default context, so it loads only where the tool's load context finds <c>PartsBase.dll</c> in the folder: a lookup
+/// that fails leaves the control unread, and the tests that expect nothing unread say so.
 /// </para>
 /// <para>
 /// ⚠ The tool loads it from its file and keeps it loaded until the process exits, so it is written once per run to a
@@ -37,11 +41,24 @@ internal static class EmittedParts
             }
         }
 
-        string file = Path.Combine(Directory.CreateTempSubdirectory("xq-partsfixture-").FullName, "PartsFixture.dll");
+        string folder = Directory.CreateTempSubdirectory("xq-partsfixture-").FullName;
+
+        PersistedAssemblyBuilder bases = new(new AssemblyName("PartsBase"), typeof(object).Assembly);
+        TypeBuilder gaugeBase = bases.DefineDynamicModule("PartsBase")
+            .DefineType("Fixtures.GaugeBase", TypeAttributes.Public | TypeAttributes.Class);
+        gaugeBase.DefineDefaultConstructor(MethodAttributes.Public);
+        gaugeBase.CreateType();
+        string basesFile = Path.Combine(folder, "PartsBase.dll");
+        bases.Save(basesFile);
+
+        // Loaded apart from the default context, only to name the base class while the control is emitted.
+        Type baseType = new AssemblyLoadContext("xq-partsfixture-emit")
+            .LoadFromAssemblyPath(basesFile)
+            .GetType("Fixtures.GaugeBase", throwOnError: true)!;
 
         PersistedAssemblyBuilder fixture = new(new AssemblyName("PartsFixture"), typeof(object).Assembly);
         TypeBuilder gauge = fixture.DefineDynamicModule("PartsFixture")
-            .DefineType("Fixtures.Gauge", TypeAttributes.Public | TypeAttributes.Class);
+            .DefineType("Fixtures.Gauge", TypeAttributes.Public | TypeAttributes.Class, baseType);
         gauge.DefineDefaultConstructor(MethodAttributes.Public);
         gauge.DefineField("NeedlePart", typeof(string), FieldAttributes.Public | FieldAttributes.Static | FieldAttributes.Literal)
             .SetConstant("PART_Needle");
@@ -59,6 +76,7 @@ internal static class EmittedParts
         apply.Emit(OpCodes.Ret);
         gauge.CreateType();
 
+        string file = Path.Combine(folder, "PartsFixture.dll");
         fixture.Save(file);
         return file;
     }
