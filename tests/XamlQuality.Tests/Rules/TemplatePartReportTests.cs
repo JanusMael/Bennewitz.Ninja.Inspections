@@ -13,8 +13,9 @@ namespace XamlQuality.Tests.Rules;
 public sealed class TemplatePartReportTests
 {
     /// <summary>
-    /// A reading that fills every column: each origin, a lambda, two themes that declare a part differently, a part no
-    /// theme declares, a control with no theme, and a type that could not be read.
+    /// A reading that fills every column: each origin, a lambda, two lookups that read alike, two themes that declare a
+    /// part differently, a theme that declares a part twice, a part no theme declares, a control with no theme, and a
+    /// type that could not be read.
     /// </summary>
     private static readonly TemplatePartReading Golden = new(
         [
@@ -23,6 +24,7 @@ public sealed class TemplatePartReportTests
                 ["PART_Content"],
                 [
                     new TemplatePartLookup("PART_Content", TemplatePartOrigin.Own, "Lib.AlphaBox", "OnApplyTemplate", "Lib"),
+                    new TemplatePartLookup("PART_Content", TemplatePartOrigin.Own, "Lib.AlphaBox", "Refresh", "Lib"),
                     new TemplatePartLookup("PART_Popup", TemplatePartOrigin.BaseClass, "Vendor.BaseBox", "OnApplyTemplate", "Vendor"),
                     new TemplatePartLookup("PART_Scroll", TemplatePartOrigin.Own, "Lib.AlphaBox", "<OnApplyTemplate>b__4_0", "Lib"),
                     new TemplatePartLookup("PART_Scroll", TemplatePartOrigin.Helper, "Lib.Wiring+Wirer", "Wire", "Lib"),
@@ -35,6 +37,7 @@ public sealed class TemplatePartReportTests
                             new DeclaredPart("PART_Content", "ContentPresenter", "Content"),
                             new DeclaredPart("PART_Badge", "Border", null),
                             new DeclaredPart("PART_Scroll", "ScrollViewer", "Scroll"),
+                            new DeclaredPart("PART_Badge", "Border", "Badge"),
                         ]),
                     new ThemeParts(
                         "Themes/B.axaml",
@@ -64,7 +67,7 @@ public sealed class TemplatePartReportTests
             | Part | Element 1 | AutomationId 1 | Element 2 | AutomationId 2 | Constant | Looked up by |
             | --- | --- | --- | --- | --- | --- | --- |
             | `PART_Content` | `ContentPresenter` | `Content` | `ContentControl` | `""` | ✓ | ✓ |
-            | `PART_Badge` | `Border` |  |  |  |  | — |
+            | `PART_Badge` | `Border` | `Badge` |  |  |  | — |
             | `PART_Scroll` | `ScrollViewer` | `Scroll` | `ScrollViewer` | `Scroller` |  | ✓ `OnApplyTemplate (lambda)`, `Wiring.Wirer` |
             | `PART_Popup` | **missing** |  | **missing** |  |  | Vendor |
 
