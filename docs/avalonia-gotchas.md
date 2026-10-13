@@ -93,14 +93,14 @@ This one is GOOD — it's how the nav-tree icon column hides on sub-items withou
 
 **Symptom:** A control is shown that pushes others aside, layout is run, and `InputHitTest` at the centre of the control's new bounds returns the control that used to be drawn there. The control's `Bounds` have moved already. Code that hit-tests to learn what a click would reach is told the old answer.
 
-**Cause:** `InputHitTest` asks the renderer, through `GetVisualAt` and the presentation source's `HitTester`, and the renderer tests each composition visual against its readback: the transform and bounds it had in the frame last composed. `CompositionTarget.HitTestVisual` passes over a visual with no valid readback, or whose last bounds miss the point. Layout moves the visuals at once, and their readback moves only when the next frame is composed. Read in the source at 12.1.3.
+**Cause:** `InputHitTest` asks the renderer, through `GetVisualAt` and the presentation source's `HitTester`, and the renderer tests each composition visual against its readback: the transform and bounds it had in the frame last composed. `CompositionTarget.HitTestVisual` passes over a visual with no valid readback, or whose last bounds miss the point. Layout moves the controls at once; their composition visuals take the new layout only in the UI thread's render pass, which runs as a dispatcher job, and their readback moves only when the compositor renders the frame that pass committed. Read in the source at 12.1.3.
 
 Measured on Avalonia 12.1.3 with the Fluent theme: a bar 60 tall was shown in an `Auto` row above a pane, `UpdateLayout()` was called, and the bar's centre was hit-tested.
 
-- Headless with Skia: the pane at once, in 20 rounds of 20; after `Dispatcher.UIThread.RunJobs()`, still the pane in 9 of 10; after `AvaloniaHeadlessPlatform.ForceRenderTimerTick()`, or after `CaptureRenderedFrame()` alone, the bar, in 10 of 10 each.
-- On a real window on Windows, in Windows Sandbox: the pane at once and after a `RequestAnimationFrame` callback, in 10 of 10; the bar 50 ms later, in 10 of 10.
+- Headless with Skia: the pane at once, in 30 rounds of 30; after `Dispatcher.UIThread.RunJobs()`, still the pane in 8 of 10; after `AvaloniaHeadlessPlatform.ForceRenderTimerTick()` with no `RunJobs()` before it, still the pane in 10 of 10, and after a second tick; after `RunJobs()` and then a forced tick, or after `CaptureRenderedFrame()` alone, the bar, in 10 of 10 each.
+- On a real window on Windows, in Windows Sandbox with the host's GPU shared, in one run: the pane at once and after a `RequestAnimationFrame` callback, in 10 of 10; the bar 50 ms after that callback, in 10 of 10.
 
-**Fix:** Hit-test only once the next frame has been composed. In a headless test, draw one first with `CaptureRenderedFrame()` or `AvaloniaHeadlessPlatform.ForceRenderTimerTick()`; `RunJobs` alone is not enough. On a real window a `RequestAnimationFrame` callback is still too early, so poll the hit-test, with a deadline, until it answers what the layout says is there. Where the question is only where layout put a control, ask the layout, through `Bounds` or `TranslatePoint`, not a hit-test.
+**Fix:** Hit-test only once the next frame has been composed. In a headless test, draw one first: `CaptureRenderedFrame()`, or `Dispatcher.UIThread.RunJobs()` and then `AvaloniaHeadlessPlatform.ForceRenderTimerTick()`. Neither alone is enough: the forced tick composes only what the UI thread's render pass has committed, and that pass runs as a dispatcher job. On a real window a `RequestAnimationFrame` callback is still too early, so poll the hit-test, with a deadline, until it answers what the layout says is there. Where the question is only where layout put a control, ask the layout, through `Bounds` or `TranslatePoint`, not a hit-test.
 
 ### There is no automatic LAYOUT CLIP — a control too big for its slot is laid out anyway, and whether it is *drawn* depends on the container
 
@@ -585,11 +585,15 @@ The `/template/` combinator is not optional — a selector without it does not r
 
 **Symptom:** Through UI Automation on Windows, an Avalonia `MenuItem` advertises `ScrollItem` and nothing else, alike in a menu declared in XAML, one built in code and a context menu. There is no `Invoke` to run an item and no `ExpandCollapse` to open a submenu, and a `ToggleType="CheckBox"` item has no `Toggle`, so its checked state can be neither read nor set. The window's System menu item, in its title bar, does offer `ExpandCollapse`, but it is Windows' own, not Avalonia's.
 
-**Cause:** `MenuItemAutomationPeer` implements neither `IInvokeProvider` nor `IExpandCollapseProvider`. Since 12.1.0 it implements `IToggleProvider` for a checkable item ([AvaloniaUI/Avalonia#21541](https://github.com/AvaloniaUI/Avalonia/pull/21541)), but its `GetProviderCore` reads the item's `ToggleType`, a styled property, to decide whether to offer it. The Windows bridge asks for a pattern's provider (`AutomationNode.GetPatternProvider`) on UI Automation's thread, without the marshalling to the UI thread that it gives every property it reads. Off the UI thread the read throws, and the client finds no `Toggle`. `ScrollItem` comes from the bridge itself, for every element. Read in the source at 12.1.3. Measured headless: the peer's `GetProvider<IToggleProvider>()` answered on the UI thread and threw `InvalidOperationException` on another, where a `CheckBox`'s answered on both.
+**Cause:** `MenuItemAutomationPeer` implements neither `IInvokeProvider` nor `IExpandCollapseProvider`. Since 12.0.5 and 12.1.0 it implements `IToggleProvider` ([AvaloniaUI/Avalonia#21541](https://github.com/AvaloniaUI/Avalonia/pull/21541)), offered only for a checkable item, but its `GetProviderCore` reads the item's `ToggleType`, a styled property, to decide whether to offer it. The Windows bridge asks for a pattern's provider (`AutomationNode.GetPatternProvider`), and looks it up again before each of the pattern's property reads and calls, on UI Automation's thread, without the marshalling to the UI thread that it gives each element property it reads. Off the UI thread the read throws, and the client finds no `Toggle`. `ScrollItem` comes from the bridge itself, for every element it builds from a peer. Read in the source at 12.1.3. Measured headless: the peer's `GetProvider<IToggleProvider>()` answered on the UI thread and threw `InvalidOperationException` on another, where a `CheckBox`'s answered on both.
 
 **Fix:** Open menus and run their items by clicking, not through patterns. For `Toggle`, give the item a peer that reads `ToggleType` on the UI thread and answers from what it read:
 
 ```csharp
+using Avalonia.Automation.Peers;
+using Avalonia.Automation.Provider;
+using Avalonia.Controls;
+
 public sealed class CheckableMenuItem : MenuItem
 {
     protected override Type StyleKeyOverride => typeof(MenuItem);
@@ -621,7 +625,7 @@ public sealed class CheckableMenuItem : MenuItem
 }
 ```
 
-Measured on Avalonia 12.1.3 with the Fluent theme, in Windows Sandbox: beside a stock checkable item that offered `ScrollItem` alone, this one offered `Toggle` and `ScrollItem`, read `Off`, and read `On` after `Toggle()`, with `IsChecked` true. ⚠ `Toggle()` sets `IsChecked` and does nothing else, by the source and as measured: it raises no `Click`, so a `Command` on the item does not run, and the menu stays open.
+Measured on Avalonia 12.1.3 with the Fluent theme, in Windows Sandbox: beside a stock checkable item that offered `ScrollItem` alone, this one offered `Toggle` and `ScrollItem`, read `Off`, and read `On` after `Toggle()`, with `IsChecked` true. ⚠ `Toggle()` changes only `IsChecked`, by the source and as measured: it raises no `Click`, so a `Command` on the item does not run, and the menu stays open.
 
 ### A `ListBox` is NOT focusable, so `Focus()` on one is a silent no-op
 
@@ -1114,7 +1118,7 @@ They are the price of referencing DataGrid, not a defect to hunt for in your cod
 
 **Cause:** A node whose peer offers `ISelectionProvider` lists only its selection-item descendants, when it has any, and drops everything between: the scroll bars, and the `ScrollViewer` whose own scroll provider works. The list's own `ScrollPattern` answers nothing, as the entry on it above says. Read in the bridge's source at 12.1.3.
 
-**Fix:** Surface the bars from a parent. Give the control that hosts the list a peer whose `GetChildrenCore` appends the `ScrollBar` peers found under the list's `ScrollViewer`, and that calls `InvalidateChildren()` once the list's template is applied. The bridge gives each bar `Value`, and writing half the vertical bar's maximum scrolled a 300-line list to its 145th line. Do it off Windows only: UI Automation's control view already shows the bars under the list, since the template parts between them are not control elements, and would show them twice. Measured on Windows, in Windows Sandbox: a list's children in the control view were its realised rows and its `PART_VerticalScrollBar`.
+**Fix:** Surface the bars from a parent. Give the control that hosts the list a peer whose `GetChildrenCore` appends the `ScrollBar` peers found under the list's `ScrollViewer`, and that calls `InvalidateChildren()` once the list's template is applied. The bridge gives each bar `Value`, and writing half the vertical bar's maximum scrolled a 300-line list to its 145th line. Do it off Windows only: UI Automation's control view already shows the bars under the list, since the template parts between them are not control elements, so surfacing them would list them twice, which was not measured. Measured on Windows, in Windows Sandbox: a list's children in the control view were its realised rows and its `PART_VerticalScrollBar`.
 
 ⚠ **A write leaves the bar behind.** The bar's peer sets `ScrollBar.Value` as a local value, which outranks the binding that keeps it at the list's offset. Measured: after the application scrolled the list back to line 21, the bar still answered 5500, over AT-SPI and in the application. After writing a bar, read the position from the rows, never from the bar.
 
@@ -1258,11 +1262,11 @@ Measured on Avalonia 12.1.3, headless with Skia and the Fluent theme.
 
 **Symptom:** `PrintWindow(hwnd, hdc, 0)` returns true, `GetLastError` answers 0, and every pixel of the capture is black. Nothing says the capture failed, so a check that compares colours compares black.
 
-**Cause:** Not traced. By default on Windows, Avalonia draws a window through ANGLE on Direct3D 11, and `PrintWindow` without `PW_RENDERFULLCONTENT` copies none of what it draws. The black is written: a bitmap filled with another colour beforehand comes back black in every pixel.
+**Cause:** Not traced. By default on Windows, Avalonia draws a window through ANGLE on Direct3D 11, and `PrintWindow` without `PW_RENDERFULLCONTENT` copies none of what it draws. The black is written: a bitmap filled with another colour beforehand comes back black in every pixel. A window drawn by Avalonia's own software renderer, or composed as a redirection surface, was not measured.
 
 **Fix:** Pass `PW_RENDERFULLCONTENT` (2), and check the pixels anyway, against a colour the window is known to draw, since the failed capture reports success and leaves no pixel untouched. `PW_CLIENTONLY | PW_RENDERFULLCONTENT` (3) captures exactly the client area, drawn at the bitmap's origin: 360 × 260 of a 376 × 299 window.
 
-Measured on Avalonia 12.1.3 with the Fluent theme, in Windows Sandbox: every capture without the flag was black, three in each of two runs, with the window covered by another or not, once with the host's GPU shared and once with only the software renderer; every capture with it held the window's own client colour exactly where the client is, covered or not.
+Measured on Avalonia 12.1.3 with the Fluent theme and the default `Win32PlatformOptions`, in Windows Sandbox: every capture without the flag was black, three in each of two runs, once with the host's GPU shared and once with only Windows' software adapter, the Basic Render Driver, on which ANGLE drew through WARP; every capture with it held the window's own client colour exactly where the client is. In the first run, one capture of each kind was taken with another window covering it, with the same results.
 
 ---
 
