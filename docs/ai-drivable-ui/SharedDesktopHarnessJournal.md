@@ -101,7 +101,7 @@ writing thirty of them is expensive.
 
 - **Probe, then choose.** [`Probe-UiTestEnvironment.ps1`](Probe-UiTestEnvironment.ps1) reports the
   four answers: on Windows by asking the system, elsewhere from `$WAYLAND_DISPLAY`, `$DISPLAY`,
-  `$XDG_SESSION_TYPE` and `$SSH_CONNECTION`.
+  `$XDG_SESSION_TYPE`, `$SSH_CONNECTION` and whether GNOME Shell is running.
 - **Record the answers with every result.** See *Record the session type* below — the port has
   an incident record it cannot split by session type because nobody wrote it down.
 - **Re-probe rather than remember.** The same machine here was console at one hour and RDP the next,

@@ -160,8 +160,8 @@ namespace UiTestProbe {
         Verdict 'C' 'isolated desktop (Xvfb)' $null 'start Xvfb and set DISPLAY - UNVERIFIED here'
     }
     elseif ($server -like 'Wayland*') {
-        if ($env:XDG_CURRENT_DESKTOP -match 'GNOME') {
-            Verdict 'A' 'automation APIs, no synthetic input' $true 'AT-SPI carries Avalonia 12''s peers, and a harness drives them (measured, the app under Xwayland)'
+        if (Get-Process -Name gnome-shell -ErrorAction SilentlyContinue) {
+            Verdict 'A' 'automation APIs, no synthetic input' $true 'AT-SPI carries Avalonia 12''s peers, and a harness drives them (measured under GNOME Shell, the app under Xwayland)'
         }
         else {
             Verdict 'A' 'automation APIs, no synthetic input' $null 'AT-SPI carries Avalonia 12''s peers; driving them is measured under GNOME only - UNVERIFIED here'
