@@ -28,7 +28,20 @@ namespace Bennewitz.Ninja.XamlQuality.Rules;
 /// What could not be read, and why: a type whose code could be read only in part, a type a scanned assembly defines that
 /// did not load, and, when the scan was given no assemblies, that.
 /// </param>
-public sealed record TemplatePartReading(IReadOnlyList<ControlTemplateParts> Controls, IReadOnlyList<XamlSkip> Skipped);
+public sealed record TemplatePartReading(IReadOnlyList<ControlTemplateParts> Controls, IReadOnlyList<XamlSkip> Skipped)
+{
+    /// <summary>
+    /// The reading as the Markdown report a repository commits and holds to a fresh run: one section per control, in the
+    /// reading's order, then what was not read.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>Its format is a contract.</b> LF line endings, invariant culture, no timestamp and no absolute path, so a
+    /// fresh report equals the committed one on every platform until the code or a theme changes; a change to the format
+    /// regenerates every consumer's committed copy, so it is recorded as one.
+    /// </remarks>
+    /// <returns>The report.</returns>
+    public string ToMarkdown() => TemplatePartReport.Render(this);
+}
 
 /// <summary>One type's template parts: the constants it declares, the lookups made on its template, and its themes.</summary>
 /// <remarks>
