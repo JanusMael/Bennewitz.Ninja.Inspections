@@ -259,12 +259,13 @@ None is a violation, and some are correct; all are places where a clean result i
 | `theme-audit parts` | Writes the parts report: `BNXQ1003`'s reading of the configured controls |
 | `theme-audit inventory <path>` | Lists the resource keys a folder defines, and writes nothing |
 
-**`--check` is the drift check.** Given to a command that writes, it writes nothing but compares: it exits 0 when the
+**`--check` is the drift check.** Given to a command that writes, it compares instead of writing: it exits 0 when the
 committed output is what a fresh run writes, line endings aside, 1 when it is stale or missing or a file cannot be
 read, and 2 on a configuration error. On drift it writes the fresh output beside the stale one, as `name.received.ext`,
-where the failure can be read or the file taken; a check that finds the output up to date removes it again. Ignore
-`*.received.*` in git, and remove a received `.axaml` before a build, which compiles it too. A test that generates an
-output in its own process runs the same comparison with `OutputDrift.Check`.
+where the failure can be read or the file taken; a check that finds the output up to date removes it again, and so does
+writing the output. The audit never reads a received copy, but ignore `*.received.*` in git, and remove a received
+`.axaml` before a build, which compiles it too. A test that generates an output in its own process runs the same
+comparison with `OutputDrift.Check`, and writes the output with `OutputDrift.Write`.
 
 **The parts report is the template parts reference a control library commits.** For each control it lists the
 `PART_` constants the code declares, each part some code looks up on the control's template and whose code that is,
