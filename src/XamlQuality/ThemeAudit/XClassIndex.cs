@@ -21,7 +21,10 @@ public sealed class XClassIndex
         _bySimpleName = bySimpleName;
     }
 
-    /// <summary>Indexes every <c>x:Class</c>-carrying AXAML/XAML file under <paramref name="baseDirectory"/>.</summary>
+    /// <summary>
+    /// Indexes every <c>x:Class</c>-carrying AXAML/XAML file under <paramref name="baseDirectory"/> but the drift check's
+    /// received copies.
+    /// </summary>
     public static XClassIndex Build(string baseDirectory)
     {
         List<(string SimpleName, string File)> entries = [];
@@ -76,6 +79,7 @@ public sealed class XClassIndex
             .Where(f => f.EndsWith(".axaml", StringComparison.OrdinalIgnoreCase)
                         || f.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase))
             .Where(f => !IsUnderSkippedDirectory(directory, f))
+            .Where(f => !OutputDrift.IsReceived(f))
             .Order(StringComparer.Ordinal);
     }
 

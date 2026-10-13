@@ -51,7 +51,7 @@ Option<FileInfo> configOption = new("--config", "-c")
 
 Option<bool> checkOption = new("--check")
 {
-    Description = "Write nothing; exit 1 when a committed output differs from a fresh run (the drift check).",
+    Description = "Compare each committed output with a fresh run instead of writing it; exit 1 when one is stale or missing, with a stale one's fresh output written beside it as name.received.ext (the drift check).",
 };
 
 // ---- compat: the generated dictionaries -----------------------------------------------------
@@ -99,8 +99,7 @@ compat.SetAction(parseResult =>
                 continue;
             }
 
-            Directory.CreateDirectory(Path.GetDirectoryName(output)!);
-            File.WriteAllText(output, generation.Xml);
+            OutputDrift.Write(output, generation.Xml);
             Console.WriteLine($"theme-audit: wrote {config.Relative(output)} — {summary}.");
             foreach (IGrouping<string, CompatSkipped> group in generation.Skipped.GroupBy(s => s.Reason, StringComparer.Ordinal).OrderBy(g => g.Key, StringComparer.Ordinal))
             {
@@ -168,8 +167,7 @@ report.SetAction(parseResult =>
             }
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(output)!);
-        File.WriteAllText(output, markdown);
+        OutputDrift.Write(output, markdown);
         Console.WriteLine($"theme-audit: wrote {output} ({summary}).");
         return 0;
     }
@@ -228,8 +226,7 @@ parts.SetAction(parseResult =>
             }
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(output)!);
-        File.WriteAllText(output, markdown);
+        OutputDrift.Write(output, markdown);
         Console.WriteLine($"theme-audit: wrote {relative} ({summary}).");
         return 0;
     }
