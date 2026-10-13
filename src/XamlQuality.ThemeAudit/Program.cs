@@ -85,7 +85,7 @@ compat.SetAction(parseResult =>
             string summary = Summarize(generation);
             if (check)
             {
-                if (!File.Exists(output) || Normalize(File.ReadAllText(output)) != Normalize(generation.Xml))
+                if (OutputDrift.Check(output, generation.Xml) != DriftState.UpToDate)
                 {
                     Console.Error.WriteLine($"theme-audit: {config.Relative(output)} is stale or missing — {summary}; regenerate with `theme-audit compat`.");
                     stale++;
@@ -153,20 +153,18 @@ report.SetAction(parseResult =>
 
         if (check)
         {
-            if (!File.Exists(output))
+            switch (OutputDrift.Check(output, markdown))
             {
-                Console.Error.WriteLine($"theme-audit: {output} does not exist; run `theme-audit report` to create it.");
-                return 1;
+                case DriftState.Missing:
+                    Console.Error.WriteLine($"theme-audit: {output} does not exist; run `theme-audit report` to create it.");
+                    return 1;
+                case DriftState.Stale:
+                    Console.Error.WriteLine($"theme-audit: {output} is stale — it differs from a fresh run ({summary}); regenerate it with `theme-audit report`.");
+                    return 1;
+                default:
+                    Console.WriteLine($"theme-audit: {output} is up to date ({summary}).");
+                    return 0;
             }
-
-            if (Normalize(File.ReadAllText(output)) != Normalize(markdown))
-            {
-                Console.Error.WriteLine($"theme-audit: {output} is stale — it differs from a fresh run ({summary}); regenerate it with `theme-audit report`.");
-                return 1;
-            }
-
-            Console.WriteLine($"theme-audit: {output} is up to date ({summary}).");
-            return 0;
         }
 
         Directory.CreateDirectory(Path.GetDirectoryName(output)!);
@@ -189,11 +187,6 @@ report.SetAction(parseResult =>
 root.Subcommands.Add(report);
 
 return root.Parse(args).Invoke();
-
-static string Normalize(string text)
-{
-    return text.Replace("\r\n", "\n", StringComparison.Ordinal);
-}
 
 static string Summarize(CompatGeneration generation)
 {
