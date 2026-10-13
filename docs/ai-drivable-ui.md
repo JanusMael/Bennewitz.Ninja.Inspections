@@ -161,7 +161,8 @@ display server and the scaling, then which approaches the machine supports. The 
 console session one hour and a Remote Desktop session the next, with different answers.
 
 **Windows Sandbox, for the few harnesses that must send real input**, has its own account, from the
-host takedowns to the setting behind them:
+host takedowns to the GPU setting suspected of them, which is spelled `<vGPU>` and must be checked in
+the guest, not in the configuration:
 [SandboxHarnessJournal.md](ai-drivable-ui/SandboxHarnessJournal.md).
 
 **Prefer the first two, and count the rest by what each harness DOES, not by which helper it calls.**
