@@ -46,8 +46,10 @@ one and otherwise from
 
 Headless fixtures over the real views first. Then runtime harnesses through UI Automation patterns
 with **no synthetic input**, which run beside a person working. Harnesses needing the **foreground**
-go to the person as a command. Real-input harnesses need an isolated session — keep that set small,
-and count each harness by what it does, not by which helper it calls. Each guards every click against
+go to the person as a command. Real-input harnesses need an isolated session, or the person's own
+desktop with the person watching, at their go, the window checked unobstructed and focused before
+every event and the run refused otherwise, never in an unattended sweep — keep that set small, and
+count each harness by what it does, not by which helper it calls. Each guards every click against
 the window on top at its pixel and every key against what holds focus, and asserts a gesture's
 effect, never that its input was sent.
 
