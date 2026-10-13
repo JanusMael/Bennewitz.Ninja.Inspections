@@ -16,8 +16,8 @@ internal static class ResourceKeyScanner
     private static readonly string[] SkippedDirectories = ["bin", "obj", ".git"];
 
     /// <summary>
-    /// Scans every <c>.axaml</c> and <c>.xaml</c> file under <paramref name="directory"/>,
-    /// in ordinal path order, and returns one entry per <c>x:Key</c> found.
+    /// Scans every <c>.axaml</c> and <c>.xaml</c> file under <paramref name="directory"/> but the drift check's
+    /// received copies, in ordinal path order, and returns one entry per <c>x:Key</c> found.
     /// </summary>
     /// <exception cref="InvalidDataException">A file is not well-formed XML.</exception>
     public static IReadOnlyList<ResourceKey> Scan(string directory)
@@ -58,6 +58,7 @@ internal static class ResourceKeyScanner
             .EnumerateFiles(directory, "*.*xaml", SearchOption.AllDirectories)
             .Where(IsXamlFile)
             .Where(file => !IsUnderSkippedDirectory(directory, file))
+            .Where(file => !OutputDrift.IsReceived(file))
             .Order(StringComparer.Ordinal);
     }
 

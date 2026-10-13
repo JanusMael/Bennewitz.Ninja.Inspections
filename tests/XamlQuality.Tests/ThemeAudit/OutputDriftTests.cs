@@ -69,6 +69,30 @@ public sealed class OutputDriftTests : IDisposable
         Assert.False(File.Exists(Received));
     }
 
+    /// <summary>Writing the output removes the received copy a stale check left, which the output now is.</summary>
+    [Fact]
+    public void Writing_the_output_removes_the_received_copy_a_stale_check_left()
+    {
+        File.WriteAllText(Committed, Fresh + "edited\n");
+        OutputDrift.Check(Committed, Fresh);
+        Assert.True(File.Exists(Received));
+
+        OutputDrift.Write(Committed, Fresh);
+
+        Assert.Equal(Fresh, File.ReadAllText(Committed));
+        Assert.False(File.Exists(Received));
+    }
+
+    [Fact]
+    public void Writing_an_output_creates_its_folder()
+    {
+        string nested = Path.Combine(_root, "docs", "deep", "report.md");
+
+        OutputDrift.Write(nested, Fresh);
+
+        Assert.Equal(Fresh, File.ReadAllText(nested));
+    }
+
     [Theory]
     [InlineData("theme-audit.md", "theme-audit.received.md")]
     [InlineData("Compat.axaml", "Compat.received.axaml")]

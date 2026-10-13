@@ -1,6 +1,6 @@
 namespace Bennewitz.Ninja.XamlQuality.ThemeAudit;
 
-/// <summary>The AXAML/XAML files under a directory, skipping build output, git, and any excluded directories.</summary>
+/// <summary>The AXAML/XAML files under a directory, skipping build output, git, the drift check's received copies, and any excluded directories.</summary>
 /// <remarks>
 /// ⚠ <b>Ordered by the path below the directory, written with <c>/</c>, so every platform lists the
 /// same files in the same order.</b> An ordinal sort of the full path does not: <c>\</c> sorts after
@@ -21,6 +21,7 @@ internal static class XamlFiles
             .Where(f => f.EndsWith(".axaml", StringComparison.OrdinalIgnoreCase)
                         || f.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase))
             .Where(f => !IsUnderSkippedDirectory(directory, f))
+            .Where(f => !OutputDrift.IsReceived(f))
             .Where(f => !excluded.Any(e => IsUnder(e, f)))
             .OrderBy(f => Path.GetRelativePath(directory, f).Replace('\\', '/'), StringComparer.Ordinal)
             .ToList();

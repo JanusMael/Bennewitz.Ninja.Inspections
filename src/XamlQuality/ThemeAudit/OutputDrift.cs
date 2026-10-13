@@ -27,14 +27,17 @@ public enum DriftState
 /// </para>
 /// <para>
 /// ⚠ <b>On drift, the fresh output is written beside the committed one</b>, as <c>name.received.ext</c>, so the
-/// difference can be read, or the file taken, without a second run; a check that finds the output up to date removes
-/// one an earlier check left. A repository that runs the check ignores <c>*.received.*</c>. A received copy keeps the
-/// committed file's extension, so where a build compiles every file of that extension, as Avalonia's does
-/// <c>.axaml</c>, it is compiled too until it is removed.
+/// difference can be read, or the file taken, without a second run. A check that finds the output up to date removes
+/// one an earlier check left, and so does writing the output with <see cref="Write"/>, so none outlives the drift. A
+/// repository that runs the check ignores <c>*.received.*</c>. The audit's own scans never read a received copy, but a
+/// received copy keeps the committed file's extension, so where a build compiles every file of that extension, as
+/// Avalonia's does <c>.axaml</c>, it is compiled too until it is removed.
 /// </para>
 /// </remarks>
 public static class OutputDrift
 {
+    private const string ReceivedSuffix = ".received";
+
     /// <summary>Compares the committed copy at <paramref name="path"/> with <paramref name="fresh"/>.</summary>
     /// <param name="path">The committed output.</param>
     /// <param name="fresh">What a fresh run writes.</param>
@@ -64,6 +67,22 @@ public static class OutputDrift
     }
 
     /// <summary>
+    /// Writes <paramref name="fresh"/> to <paramref name="path"/>, creating its folder, and removes the received copy a
+    /// stale check left beside it, which the output now is.
+    /// </summary>
+    /// <param name="path">The output.</param>
+    /// <param name="fresh">What a fresh run writes.</param>
+    public static void Write(string path, string fresh)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentNullException.ThrowIfNull(fresh);
+
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
+        File.WriteAllText(path, fresh);
+        File.Delete(ReceivedPathOf(path));
+    }
+
+    /// <summary>
     /// Where the fresh output of a stale <paramref name="path"/> is written: beside it, as <c>name.received.ext</c>.
     /// </summary>
     /// <param name="path">The committed output.</param>
@@ -73,7 +92,18 @@ public static class OutputDrift
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         return Path.Combine(
             Path.GetDirectoryName(path) ?? string.Empty,
-            Path.GetFileNameWithoutExtension(path) + ".received" + Path.GetExtension(path));
+            Path.GetFileNameWithoutExtension(path) + ReceivedSuffix + Path.GetExtension(path));
+    }
+
+    /// <summary>
+    /// Whether <paramref name="path"/> is a received copy, named as <see cref="ReceivedPathOf"/> names one, which the
+    /// audit's scans leave out.
+    /// </summary>
+    internal static bool IsReceived(string path)
+    {
+        string name = Path.GetFileName(path);
+        return Path.GetFileNameWithoutExtension(name).EndsWith(ReceivedSuffix, StringComparison.Ordinal)
+               || name.EndsWith(ReceivedSuffix, StringComparison.Ordinal);
     }
 
     private static string Lf(string text) => text.Replace("\r\n", "\n", StringComparison.Ordinal);

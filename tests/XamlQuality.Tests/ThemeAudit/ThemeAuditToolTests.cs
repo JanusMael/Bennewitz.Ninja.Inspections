@@ -98,6 +98,37 @@ public sealed class ThemeAuditToolTests : IDisposable
         Assert.True(File.Exists(Report));
     }
 
+    /// <summary>Regenerating a stale report removes the fresh copy the check left beside it, which the report now is.</summary>
+    [Fact]
+    public void Report_regenerated_after_a_stale_check_removes_the_received_copy()
+    {
+        string received = Path.Combine(_root, "audit", "docs", "theme-audit.received.md");
+        Run("report", "--config", AuditConfig);
+        File.AppendAllText(Report, "edited\n");
+        Run("report", "--check", "--config", AuditConfig);
+        Assert.True(File.Exists(received));
+
+        Run("report", "--config", AuditConfig);
+
+        Assert.False(File.Exists(received));
+    }
+
+    /// <summary>
+    /// A received copy in a consumer's folder, as a failing <c>compat --check</c> leaves where a consumer keeps its compat
+    /// dictionary, is not read as the consumer's markup, so the report a later check compares is unchanged.
+    /// </summary>
+    [Fact]
+    public void Report_does_not_read_a_received_copy_in_a_consumers_folder()
+    {
+        Run("report", "--config", AuditConfig);
+        string themes = Path.Combine(_root, "audit", "app", "Themes");
+        File.Copy(Path.Combine(themes, "App.axaml"), Path.Combine(themes, "App.received.axaml"));
+
+        Assert.Equal(
+            (0, $"theme-audit: {Report} is up to date ({AuditSummary}).\n", ""),
+            Run("report", "--check", "--config", AuditConfig));
+    }
+
     [Fact]
     public void Report_check_without_a_report_exits_1_and_says_how_to_create_it()
     {
@@ -193,6 +224,21 @@ public sealed class ThemeAuditToolTests : IDisposable
             Run("compat", "--check", "--config", CompatConfig));
     }
 
+    /// <summary>Regenerating a stale dictionary removes the fresh copy the check left beside it, which the dictionary now is.</summary>
+    [Fact]
+    public void Compat_regenerated_after_a_stale_check_removes_the_received_copy()
+    {
+        string received = Path.Combine(_root, "compat", "out", "Compat.received.axaml");
+        Run("compat", "--config", CompatConfig);
+        File.AppendAllText(CompatOutput, "<!-- edited -->\n");
+        Run("compat", "--check", "--config", CompatConfig);
+        Assert.True(File.Exists(received));
+
+        Run("compat", "--config", CompatConfig);
+
+        Assert.False(File.Exists(received));
+    }
+
     [Fact]
     public void Compat_with_no_dictionaries_configured_exits_2()
     {
@@ -248,6 +294,21 @@ public sealed class ThemeAuditToolTests : IDisposable
             (1, "", $"theme-audit: docs/template-parts.md is stale — it differs from a fresh run ({PartsSummary}); regenerate it with `theme-audit parts`.\n"),
             Run("parts", "--check", "--config", PartsConfig));
         Assert.Equal(fresh, File.ReadAllText(Path.Combine(_root, "parts", "docs", "template-parts.received.md")));
+    }
+
+    /// <summary>Regenerating a stale parts report removes the fresh copy the check left beside it, which the report now is.</summary>
+    [Fact]
+    public void Parts_regenerated_after_a_stale_check_removes_the_received_copy()
+    {
+        string received = Path.Combine(_root, "parts", "docs", "template-parts.received.md");
+        Run("parts", "--config", PartsConfig);
+        File.AppendAllText(PartsReport, "edited\n");
+        Run("parts", "--check", "--config", PartsConfig);
+        Assert.True(File.Exists(received));
+
+        Run("parts", "--config", PartsConfig);
+
+        Assert.False(File.Exists(received));
     }
 
     [Fact]
