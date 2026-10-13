@@ -1,4 +1,5 @@
 using System.CommandLine;
+using Bennewitz.Ninja.XamlQuality.Rules;
 using Bennewitz.Ninja.XamlQuality.ThemeAudit;
 
 RootCommand root = new("theme-audit — finds the resource keys an Avalonia theme leaves undefined and the tokens below a contrast floor.");
@@ -185,6 +186,66 @@ report.SetAction(parseResult =>
 });
 
 root.Subcommands.Add(report);
+
+// ---- parts: the template parts report ---------------------------------------------------------
+
+Command parts = new("parts", "Read the configured controls' template parts, as BNXQ1003 reads them, and write the parts report.");
+parts.Options.Add(configOption);
+parts.Options.Add(checkOption);
+parts.SetAction(parseResult =>
+{
+    FileInfo configFile = parseResult.GetValue(configOption)!;
+    bool check = parseResult.GetValue(checkOption);
+
+    try
+    {
+        AuditConfig config = AuditConfig.Load(configFile.FullName);
+        if (config.Parts is null)
+        {
+            Console.Error.WriteLine("theme-audit: the configuration declares no parts report.");
+            return 2;
+        }
+
+        TemplatePartReading reading = PartsRunner.Read(config);
+        string markdown = reading.ToMarkdown();
+        string output = config.Resolve(config.Parts.Report);
+        string relative = config.Relative(output);
+        string summary = $"{reading.Controls.Count} control(s), {reading.Controls.Sum(c => c.Lookups.Count)} lookup(s), {reading.Skipped.Count} not read";
+
+        if (check)
+        {
+            switch (OutputDrift.Check(output, markdown))
+            {
+                case DriftState.Missing:
+                    Console.Error.WriteLine($"theme-audit: {relative} does not exist; run `theme-audit parts` to create it.");
+                    return 1;
+                case DriftState.Stale:
+                    Console.Error.WriteLine($"theme-audit: {relative} is stale — it differs from a fresh run ({summary}); regenerate it with `theme-audit parts`.");
+                    return 1;
+                default:
+                    Console.WriteLine($"theme-audit: {relative} is up to date ({summary}).");
+                    return 0;
+            }
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(output)!);
+        File.WriteAllText(output, markdown);
+        Console.WriteLine($"theme-audit: wrote {relative} ({summary}).");
+        return 0;
+    }
+    catch (AuditConfigException ex)
+    {
+        Console.Error.WriteLine($"theme-audit: {ex.Message}");
+        return 2;
+    }
+    catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException or BadImageFormatException)
+    {
+        Console.Error.WriteLine($"theme-audit: {ex.Message}");
+        return 1;
+    }
+});
+
+root.Subcommands.Add(parts);
 
 return root.Parse(args).Invoke();
 

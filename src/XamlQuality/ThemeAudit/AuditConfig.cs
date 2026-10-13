@@ -36,6 +36,9 @@ public sealed class AuditConfig
     /// <summary>The compat dictionaries to generate.</summary>
     public List<CompatConfig> Compat { get; set; } = [];
 
+    /// <summary>The template parts report <c>theme-audit parts</c> writes; none when omitted.</summary>
+    public PartsConfig? Parts { get; set; }
+
     /// <summary>The configuration file, absolute.</summary>
     [JsonIgnore]
     public string ConfigPath { get; private set; } = string.Empty;
@@ -187,7 +190,32 @@ public sealed class AuditConfig
                 throw new AuditConfigException($"compat '{compat.Name}' names an unknown theme ('{compat.From}' → '{compat.To}')");
             }
         }
+
+        if (Parts is { } parts
+            && (string.IsNullOrWhiteSpace(parts.Report) || parts.Markup.Count == 0 || parts.Assemblies.Count == 0))
+        {
+            throw new AuditConfigException("'parts' needs 'report', 'markup' and 'assemblies'");
+        }
     }
+}
+
+/// <summary>
+/// The template parts report: <c>BNXQ1003</c>'s reading of the controls the assemblies define and the themes the markup
+/// holds. Paths are relative to the configuration file.
+/// </summary>
+public sealed class PartsConfig
+{
+    /// <summary>Where the report is written.</summary>
+    public string Report { get; set; } = string.Empty;
+
+    /// <summary>The folders whose markup the themes are read from.</summary>
+    public List<string> Markup { get; set; } = [];
+
+    /// <summary>
+    /// The assemblies whose code the parts are read from: the controls' own, and any library that defines a base class
+    /// of theirs whose lookups the report should show.
+    /// </summary>
+    public List<string> Assemblies { get; set; } = [];
 }
 
 /// <summary>One theme to inventory. Paths are relative to the configuration file.</summary>
