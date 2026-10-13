@@ -7,14 +7,16 @@ namespace XamlQuality.Tests.ThemeAudit;
 public sealed class ConsoleCapture;
 
 /// <summary>
-/// The <c>theme-audit</c> tool's drift checks, <c>report --check</c> and <c>compat --check</c>, by their exit codes and
-/// messages, over copies of the committed fixtures under <c>Fixtures/audit</c> and <c>Fixtures/compat</c>.
+/// The <c>theme-audit</c> tool's outputs and drift checks, <c>report</c>, <c>compat</c> and <c>parts</c>, by their exit
+/// codes and messages, over copies of the committed fixtures under <c>Fixtures/audit</c> and <c>Fixtures/compat</c>, and a
+/// control library emitted at test time.
 /// </summary>
 /// <remarks>
 /// <para>
 /// ⭐ <b>A consumer's CI branches on these.</b> The exit code says up to date, drift or an unreadable file, and a
-/// configuration error; the message says which file and what to run. Nothing tested either before the drift check moved
-/// into the library, so these were written first, against the tool as it was, to hold both through the move.
+/// configuration error; the message says which file and what to run. Nothing tested the first two before the drift
+/// check moved into the library, so their tests were written first, against the tool as it was, to hold both through
+/// the move.
 /// </para>
 /// <para>
 /// ⚠ <b>Run in this process, not as one of its own.</b> A redirected console on Windows writes in its code page, which
@@ -48,6 +50,24 @@ public sealed class ThemeAuditToolTests : IDisposable
               ]
             }
             """);
+
+        Directory.CreateDirectory(Path.Combine(_root, "parts", "themes"));
+        File.WriteAllText(
+            Path.Combine(_root, "parts", "themes", "Gauge.axaml"),
+            """
+            <ResourceDictionary xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:f="clr-namespace:Fixtures">
+              <ControlTheme x:Key="GaugeTheme" TargetType="f:Gauge">
+                <Setter Property="Template"><ControlTemplate><Border Name="PART_Needle" AutomationProperties.AutomationId="Needle" /></ControlTemplate></Setter>
+              </ControlTheme>
+            </ResourceDictionary>
+            """);
+        File.WriteAllText(
+            PartsConfig,
+            $$"""
+            {
+              "parts": { "report": "docs/template-parts.md", "markup": ["themes"], "assemblies": ["{{EmittedParts.Assembly.Replace('\\', '/')}}"] }
+            }
+            """);
     }
 
     public void Dispose()
@@ -62,6 +82,10 @@ public sealed class ThemeAuditToolTests : IDisposable
     private string CompatConfig => Path.Combine(_root, "compat", "theme-audit.json");
 
     private string CompatOutput => Path.Combine(_root, "compat", "out", "Compat.axaml");
+
+    private string PartsConfig => Path.Combine(_root, "parts", "theme-audit.json");
+
+    private string PartsReport => Path.Combine(_root, "parts", "docs", "template-parts.md");
 
     // ── report --check ──────────────────────────────────────────────────────────
 
@@ -175,6 +199,73 @@ public sealed class ThemeAuditToolTests : IDisposable
         Assert.Equal(
             (2, "", "theme-audit: the configuration declares no compat dictionaries.\n"),
             Run("compat", "--check", "--config", AuditConfig));
+    }
+
+    // ── parts --check ───────────────────────────────────────────────────────────
+
+    private const string PartsSummary = "1 control(s), 1 lookup(s), 0 not read";
+
+    [Fact]
+    public void Parts_writes_the_report_and_says_where()
+    {
+        Assert.Equal(
+            (0, $"theme-audit: wrote docs/template-parts.md ({PartsSummary}).\n", ""),
+            Run("parts", "--config", PartsConfig));
+
+        string report = File.ReadAllText(PartsReport);
+        Assert.Contains("## `Gauge`\n\nTheme: `themes/Gauge.axaml`, line 2.\n", report, StringComparison.Ordinal);
+        Assert.Contains("| `PART_Needle` | `Border` | `Needle` | ✓ | — |\n", report, StringComparison.Ordinal);
+        Assert.Contains("| `PART_Dial` | **missing** |  |  | ✓ |\n", report, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Parts_check_without_a_report_exits_1_and_says_how_to_create_it()
+    {
+        Assert.Equal(
+            (1, "", "theme-audit: docs/template-parts.md does not exist; run `theme-audit parts` to create it.\n"),
+            Run("parts", "--check", "--config", PartsConfig));
+    }
+
+    [Fact]
+    public void Parts_check_on_a_fresh_report_exits_0()
+    {
+        Run("parts", "--config", PartsConfig);
+
+        Assert.Equal(
+            (0, $"theme-audit: docs/template-parts.md is up to date ({PartsSummary}).\n", ""),
+            Run("parts", "--check", "--config", PartsConfig));
+    }
+
+    /// <summary>On drift the fresh report lands beside the committed one, where the failure can be read or taken.</summary>
+    [Fact]
+    public void Parts_check_on_a_stale_report_exits_1_and_writes_the_fresh_one_beside_it()
+    {
+        Run("parts", "--config", PartsConfig);
+        string fresh = File.ReadAllText(PartsReport);
+        File.AppendAllText(PartsReport, "edited\n");
+
+        Assert.Equal(
+            (1, "", $"theme-audit: docs/template-parts.md is stale — it differs from a fresh run ({PartsSummary}); regenerate it with `theme-audit parts`.\n"),
+            Run("parts", "--check", "--config", PartsConfig));
+        Assert.Equal(fresh, File.ReadAllText(Path.Combine(_root, "parts", "docs", "template-parts.received.md")));
+    }
+
+    [Fact]
+    public void Parts_with_no_parts_report_configured_exits_2()
+    {
+        Assert.Equal(
+            (2, "", "theme-audit: the configuration declares no parts report.\n"),
+            Run("parts", "--check", "--config", AuditConfig));
+    }
+
+    [Fact]
+    public void A_parts_report_with_no_markup_is_a_configuration_error()
+    {
+        File.WriteAllText(PartsConfig, """{ "parts": { "report": "docs/template-parts.md", "assemblies": ["x.dll"] } }""");
+
+        Assert.Equal(
+            (2, "", "theme-audit: 'parts' needs 'report', 'markup' and 'assemblies'\n"),
+            Run("parts", "--config", PartsConfig));
     }
 
     /// <summary>
