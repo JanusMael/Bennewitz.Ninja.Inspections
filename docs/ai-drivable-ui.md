@@ -115,12 +115,12 @@ by their localised names, and a frame that is always `active`.
 9. **Test-mode behaviour is gated on environment variables a harness sets and restores**, so the
    application a person runs is untouched: an isolated settings folder (never the user's real one),
    and window placement that keeps harness windows out of the way (below).
-10. **Only a modal dialog is a real top-level window.** Popups, menus and flyouts belong in the main
-    window's tree, reachable from it. A popup drawn in a window of its own is not necessarily outside
-    that tree: measured on Windows at Avalonia 12.1.3, the items of a menu and of a context menu are
-    under the main window's element, in the raw and the control view alike, while each menu is drawn
-    in a popup window of its own. (Avalonia's `OverlayPopups = true` draws popups inside the main
-    window instead.)
+10. **Only a modal dialog is a top-level element of its own.** Popups, menus and flyouts belong in the
+    main window's tree, reachable from it. A popup drawn in a window of its own is not necessarily
+    outside that tree: measured in Windows Sandbox at Avalonia 12.1.3, the items of a menu and of a
+    context menu are under the main window's element, in the raw and the control view alike, while
+    each submenu and context menu is drawn in a popup window of its own. (Avalonia's
+    `OverlayPopups = true` draws popups inside the main window instead.)
 
 ---
 
@@ -152,7 +152,7 @@ wrong finding the port ever published.
 |---|---|---|
 | **Headless fixtures** — the real views, real container, real rendering (Avalonia.Headless with Skia, `UseHeadlessDrawing = false`) | Nothing | Bindings, peers, layout at several sizes, pixels, key bindings (a headless keypress goes through the real input stack), view-model wiring. Fast; run on every change |
 | **Runtime harnesses through UI Automation, no input** | A running app and a desktop | What only a real window says: real sizes, real OS, the real file system, the command line, multi-process behaviour. **Runs beside a working person** |
-| **Runtime harnesses that need the foreground** | The window holding focus | Light-dismissing controls (combo boxes, menus, overlay drawers) and activation-dependent behaviour. **Needs an undisturbed machine** |
+| **Runtime harnesses that need the foreground** | The window holding focus | Light-dismissing controls (combo boxes, menus, overlay drawers) and activation-dependent behaviour; an Avalonia menu, which offers no pattern that opens it, needs real input as well. **Needs an undisturbed machine** |
 | **Runtime harnesses that send real input** | An isolated session (Windows Sandbox, Xvfb, a nested compositor) | Keyboard and mouse paths that genuinely need a keystroke. Keep this set small |
 
 **Ask the machine which of these it can run.**
@@ -175,13 +175,18 @@ none touches the user's keyboard or mouse. **Check what a pattern actually retur
 on it** — see rule 4.
 
 **Survey every pattern the running application advertises before deciding what is assertable**, on
-every element, not only on those a filter picked. Measured on Windows at Avalonia 12.1.3: a `ListBox`
-advertises `Scroll` and answers nothing, while two parts of its template read its offset, its
-`ScrollViewer`'s `Scroll` in the raw view and its `PART_VerticalScrollBar`'s `RangeValue` in the
-control view; a `MenuItem` offers no `Invoke`, no `ExpandCollapse` and, when checkable, no `Toggle`
-(see the [gotchas](avalonia-gotchas.md)); and every element advertises `ScrollItem`, so a pattern's
-presence alone says nothing. A template part's name belongs to the framework and can change with it:
-name each part a harness relies on in one place, so that an upgrade renaming it fails there.
+every element, not only on those a filter picked. Measured in Windows Sandbox at Avalonia 12.1.3 with
+the Fluent theme: a `ListBox` advertises `Scroll` and answers nothing, while two parts of its template
+answer for it, as the
+[gotchas](avalonia-gotchas.md#a-listbox-advertises-scrollpattern-but-its-scroll-provider-never-resolves--unfixed-as-of-1213)
+say: its `ScrollViewer`'s `Scroll`, in the raw view only, and its `PART_VerticalScrollBar`'s
+`RangeValue`, in the control view, which read 0 of 0 to 7860 at the top of a 200-row list. A
+`MenuItem` offers no `Invoke`, no `ExpandCollapse` and, when checkable, no `Toggle`
+([gotchas](avalonia-gotchas.md#a-menuitem-offers-ui-automation-no-way-to-open-or-run-it-and-on-windows-a-checkable-one-no-toggle-either)).
+Every element Avalonia publishes advertises `ScrollItem`, though the title bar's, which are Windows'
+own, do not, so a pattern's presence alone says nothing. A template part's name belongs to the
+framework and can change with it: name each part a harness relies on in one place, so that an upgrade
+renaming it fails there.
 
 **The foreground is a second gate, separate from input.** A combo box will not open its dropdown for
 a background window even when driven purely through automation. A window an agent's shell starts
@@ -242,23 +247,26 @@ the same state: it was never activated.
     identical readings.
 
 **A harness that sends real input guards every event**, because Windows delivers it to whatever is
-on top or in focus, in whatever application. Each of these was measured on Windows at Avalonia
-12.1.3:
+on top or in focus, in whatever application. Each of these was measured in Windows Sandbox at
+Avalonia 12.1.3, with the Fluent theme, from a driver that is per-monitor DPI aware:
 
 - **A click goes to the window on top at that pixel.** A click sent over another application's
   window reached that application, and the target logged nothing, while `SendInput` reported every
   event sent. Before clicking, take `WindowFromPoint` at the point, then `GetAncestor(…, GA_ROOT)`,
   and refuse, naming what is in the way, unless it is the element's own window: its nearest ancestor
-  in the automation tree with a window handle. For a menu item that is the popup it is drawn in, not
-  the main window it was found under.
+  with a window handle, walked in the raw view. For a menu item that is the popup it is drawn in, not
+  the main window it was found under; by Avalonia's source the popup's own element is no control
+  element, so a walk in the control view passes it. Against something covering the element inside
+  its own window, check too that UI Automation's element at the point is the element itself, as it
+  was for every menu item measured.
 - **A key goes to whatever holds focus.** Send one only while the target holds the foreground, and
   check `GetForegroundWindow` after asking for it: `SetForegroundWindow` was refused to a process
   that held no foreground and had sent no input, and granted to one that had just sent some.
 - **Holding the foreground is not having anything focused in it.** In a window nobody had touched,
-  keys reached the window's own key bindings and never a view's; after one click on the view, its
+  keys reached the window's own key bindings and not the view's; after one click on the view, its
   bindings ran too.
-- **A gesture's success is not its effect.** A drag whose events all arrived moved nothing when it
-  began on a button in a splitter's column, and widened the pane by 150 px from the column's empty
+- **A gesture's success is not its effect.** A drag that `SendInput` reported fully sent moved nothing
+  when it began on a button in a splitter's column, and widened the pane by 150 px from the column's empty
   part. Assert the state the gesture should change, such as a pane's `BoundingRectangle`, never that
   the input was sent.
 - **Moving the pointer is input too.** Synthetic motion raised a tooltip, from `SetCursorPos` alone.
@@ -367,9 +375,9 @@ can be collected first).
 | Trap | What to do |
 |---|---|
 | A search rooted at the desktop found another application's `Close` button | Scope by process id, always |
-| A popup is a top-level element of its own; a search from the main window finds none of it | Keep popups in the window's tree, or search from the root AND the process id. Avalonia's menus, measured on Windows, are under the main window's element although each is drawn in a window of its own (rule 10) |
+| A popup is a top-level element of its own; a search from the main window finds none of it | Keep popups in the window's tree, or search from the root AND the process id. Avalonia's menus, measured on Windows, are under the main window's element although each submenu and context menu is drawn in a window of its own (rule 10) |
 | A stale element returns its last rectangle | Re-find; assert absence as null |
-| A part hidden with `IsVisible=false` is absent from the tree, in the raw view too | Make the harness's "not found" say so: it looks exactly like a part that does not exist |
+| An element hidden with `IsVisible=false` is absent from the tree, in the raw view too | Make the harness's "not found" say so: it looks exactly like an element that does not exist |
 | A clipped element keeps its full automation rectangle | Hide rather than clip; claims about drawing use a capture |
 | A peer advertises a pattern and answers nothing | Check what it returns; withdraw or honour it in the application |
 | A row's `Name` is its data object's `ToString()` | Set the name explicitly |
