@@ -250,7 +250,8 @@ public sealed class TemplatePartRule : IXamlRule
     /// base's <c>OnApplyTemplate</c> runs on the subclass's template. A method no control hands its
     /// template to keeps its lookups as its own type's, as a handler on another control's template does.
     /// Each lookup keeps where it came from: the control's own code, a base class's, or another type's,
-    /// and that type's full name, its method's compiled name and its assembly's.
+    /// a type nested in the control included, and that type's full name, its method's compiled name and
+    /// its assembly's. A closure's code is the type that declares it.
     /// </para>
     /// <para>
     /// ⚠ <b>Lambdas, local functions and iterators compile into nested types</b>, so their literals
@@ -322,7 +323,7 @@ public sealed class TemplatePartRule : IXamlRule
 
                 foreach ((MethodBase method, List<string> parts) in made)
                 {
-                    lookups[KeyOf(method)] = new Lookup(owner, method.Name, types.Source, parts);
+                    lookups[KeyOf(method)] = new Lookup(owner, CodeTypeOf(type), method.Name, types.Source, parts);
                 }
 
                 if (unread is not null)
@@ -352,7 +353,7 @@ public sealed class TemplatePartRule : IXamlRule
         foreach (((Module Module, int Token) method, Lookup lookup) in lookups)
         {
             IEnumerable<(string Host, TemplatePartOrigin Origin)> creditedTo = handedBy.TryGetValue(method, out List<Type>? hosts)
-                ? hosts.Select(host => (host.Name, OriginOf(lookup.Owner, host)))
+                ? hosts.Select(host => (host.Name, OriginOf(lookup.Code, host)))
                 : [(lookup.Owner.Name, TemplatePartOrigin.Own)];
 
             foreach ((string host, TemplatePartOrigin origin) in creditedTo)
@@ -365,7 +366,7 @@ public sealed class TemplatePartRule : IXamlRule
 
                 foreach (string part in lookup.Parts)
                 {
-                    parts.Add(new TemplatePartLookup(part, origin, lookup.Owner.FullName ?? lookup.Owner.Name, lookup.Method, lookup.Assembly));
+                    parts.Add(new TemplatePartLookup(part, origin, lookup.Code.FullName ?? lookup.Code.Name, lookup.Method, lookup.Assembly));
                 }
             }
         }
@@ -435,12 +436,12 @@ public sealed class TemplatePartRule : IXamlRule
         new([.. control.Constants, .. control.Lookups.Select(lookup => lookup.Part)], StringComparer.Ordinal);
 
     /// <summary>
-    /// Whose code a lookup is, as seen from <paramref name="host"/>, which hands <paramref name="owner"/>'s method its
-    /// template: its own, a base class's, or another type's.
+    /// Whose code a lookup is, as seen from <paramref name="host"/>, which hands the method in <paramref name="code"/> its
+    /// template: its own, a base class's, or another type's, a type nested in it included.
     /// </summary>
-    private static TemplatePartOrigin OriginOf(Type owner, Type host)
+    private static TemplatePartOrigin OriginOf(Type code, Type host)
     {
-        if (owner == host)
+        if (code == host)
         {
             return TemplatePartOrigin.Own;
         }
@@ -449,7 +450,7 @@ public sealed class TemplatePartRule : IXamlRule
         {
             for (Type? link = host.BaseType; link is not null; link = link.BaseType)
             {
-                if ((link.IsConstructedGenericType ? link.GetGenericTypeDefinition() : link) == owner)
+                if ((link.IsConstructedGenericType ? link.GetGenericTypeDefinition() : link) == code)
                 {
                     return TemplatePartOrigin.BaseClass;
                 }
@@ -635,6 +636,27 @@ public sealed class TemplatePartRule : IXamlRule
         }
     }
 
+    /// <summary>
+    /// The type whose source holds <paramref name="type"/>'s code: the type itself, or, for what the compiler nests in a
+    /// type of its own, a closure, an iterator or an async method's state machine, the nearest type that declares it
+    /// and that the compiler did not write.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>A type a programmer nests is a type of its own.</b> The rule credits the lookups no control hands a
+    /// template to to the outermost type, as it does a closure's, but the code that makes them is the nested type's,
+    /// so a reading names that type, not the outermost one, which may have no method of that name.
+    /// </remarks>
+    private static Type CodeTypeOf(Type type)
+    {
+        Type code = type;
+        while (code.Name.StartsWith('<') && code.DeclaringType is { } outer)
+        {
+            code = outer;
+        }
+
+        return code;
+    }
+
     /// <summary>A reflective read, or <c>null</c> with the exception kept when what it needs does not load.</summary>
     private static T? Read<T>(Func<T?> read, List<Exception> failures)
         where T : class
@@ -667,19 +689,23 @@ public sealed class TemplatePartRule : IXamlRule
     /// The parts a theme declares: each element inside it named as a part, in either naming spelling, in the order the
     /// theme declares them, with the element's local name and the automation id it declares.
     /// </summary>
+    /// <remarks>
+    /// An element that gives one name in both spellings declares one part; one that gives two names, which does not
+    /// load, declares both, as the rule has always compared both.
+    /// </remarks>
     private static List<DeclaredPart> PartsDeclaredIn(XElement theme)
     {
         List<DeclaredPart> declared = [];
 
         foreach (XElement element in theme.Descendants())
         {
-            foreach (XAttribute attribute in element.Attributes())
+            // "Name" and x:"Name" both land here as the local name "Name".
+            foreach (string name in element.Attributes()
+                         .Where(attribute => string.Equals(attribute.Name.LocalName, "Name", StringComparison.Ordinal) && IsPartName(attribute.Value))
+                         .Select(attribute => attribute.Value)
+                         .Distinct(StringComparer.Ordinal))
             {
-                // "Name" and x:"Name" both land here as the local name "Name".
-                if (string.Equals(attribute.Name.LocalName, "Name", StringComparison.Ordinal) && IsPartName(attribute.Value))
-                {
-                    declared.Add(new DeclaredPart(attribute.Value, element.Name.LocalName, AutomationIdentifier.ValueOf(element)));
-                }
+                declared.Add(new DeclaredPart(name, element.Name.LocalName, AutomationIdentifier.ValueOf(element)));
             }
         }
 
@@ -701,6 +727,9 @@ public sealed class TemplatePartRule : IXamlRule
     /// <summary>A theme in the scan, and the parts it declares where it targets a type with parts, else <c>null</c>.</summary>
     private sealed record ThemeSeen(XamlFile File, string Target, int? Line, ThemeParts? Parts);
 
-    /// <summary>A method's lookups: the outermost type that declares it, its compiled name, that type's assembly, and the parts.</summary>
-    private sealed record Lookup(Type Owner, string Method, string Assembly, List<string> Parts);
+    /// <summary>
+    /// A method's lookups: the outermost type that declares it, which the rule credits them to; the type whose code it
+    /// is, which a reading names; its compiled name; that type's assembly; and the parts.
+    /// </summary>
+    private sealed record Lookup(Type Owner, Type Code, string Method, string Assembly, List<string> Parts);
 }

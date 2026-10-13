@@ -51,8 +51,9 @@ public sealed record ControlTemplateParts(
 /// <param name="Part">The part's name, <c>PART_</c> included.</param>
 /// <param name="Origin">Whose code makes the lookup: the control's own, a base class's, or a helper's.</param>
 /// <param name="Type">
-/// The full name of the type whose code makes the lookup; for a lambda, a local function or an iterator, the outermost
-/// type that declares it.
+/// The full name of the type whose code makes the lookup; for a lambda, a local function or an iterator, which the
+/// compiler nests in a type of its own, the type that declares it. A type nested in another is named as the runtime
+/// names it, <c>Outer+Inner</c>.
 /// </param>
 /// <param name="Method">
 /// The method that makes it, by its compiled name, so a lambda's is the compiler's, such as
@@ -65,8 +66,8 @@ public sealed record TemplatePartLookup(string Part, TemplatePartOrigin Origin, 
 public enum TemplatePartOrigin
 {
     /// <summary>
-    /// The control's own code, a lambda or local function it declares included; or a type's code that no control hands
-    /// its template to, whose lookups the rule keeps as that type's own.
+    /// The control's own code, a lambda or local function it declares included; or code that no control hands its
+    /// template to, whose lookups the rule keeps as its own type's, and a nested type's as the outermost type's.
     /// </summary>
     Own,
 
@@ -76,7 +77,10 @@ public enum TemplatePartOrigin
     /// </summary>
     BaseClass,
 
-    /// <summary>Another type, which the control hands its template, or the template's name scope, to.</summary>
+    /// <summary>
+    /// Another type, which the control hands its template, or the template's name scope, to: a type the control or a
+    /// base class nests included, since it is a type of its own.
+    /// </summary>
     Helper,
 }
 

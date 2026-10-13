@@ -70,6 +70,51 @@ public abstract class GenericLookingBase<T> : HandedTemplatedControl
 /// <summary>Derives from a construction of a generic base, whose <c>OnApplyTemplate</c> runs on this control's template.</summary>
 public sealed class GenericInheritingHost : GenericLookingBase<int>;
 
+/// <summary>Hands its template to a helper it nests, which is a type of its own.</summary>
+public sealed class NestedHelperHost : HandedTemplatedControl
+{
+    /// <inheritdoc />
+    protected override void OnApplyTemplate(HandedTemplateArgs e) => Wirer.Wire(e);
+
+    /// <summary>Finds a part on the template it is handed.</summary>
+    private static class Wirer
+    {
+        /// <summary>Finds the part.</summary>
+        /// <param name="e">The control's applied template.</param>
+        public static void Wire(HandedTemplateArgs e) => _ = e.NameScope.Find("PART_Nested");
+    }
+}
+
+/// <summary>A base class that hands its subclasses' template to a helper it nests.</summary>
+public abstract class NestingBase : HandedTemplatedControl
+{
+    /// <inheritdoc />
+    protected override void OnApplyTemplate(HandedTemplateArgs e) => Inner.Wire(e);
+
+    /// <summary>Finds a part on the template it is handed.</summary>
+    private static class Inner
+    {
+        /// <summary>Finds the part.</summary>
+        /// <param name="e">A control's applied template.</param>
+        public static void Wire(HandedTemplateArgs e) => _ = e.NameScope.Find("PART_InnerWired");
+    }
+}
+
+/// <summary>Inherits its base's <c>OnApplyTemplate</c>, and so the helper the base nests.</summary>
+public sealed class NestingBaseHost : NestingBase;
+
+/// <summary>Nests a type whose lookup no control hands a template to.</summary>
+public sealed class NestedFinderPanel
+{
+    /// <summary>Looks a part up on a name scope of its own.</summary>
+    private static class Finder
+    {
+        /// <summary>Finds the part.</summary>
+        /// <returns>Whatever the lookup returns.</returns>
+        public static object? Locate() => FakeNameScope.Find("PART_Located");
+    }
+}
+
 /// <summary>
 /// <see cref="TemplatePartRule.ReadParts"/> over markup and types written for the test.
 /// </summary>
@@ -226,6 +271,35 @@ public sealed class TemplatePartReadingTests : IDisposable
     }
 
     /// <summary>
+    /// A type the control nests, or a base class nests, is a type of its own: a lookup it makes on the template the
+    /// control hands it is a helper's, named as that type, which declares the method.
+    /// </summary>
+    [Fact]
+    public void ALookupInATypeTheControlNests_IsAHelpers_UnderThatTypesName()
+    {
+        TemplatePartReading reading = Read();
+
+        Assert.Equal(
+            [new TemplatePartLookup("PART_Nested", TemplatePartOrigin.Helper, FullName(typeof(NestedHelperHost)) + "+Wirer", "Wire", TestAssembly)],
+            Entry(reading, nameof(NestedHelperHost)).Lookups);
+        Assert.Equal(
+            [new TemplatePartLookup("PART_InnerWired", TemplatePartOrigin.Helper, FullName(typeof(NestingBase)) + "+Inner", "Wire", TestAssembly)],
+            Entry(reading, nameof(NestingBaseHost)).Lookups);
+    }
+
+    /// <summary>
+    /// A lookup in a nested type that no control hands a template to is kept as the outermost type's own, as the rule
+    /// keeps it, and is named as the nested type, which declares the method.
+    /// </summary>
+    [Fact]
+    public void ALookupInANestedTypeNoControlHandsItsTemplate_IsTheOutermostTypesOwn_UnderTheNestedTypesName()
+    {
+        Assert.Equal(
+            [new TemplatePartLookup("PART_Located", TemplatePartOrigin.Own, FullName(typeof(NestedFinderPanel)) + "+Finder", "Locate", TestAssembly)],
+            Entry(Read(), nameof(NestedFinderPanel)).Lookups);
+    }
+
+    /// <summary>
     /// A method no control hands its template to keeps its lookups as its own type's, which is then an entry of its
     /// own; what the controls hand it stays theirs.
     /// </summary>
@@ -268,7 +342,8 @@ public sealed class TemplatePartReadingTests : IDisposable
 
     /// <summary>
     /// A theme's parts are its elements named <c>PART_…</c>, in either naming spelling, in the order it declares them,
-    /// each with its element's local name and the automation id it declares. A name that is not a part is left out.
+    /// each with its element's local name and the automation id it declares. A name that is not a part is left out, and
+    /// an element that gives one name in both spellings is one part.
     /// </summary>
     [Fact]
     public void AThemesDeclaredParts_AreItsPartElements_InTheOrderItDeclaresThem()
@@ -279,6 +354,7 @@ public sealed class TemplatePartReadingTests : IDisposable
             "<ScrollViewer x:Name=\"PART_Header\" AutomationProperties.AutomationId=\"Header\" />",
             "<Border Name=\"Decor\" />",
             "<Border Name=\"PART_Footer\" />",
+            "<Border Name=\"PART_Twice\" x:Name=\"PART_Twice\" />",
             "</StackPanel></ControlTemplate></Setter>",
             "</ControlTheme>"));
 
@@ -287,7 +363,11 @@ public sealed class TemplatePartReadingTests : IDisposable
         Assert.Equal("Proxy.axaml", theme.File);
         Assert.Equal(2, theme.Line);
         Assert.Equal(
-            [new DeclaredPart("PART_Header", "ScrollViewer", "Header"), new DeclaredPart("PART_Footer", "Border", null)],
+            [
+                new DeclaredPart("PART_Header", "ScrollViewer", "Header"),
+                new DeclaredPart("PART_Footer", "Border", null),
+                new DeclaredPart("PART_Twice", "Border", null),
+            ],
             theme.Declared);
     }
 
