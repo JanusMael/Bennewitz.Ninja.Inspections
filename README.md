@@ -83,6 +83,16 @@ and so is a lookup through a helper named otherwise. And a lookup no control han
 template to is taken to be on its own type's template, so one that reaches into a child control's
 template is reported against that type.
 
+**`BNXQ1003`'s reading is public.** `TemplatePartRule.ReadParts(context)` returns what the rule reads
+from the same scan: for each control, the `PART_` constants it declares, each part looked up on its
+template with the code that looks it up, the control's own, a base class's or a helper's it hands its
+template to, by type, method and assembly, and the parts each of its themes declares, with the element
+and the automation id. The rule's findings are exactly the constants and looked-up parts a theme does
+not declare, so a parts reference built from the reading lists what the rule checked, in an order that
+compares as text. A constant nothing looks up, which a style selector may be all that needs, is listed
+apart from the lookups. A base class in an assembly the scan was not given is not read: pass the
+library that defines it to `WithAssemblies` as well.
+
 **`BNXQ1004` counts only what it measured.** A control in an `Auto` or `*` row or column, or one that
 declares no size, has nothing to measure, so it is neither inspected nor skipped. Markup whose grids
 are all `Auto` and `*` therefore reads zero inspected, and that is a true answer, not an inert rule:
