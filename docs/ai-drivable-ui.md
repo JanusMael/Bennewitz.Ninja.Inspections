@@ -274,6 +274,15 @@ Avalonia 12.1.3, with the Fluent theme, from a driver that is per-monitor DPI aw
 - **Holding the foreground is not having anything focused in it.** In a window nobody had touched,
   keys reached the window's own key bindings and not the view's; after one click on the view, its
   bindings ran too.
+- **An open menu lasts only while its window holds the foreground.** When another application took
+  the foreground, by a call or by a click, the window was deactivated and its menu closed at once, so
+  raising the window back found the menu closed. A window that held the foreground kept its menu open
+  through `BringWindowToTop`, `SetForegroundWindow`, `SetWindowPos(HWND_TOP)`, and `AttachThreadInput`
+  followed by both, whether a click or its access key had opened it, and a click on its own title bar
+  closed it. Open a menu once its window holds the foreground, and click the item without raising or
+  clicking the window in between. A window behind another needs no raise first: a click on its menu
+  header, where the guard above found the header uncovered, activated the window and opened the menu
+  in one click.
 - **A gesture's success is not its effect.** A drag that `SendInput` reported fully sent moved nothing
   when it began on a button in a splitter's column, and widened the pane by 150 px from the column's empty
   part. Assert the state the gesture should change, such as a pane's `BoundingRectangle`, never that

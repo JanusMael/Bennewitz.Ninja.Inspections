@@ -50,7 +50,8 @@ go to the person as a command. Real-input harnesses need an isolated session, or
 desktop with the person watching, at their go, the window checked unobstructed and focused before
 every event and the run refused otherwise, never in an unattended sweep — keep that set small, and
 count each harness by what it does, not by which helper it calls. Each guards every click against
-the window on top at its pixel and every key against what holds focus, and asserts a gesture's
+the window on top at its pixel and every key against what holds focus, opens a menu only once its
+window holds the foreground and raises nothing before clicking its item, and asserts a gesture's
 effect, never that its input was sent.
 
 ## 4. Write the check, then break it
