@@ -566,7 +566,7 @@ The `/template/` combinator is not optional — a selector without it does not r
 
 **Cause:** In `ItemsControlAutomationPeer`, every `IScrollProvider` member reads a private `_scroller` field, and the only assignment to it is inside the `protected virtual Scroller` getter, which nothing in `ItemsControlAutomationPeer`, `SelectingItemsControlAutomationPeer` or `ListBoxAutomationPeer` calls. The field stays null, so every member falls back to its default. The same getter holds a second defect: it marks the search done even when `ListBox.Scroll` is still null, so a peer created before its template is applied would stay inert even if the getter were called. Read in Avalonia's source at tag 12.1.3. Reported upstream as [AvaloniaUI/Avalonia#22038](https://github.com/AvaloniaUI/Avalonia/issues/22038), which its author closed without a fix.
 
-**Fix:** Drive scrolling through the `ScrollViewer`'s peer, or through the scrollbar's `RangeValue` pattern, never through the list's `ScrollPattern`. A test that reads the list's scroll values is reading constants.
+**Fix:** Drive scrolling through the `ScrollViewer`'s peer, or through the scrollbar's `RangeValue` pattern, never through the list's `ScrollPattern`. A test that reads the list's scroll values is reading constants. Over AT-SPI the list's scroll bars are not in the tree at all; see the entry on them under Linux platform integration.
 
 ### A `ListBox` is NOT focusable, so `Focus()` on one is a silent no-op
 
@@ -1044,6 +1044,64 @@ They are the price of referencing DataGrid, not a defect to hunt for in your cod
 - **Keyboard accelerators sent with `xdotool` did not reach the menu.** `alt+v`, then the item's letter, did nothing, while clicking the menu worked. Plain keys such as `F7` and `ctrl+Down` reached a focused pane in the same session.
 
 **Fix:** To drive a menu, click the menu button and find the new large unnamed child in `xwininfo -root -children`. Grab that window to read the item positions, then click at the popup's screen origin plus the item's offset. A popup shorter than its items scrolls under `xdotool click 5`, and every item then moves, so grab again after scrolling. Judge tooltip text only from headless tests that assert it, never from a driven frame. Open menus by clicking, not by accelerator.
+
+### Over AT-SPI, a node keeps the children it was first asked for
+
+**Symptom:** A client asks a `ListBox` for its children and gets an answer that never changes, while the rows the list draws do. Rows realised after the first question never appear among the list's children, whether they came into view by scrolling or because the items were set after the window opened. Asked before the list had any rows, it answers one panel, its template's `Border`, for good, though the rows can still be reached by walking down from that panel. A `ComboBox` lists its items as its children only if it was first asked while open; first asked while closed, it keeps answering its template's root after it opens. Measured on Avalonia 12.1.3 under GNOME Shell 50.1, the application under Xwayland, read through libatspi 2.60: a list filled three seconds after its window opened, and asked before that, still answered one panel twenty seconds later, three runs of three. Clearing libatspi's cache and finding the list again from the desktop changed nothing.
+
+**Cause:** Read in the bridge's source at 12.1.3. `AtSpiNode` caches a node's children at the first request, inside the application, so the first client to ask fixes the answer for every client. It refreshes them only when the peer raises `ChildrenChanged`, which a list's or a combo's peer raises only when its own visual children change, and a list's rows are its panel's children, never the list's. A selection container answers with its realised selection items, or, with none, with its template's root. UI Automation on Windows asks the peer afresh at every step, so the same peer is right there, which hides the problem from anybody testing on Windows first.
+
+**Fix:** Give the list a peer that tells the bridge when its rows change: a `ListBoxAutomationPeer` subclass that calls `InvalidateChildren()` from the list's `ContainerPrepared` and `ContainerClearing`, and from `ContainerIndexChanged`, posted to the dispatcher once per pass, since a page realises dozens of rows at once. Measured: a client that asked before the rows saw them once they were prepared. For a combo, search the application's tree for its items after opening. Each has a `select` action, and measured, it selects the item in the combo from wherever the search found it.
+
+### Over AT-SPI, a list's scroll bars are not in the tree
+
+**Symptom:** A list whose rows existed when it was first asked lists those rows as its children and nothing else: no `scroll bar` is anywhere in the application's tree, and no node offers `Value`. So nothing reads or sets a list's scroll position over AT-SPI. Measured as the entry above.
+
+**Cause:** A node whose peer offers `ISelectionProvider` lists only its selection-item descendants, and drops everything between: the scroll bars, and the `ScrollViewer` whose own scroll provider works. The list's own `ScrollPattern` answers nothing, as the entry on it above says. Read in the bridge's source at 12.1.3.
+
+**Fix:** Surface the bars from a parent. Give the control that hosts the list a peer whose `GetChildrenCore` appends the `ScrollBar` peers found under the list's `ScrollViewer`, and that calls `InvalidateChildren()` once the list's template is applied. The bridge gives each bar `Value`, and writing half the vertical bar's maximum scrolled a 300-line list to its 145th line. Do it off Windows only: UI Automation's control view already shows the bars under the list, since the template parts between them are not control elements, by the source, and would show them twice.
+
+⚠ **A write leaves the bar behind.** The bar's peer sets `ScrollBar.Value` as a local value, which outranks the binding that keeps it at the list's offset. Measured: after the list scrolled itself back to line 20, the bar still answered 5500, over AT-SPI and in the application. After writing a bar, read the position from the rows, never from the bar.
+
+### Over AT-SPI, `SelectChild` adds to a multiple-selection list's selection
+
+**Symptom:** Selecting row 3 and then row 5 through `SelectChild` leaves both selected in a list whose `SelectionMode` is `Multiple`, where UI Automation's `SelectionItemPattern.Select()` replaces the selection. A harness written against Windows first then tests a two-row selection on Linux without knowing it. In a `Single` list the second replaces the first. Measured as above.
+
+**Cause:** The bridge implements `SelectChild` with the row's `AddToSelection`, which AT-SPI's own specification allows: it adds, and only a single-selection implementor may replace.
+
+**Fix:** `ClearSelection`, then `SelectChild`; or the row's `select` action, which replaces: measured, it left one row selected where `SelectChild` had left two. A self-test that selects twice and asserts one selected row catches the difference. ⚠ By the source, `SelectChild(i)` counts the rows realised now, not the children the list answered when first asked (the first entry above), so after a scroll the two indexes can name different rows.
+
+### Over AT-SPI, `GetActions` names each action by its localised name
+
+**Symptom:** A harness looks for `toggle` among the names `GetActions` returns and finds nothing, even on an English machine. For a `CheckBox`, `GetActions` answers `Toggle`, a description and an empty key binding, while `GetName(0)` answers `toggle`. Measured over D-Bus as above.
+
+**Cause:** AT-SPI defines `GetActions` as each action's localised name, localised description and key binding. The bridge's localised names are fixed English strings, such as `Toggle` for `toggle`.
+
+**Fix:** Read each action's name with `GetName(i)`, libatspi's `atspi_action_get_action_name`, and call `DoAction(i)` by index.
+
+### Over AT-SPI, every window's frame is `active`
+
+**Symptom:** Asked whether a window is the active one, AT-SPI answers yes whatever holds focus: both of an application's two frames answered `active` while Avalonia reported neither window active. Measured as above.
+
+**Cause:** The bridge gives every window's node the `active` state, whatever its window's activation. Activation goes out only as events, `window:activate` and `window:deactivate`. Read in its source at 12.1.3.
+
+**Fix:** Follow those events, or ask the window manager: EWMH's `_NET_ACTIVE_WINDOW`, on the root window, names the window that has focus.
+
+### Under X11, a window moved and resized together is clamped against its old size
+
+**Symptom:** Setting a window's `Position` and its size together, to place it in the bottom third of the work area, leaves it higher than asked. Measured under GNOME Shell 50.1 on Avalonia 12.1.3: in a work area 768 tall from y 32, a window 639 tall, asked to move to y 544 at a height of 256, landed at y 161, the work area's bottom less its old height.
+
+**Cause:** Avalonia sends a move at once and a resize at the next layout pass, so the move arrives first, in whichever order the two are set; read in its source at 12.1.3. Mutter keeps a window inside the work area against the size it has when the move arrives. No headless test sees it: the headless platform has no window manager to clamp anything.
+
+**Fix:** Set the size, call `UpdateLayout()`, then set the `Position`; or set the `Position` again in `Resized`. Measured: either way, the same window landed at y 544.
+
+### Under X11, a window's `FrameSize` is null at `Opened`
+
+**Symptom:** Code that subtracts the frame at `Opened`, to restore a window's outer size, finds no frame to subtract, and restores the window one title bar taller than it was.
+
+**Cause:** Avalonia raises `Opened` once it has asked for the window to be mapped, without waiting for the window manager's `_NET_FRAME_EXTENTS`, and `FrameSize` is null until they arrive; read in its source at 12.1.3. Measured under GNOME Shell 50.1: null at `Opened` in 8 launches of 10, and known within 200 ms, with a 39-pixel title bar.
+
+**Fix:** Settle an outer size once the frame is known: when `FrameSize` is null at `Opened`, wait for it to change, as `TopLevel.FrameSizeProperty` or `Resized`. Measured: the change came 123 to 134 ms after `Opened`.
 
 ---
 
