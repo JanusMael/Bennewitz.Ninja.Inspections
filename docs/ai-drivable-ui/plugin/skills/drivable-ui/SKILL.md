@@ -47,13 +47,16 @@ one and otherwise from
 Headless fixtures over the real views first. Then runtime harnesses through UI Automation patterns
 with **no synthetic input**, which run beside a person working. Harnesses needing the **foreground**
 go to the person as a command. Real-input harnesses need an isolated session — keep that set small,
-and count each harness by what it does, not by which helper it calls.
+guard every click against the window on top at its pixel and every key against what holds focus,
+assert a gesture's effect rather than its delivery, and count each harness by what it does, not by
+which helper it calls.
 
 ## 4. Write the check, then break it
 
 Isolate settings; seed state; find the window by **process id** and scope every search to it and to
-the owning container; poll with a deadline; PASS / FAIL / INCONCLUSIVE as 0 / 1 / 2; guard every
-negative; give every claim a control arm; assert after the **second** value. Then **break the code
+the owning container; poll with a deadline; PASS / FAIL / INCONCLUSIVE as 0 / 1 / 2, and a run that
+did not finish never reads as PASS; guard every negative; give every claim a control arm; assert
+after the **second** value. Then **break the code
 under it, see it go red, restore, rebuild both legs** — and prove a new runtime harness against a
 worktree build of the base commit.
 
