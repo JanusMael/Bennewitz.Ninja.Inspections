@@ -65,14 +65,15 @@ of how it was read.
 `Avalonia.FreeDesktop.AtSpi` puts them on the AT-SPI bus, one node per `AutomationPeer`, and an
 application built on `Avalonia.Desktop` carries it through `Avalonia.X11`, which starts it with the
 application. nuget.org lists it from 12.0.0-preview2 and in no 11.x release. Measured on Avalonia
-12.1.3 under GNOME Shell 50.1, the application under Xwayland: from libatspi, a client finds the peers
-by role and name, toggles a check box with `DoAction`, selects rows with `SelectChild` and a combo's
-items with their `select` action, and opens a combo with its `expand or collapse` action. The bridge
-departs from UI Automation where a harness written for Windows first is least likely to look, and the
+12.1.3 under GNOME Shell 50.1, run headless with a virtual monitor, the application under Xwayland:
+from libatspi, a client finds the peers by role and name, toggles a check box with `DoAction`,
+selects rows with `SelectChild` and a combo's items with their `select` action, and opens a combo
+with its `expand or collapse` action. The bridge departs from UI Automation where a harness written
+for Windows first is least likely to look, and the
 [gotchas](avalonia-gotchas.md#linux-platform-integration) list each departure measured: a node that
-keeps the children it was first asked for, a list's scroll bars missing from the tree, `SelectChild`
-adding to a multiple selection, `GetActions` naming actions by their localised names, and a frame that
-is always `active`.
+keeps the children it was first asked for, the scroll bars missing from a list that had rows when it
+was first asked, `SelectChild` adding to a multiple selection, `GetActions` naming actions by their
+localised names, and a frame that is always `active`.
 
 ---
 
