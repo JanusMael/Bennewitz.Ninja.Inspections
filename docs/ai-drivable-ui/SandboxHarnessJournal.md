@@ -248,6 +248,14 @@ That is a fixable thing rather than a property of sandboxes, and the fix is the 
 would help on the host too, where the same restriction is why a harness must not be started from a
 window that then loses focus.
 
+*(2026-10-13, two sessions of an Avalonia probe: Windows also granted the foreground to a process
+that had just sent input. A plain `SetForegroundWindow` from the driver was refused before it had
+sent any, and granted just after it had. And the first application to start may not keep the
+foreground: in the first session it did; in the second, its window logged itself activated and,
+0.7 s later, deactivated while it stayed open, and the driver found Program Manager in front after
+that launch and the next two, until `AttachThreadInput` took it. Before any test ran, that guest's
+cursor was already over the taskbar, where the first guest's was at the screen's centre.)*
+
 ### Getting this one wrong twice
 
 Worth showing, because the wrong readings were both plausible and both would have been published.
@@ -395,6 +403,9 @@ Two details it cost, both worth carrying:
 
 - **The context menu is its own top-level window.** Searching the application's window for the
   `MenuItem` finds nothing at all. Search from `RootElement`.
+  *(2026-10-13: the harnesses in this section drove the WPF build. Avalonia 12.1.3's menus, measured
+  on Windows, a context menu's included, sit under the main window's element, and their items offer
+  no `Invoke`; see the guide's rule 10 and section 4.)*
 - **`SetFocus` on a `ListBoxItem` selects it.** The first run of that harness came back with the
   line under test *and the new top row beside it*, because the harness focused the top row before
   sending the key — it was changing the selection it was measuring. Removing that one call removed
@@ -1203,3 +1214,42 @@ names the Avalonia harness as refused and then reports *"no harness in this run 
 **The machinery is kept rather than deleted.** The exclusion is one `if`, and the day the Avalonia
 build is allowed into a guest this is what has to work. What must not continue is it reading, to
 somebody skimming the publish step, as though it works now.
+
+## `<VGpu>Disable</VGpu>` left GPU sharing on, and `<vGPU>Disable</vGPU>` turned it off (2026-10-13)
+
+**The vGPU setting this document rests on was written `<VGpu>`, and on 2026-10-13 that spelling did
+not disable GPU sharing.** Two sessions on one host, Windows 11 Pro 26200 with an AMD Radeon, both
+from the console, about two hours apart, ran configurations that differed only in that element's
+spelling, the run's folders and the tests the logon command named. A driver in the guest read its
+DXGI adapters (`CreateDXGIFactory1`,
+`EnumAdapters1`, `GetDesc1`), the same way in both, before anything drew.
+
+| Session | The element as written | The adapters the guest listed |
+|---|---|---|
+| 1 | `<VGpu>Disable</VGpu>`, as Microsoft's sample configuration spells it | Three named `AMD Radeon(TM) Graphics`, vendor 0x1002, the host's GPU shared into the guest, then the Microsoft Basic Render Driver |
+| 2 | `<vGPU>Disable</vGPU>`, as Microsoft's reference spells it | The Microsoft Basic Render Driver three times, vendor 0x1414, and nothing else |
+
+**What that means for the entries above.** Microsoft's reference says the default enables vGPU. If
+the element is matched by its exact case, as these two sessions suggest, a run written
+`<VGpu>Disable</VGpu>` had GPU sharing on, like one written `<VGpu>Enable</VGpu>`, the line this
+document quotes from `run-in-sandbox.ps1`. Then the comparison in *RESOLVED, SAME DAY* changed
+nothing in the guest, and its pass beside the hang cannot tell the two settings apart; nor can the
+freeze that followed that pass, in *THE SYMPTOM THAT IS INVISIBLE TO THE HARNESS AND TO THE EVENT
+LOG*, say anything against GPU sharing, since it too may have come with sharing on. That is not
+measured: those runs never read the guest's adapters, and the host they ran on may have read the
+element differently. So GPU sharing stays a candidate for the takedowns, not their settled cause.
+Session 1 drew Avalonia windows for about 100 seconds with it on, and the host stayed up, which is
+one more run and says nothing either way.
+
+**What to do now.**
+
+- **Write `<vGPU>Disable</vGPU>`**, and check it in the guest, never in the configuration: read the
+  adapters before anything draws, and end the run without drawing when one is not Microsoft's.
+- **Check the vendor or the name, not the software flag alone.** With vGPU off, only the first of
+  the three Basic Render Driver entries carried `DXGI_ADAPTER_FLAG_SOFTWARE`; the other two read as
+  hardware by the flag.
+- **What the second session repeated lost nothing by turning it off**: an Avalonia 12.1.3 window
+  drew through ANGLE on WARP, with `d3d10warp.dll` loaded and no vendor driver, `PrintWindow` with
+  `PW_RENDERFULLCONTENT` captured its client exactly, and the menus read as they had with it on. The
+  hit-test, the tooltip, focus, chords, clicks, the drag and the survey of the other controls'
+  patterns were measured with it on only.
