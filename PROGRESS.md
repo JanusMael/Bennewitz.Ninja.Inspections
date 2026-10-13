@@ -159,7 +159,9 @@ None open.
   that way keeps its lookups as its own type's. In DiffView, `SideBySideDiffView`'s
   `IDiffSurface.OnPartsAttached` is reached so, and its lookup is credited to `SideBySideDiffView`,
   where it belongs; following the dispatch would credit it to `DiffViewer` too, which hands the same
-  controller its template. A question for the assessment of `BNXQ1003` after plan 00003.
+  controller its template. Nor is a template a closure captures followed, so a themed subclass of a
+  base whose `OnApplyTemplate` looks a part up inside a lambda reads as having no parts, as it did
+  before the reading was public. A question for the assessment of `BNXQ1003` after plan 00003.
 - **Avalonia-specific rules in a package of their own, for later (the developer, 2026-10-13).** The
   library is compile-time and references no framework, and `BNXQ1005`, `BNXQ1009` and `BNXQ1010`
   already read Avalonia's behaviour by reflection. Moving them, with `ThemeReader`, `ResourceScope`,
