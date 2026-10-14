@@ -1018,6 +1018,42 @@ Notes: `[ObservableProperty]`'s setter only raises `PropertyChanged` when the va
 
 ---
 
+## Logging
+
+### `LogToTrace()`, the project template's default, writes Avalonia's warnings nowhere on Linux
+
+**Symptom:** Binding errors, and every other warning Avalonia logs, appear nowhere: not on stdout, not on stderr, not in any file. A UI run or a harness can come back green over a broken binding or a failed lookup. In the case found, the application's `Program.BuildAvaloniaApp` ended in `.LogToTrace()`, so a UI smoke run meant to catch XAML lookup failures after its namespaces were renamed could not have seen them.
+
+**Cause:** Read in the source at 12.1.3, `src/Avalonia.Controls/LoggingExtensions.cs`: `LogToTrace(level = Warning, areas)` is `LogToDelegate(s => Trace.WriteLine(s), level, areas)`. Measured: with no debugger attached, `Trace.Listeners` holds only a `DefaultTraceListener` whose `LogFileName` is empty, so `Trace.WriteLine` goes nowhere. Not measured: on Windows the same listener writes through `OutputDebugString`, which only an attached debugger or DebugView sees.
+
+**Fix:** Route Avalonia's log to wherever the application logs. `LogToTextWriter` or `LogToDelegate` will do if a string is enough; if the level matters, use an `ILogSink` of your own, as the next entry says. Set the sink before Avalonia loads `App.axaml`, or have it hold what comes first. `Logger.Sink` is set while the `AppBuilder` is configured, which is before `App.Initialize`. If the application's own log is configured only in `OnFrameworkInitializationCompleted`, events raised before then land nowhere unless the sink holds them. That timing point is inferred from the start-up order, not measured.
+
+Measured on Avalonia 12.1.3 and .NET 10, headless on Linux, not reproduced here: a probe bound a `TextBlock` with `new ReflectionBinding("NoSuchProperty")` to a `DataContext` of `new object()`, showed a `Window` around it and called `Dispatcher.UIThread.RunJobs()`, under each route in a process of its own. A sink of the probe's own on `Logger.Sink` received a `Warning` in the `Binding` area from the `TextBlock`, with the template `An error occurred binding {Property} to {Expression} at {ExpressionErrorPoint}: {Message}` and its values, so the error is raised. Under `LogToTrace()` the process printed nothing but the probe's own two lines. Under `LogToTextWriter(Console.Out)` it printed the error, in the line the next entry shows.
+
+In a running application, on Linux under GNOME on Wayland with the application under Xwayland, the sink the next entry describes logged 352 warnings on its first run that had always been raised and never seen: 351 binding warnings that a value is null, from 13 bindings in a list's row template, once for each of 27 rows, and one about a font installed on that machine. A `Tag="{ReflectionBinding $self.NoSuchPropertyForTheSmokeRun}"` planted on the main window built green, and the UI run, which reads the application's log and fails on a lookup Avalonia could not complete, failed on the warning it raised; with the binding removed and the application rebuilt, the run passed. Measured on Avalonia 12.1.3, not reproduced here.
+
+⭐ **Candidate rule.** A binding the XAML compiler does not check shows a broken path only at run time, as one of these warnings: the planted `{ReflectionBinding …}` above built green. Markup that asks for one, `{ReflectionBinding …}` or a `{Binding}` that `x:CompileBindings="False"` makes one, is visible to a scan; whether a plain `{Binding}` compiles depends on the project's MSBuild default, which no markup scan reads. It is the candidate the entry on the trim analyser, under *Trim safety*, already names. The `LogToTrace()` call itself is C# start-up code, which no markup scan reads.
+
+### `LogToTrace`, `LogToTextWriter` and `LogToDelegate` all drop the level
+
+**Symptom:** Every event Avalonia logs reaches the callback as one plain string. An Error cannot be told from a Warning, and nothing can be filtered or raised by severity downstream.
+
+**Cause:** Read in the source at 12.1.3: all three set `Logger.Sink = new StringLogSink(callback, level, areas)`, and `src/Avalonia.Base/Logging/StringLogSink.cs` formats `[area]`, the template with each value inlined in quotes, and the source in parentheses. It never writes the level. Measured: the line `LogToTextWriter` printed in the probe of the entry above carries none.
+
+```text
+[Binding]An error occurred binding 'Text' to 'NoSuchProperty' at 'NoSuchProperty': 'Could not find a matching property accessor for 'NoSuchProperty' on 'System.Object'.' (TextBlock #56680499)
+```
+
+A cosmetic difference, read and measured: the overload with property values writes `[Binding]An error…` with no space after the bracket, and the overload without values writes `[area] ` with one.
+
+**Fix:** Implement `ILogSink`, `bool IsEnabled(LogEventLevel, string area)` with `Log(level, area, source, template)` and `Log(level, area, source, template, params object?[] values)`, and assign it to `Logger.Sink`. Each `LogTo*` extension assigns `Logger.Sink` too, so the last assignment wins. Read in the source at 12.1.3, `src/Avalonia.Base/Logging/Logger.cs`: `Logger.TryGet` returns null unless `Sink.IsEnabled(level, area)` says yes, so a sink that answers false below Warning formats nothing for those events. The templates are Serilog-shaped, `{Property}`, so a Serilog-backed sink can pass the template and its values straight through and keep them structured.
+
+In the case measured, the sink is built to write from Warning up into the application's Serilog log: the level kept, the area as the entry's `SourceContext`, `Avalonia.Binding`, the template and its values passed through, and the control that raised the event appended by type and, where it has one, by name. It holds the events that come before the application's log exists, at most 1,000 and a count of the rest, and releases them in order once the log is configured. It asks for the logger at each write rather than capturing it, since a Serilog logger bound when the sink is built, before the log is configured, writes nowhere. Thirteen headless tests held it, each seen to fail against one of four deliberate breaks of it; with `IsEnabled` answering no to every level, nine failed, among them one in which a binding error Avalonia itself raised reaches the sink through Avalonia's own `Logger`. The tests check the values and the control in the message as rendered, not in the log's file. In a running application it logged the warnings the entry above counts.
+
+Measured on Avalonia 12.1.3 and .NET 10 on Linux, headless but for the running application, with the causes read in the source at 12.1.3, not reproduced here.
+
+---
+
 ## Lifetime / native interop
 
 ### `SKSvg` owns the `SKPicture` — disposing one disposes the other
