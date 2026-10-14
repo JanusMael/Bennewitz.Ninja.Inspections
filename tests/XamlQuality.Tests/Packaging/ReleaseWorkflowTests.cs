@@ -13,7 +13,7 @@ namespace XamlQuality.Tests.Packaging;
 /// </para>
 /// <para>
 /// ⚠ <b>The argument this exists to refuse is "it is fine, every packed id is pushable."</b> That
-/// is true of today's project list and of no other. A third packable project — an analyzer, a
+/// is true of today's project list and of no other. Another packable project — an analyzer, a
 /// second tool, a sample — would be swept up by a glob with nothing objecting. Bennewitz.Ninja.DiffView
 /// came within one project of exactly that: its <c>src/ThemeAudit</c> was packable and
 /// local-feed-only, so a glob would have published it.
@@ -27,8 +27,17 @@ namespace XamlQuality.Tests.Packaging;
 /// </remarks>
 public sealed class ReleaseWorkflowTests
 {
+    /// <summary>Every package a release publishes, by its id.</summary>
+    private static readonly string[] Published =
+    [
+        "Bennewitz.Ninja.XamlQuality",
+        "Bennewitz.Ninja.XamlQuality.ThemeAudit",
+        "Bennewitz.Ninja.XamlQuality.ThemeRuntime",
+    ];
+
     /// <summary>
-    /// Every published id is named, and no step globs — anywhere in the file, not just at the push.
+    /// Every published id is named in each place that names packages, and no step globs — anywhere
+    /// in the file, not just at the push.
     /// </summary>
     [Fact]
     public void The_release_workflow_names_every_package_it_publishes()
@@ -38,13 +47,26 @@ public sealed class ReleaseWorkflowTests
 
         // Comment lines go first: the comments above both publishing steps explain the very glob
         // this test forbids, and a whole-file search would fail on the explanation.
-        string instructions = string.Join(
-            '\n',
-            File.ReadLines(path).Where(line => !line.TrimStart().StartsWith('#')));
+        string[] instructions = [.. File.ReadLines(path).Where(line => !line.TrimStart().StartsWith('#'))];
 
-        Assert.DoesNotContain("*.nupkg", instructions, StringComparison.Ordinal);
-        Assert.Contains("Bennewitz.Ninja.XamlQuality.${{ env.VERSION }}.nupkg", instructions, StringComparison.Ordinal);
-        Assert.Contains("Bennewitz.Ninja.XamlQuality.ThemeAudit.${{ env.VERSION }}.nupkg", instructions, StringComparison.Ordinal);
+        Assert.DoesNotContain("*.nupkg", string.Join('\n', instructions), StringComparison.Ordinal);
+
+        // The push and the GitHub Release each name every package's file; the preflight lists every
+        // id, which is what the trusted-publishing policy is checked against by eye.
+        foreach (string step in (string[])["Push to NuGet.org", "Create GitHub Release"])
+        {
+            string body = Step(instructions, step);
+            foreach (string id in Published)
+            {
+                Assert.Contains("/" + id + ".${{ env.VERSION }}.nupkg", body, StringComparison.Ordinal);
+            }
+        }
+
+        string preflight = Step(instructions, "Report the preflight result");
+        foreach (string id in Published)
+        {
+            Assert.Contains("- \\`" + id + "\\`", preflight, StringComparison.Ordinal);
+        }
     }
 
     /// <summary>
@@ -58,6 +80,16 @@ public sealed class ReleaseWorkflowTests
 
         Assert.Contains("dotnet nuget push", instructions, StringComparison.Ordinal);
         Assert.Contains("gh release create", instructions, StringComparison.Ordinal);
+    }
+
+    /// <summary>The lines of the step named <paramref name="name"/>, up to the next step.</summary>
+    private static string Step(string[] lines, string name)
+    {
+        int start = Array.FindIndex(lines, line => line.Trim() == "- name: " + name);
+        Assert.True(start >= 0, $"release.yml has no step named \"{name}\".");
+
+        int end = Array.FindIndex(lines, start + 1, line => line.TrimStart().StartsWith("- name: ", StringComparison.Ordinal));
+        return string.Join('\n', lines[start..(end < 0 ? lines.Length : end)]);
     }
 
     /// <summary>

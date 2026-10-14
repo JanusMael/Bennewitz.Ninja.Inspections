@@ -131,11 +131,11 @@ jobs:
         with:
           user: ${{ vars.NUGET_USER }}
 
-      # ⚠ A successful login proves only that AT LEAST ONE policy matched. It cannot prove both
-      # exist, because the exchange is per-account, not per-package — so the ids are printed here
-      # to be checked by eye against https://www.nuget.org/account/trustedpublishing. A missing
-      # second policy is the one failure that leaves the two packages at DIFFERENT versions, and
-      # a published version cannot be replaced.
+      # ⚠ A successful login proves only that AT LEAST ONE policy matched. It cannot prove that
+      # every id is covered, because the exchange is per-account, not per-package — so the ids are
+      # printed here to be checked by eye against https://www.nuget.org/account/trustedpublishing.
+      # An id the policy misses is the one failure that leaves the packages at DIFFERENT versions,
+      # and a published version cannot be replaced.
       - name: Report the preflight result
         if: env.RELEASING != 'true'
         run: |
@@ -150,9 +150,10 @@ jobs:
             echo ""
             echo "- \`Bennewitz.Ninja.XamlQuality\`"
             echo "- \`Bennewitz.Ninja.XamlQuality.ThemeAudit\`"
+            echo "- \`Bennewitz.Ninja.XamlQuality.ThemeRuntime\`"
             echo ""
             echo "⚠ Login proves *a* policy matched — never that it covers every id above."
-            echo "Confirm ONE policy whose Glob Patterns cover both, and NOT a policy per id:"
+            echo "Confirm ONE policy whose Glob Patterns cover them all, and NOT a policy per id:"
             echo "one exchange mints one key scoped to one policy, so a second policy is never"
             echo "consulted and its package is rejected 403 — after the first is already permanent."
           } >> "$GITHUB_STEP_SUMMARY"
@@ -167,6 +168,7 @@ jobs:
           dotnet nuget push \
             ./packages/Release/Bennewitz.Ninja.XamlQuality.${{ env.VERSION }}.nupkg \
             ./packages/Release/Bennewitz.Ninja.XamlQuality.ThemeAudit.${{ env.VERSION }}.nupkg \
+            ./packages/Release/Bennewitz.Ninja.XamlQuality.ThemeRuntime.${{ env.VERSION }}.nupkg \
             --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} \
             --source https://api.nuget.org/v3/index.json \
             --skip-duplicate
@@ -186,4 +188,5 @@ jobs:
             --title "${{ env.TAG }}" \
             --generate-notes \
             ./packages/Release/Bennewitz.Ninja.XamlQuality.${{ env.VERSION }}.nupkg \
-            ./packages/Release/Bennewitz.Ninja.XamlQuality.ThemeAudit.${{ env.VERSION }}.nupkg
+            ./packages/Release/Bennewitz.Ninja.XamlQuality.ThemeAudit.${{ env.VERSION }}.nupkg \
+            ./packages/Release/Bennewitz.Ninja.XamlQuality.ThemeRuntime.${{ env.VERSION }}.nupkg
