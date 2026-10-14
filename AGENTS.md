@@ -15,12 +15,13 @@
 
 ## What this repository is
 
-Static analysis for XAML markup, shipped as two packages from one tag:
+Static analysis for XAML markup, shipped as three packages from one tag:
 
 | Package | Project | What it is |
 |---|---|---|
 | `Bennewitz.Ninja.XamlQuality` | `src/XamlQuality` | The rules library: `IXamlRule` implementations a consumer runs from its own tests |
 | `Bennewitz.Ninja.XamlQuality.ThemeAudit` | `src/XamlQuality.ThemeAudit` | The `theme-audit` dotnet tool: argument parsing and reporting over the library's `ThemeAudit` namespace |
+| `Bennewitz.Ninja.XamlQuality.ThemeRuntime` | `src/XamlQuality.ThemeRuntime` | The runtime theme check's Avalonia half, as source files an adopting test project compiles against its own Avalonia; the project packs them and ships no assembly |
 
 It also serves one Claude Code plugin from `main`, `drivable-ui`: the method in
 `docs/ai-drivable-ui.md`, condensed into a skill an agent loads. The plugin is not in either package,
@@ -41,7 +42,9 @@ report.
 **No dependencies, Avalonia included.** Rules read markup as text or XML. Where a contract has a
 compiled half, a rule reads the consumer's own assemblies through `System.Reflection`. The library
 works against WPF and MAUI markup as it does against Avalonia's. Only the notes in `docs/` are
-Avalonia-specific, and that split is deliberate.
+Avalonia-specific, and that split is deliberate. The one check that needs a running Avalonia, the
+runtime theme check, ships as source files that compile in the adopting project against its own
+Avalonia, so nothing published references Avalonia; in the solution, only its test project takes it.
 
 **Zero findings is not a result on its own.** A rule whose selector stops matching reports nothing
 and looks exactly like a clean codebase. So every result carries `Inspected`, how much the rule
@@ -159,6 +162,16 @@ tool's own, against its markup folders, and `TemplatePartReading.ToMarkdown` ren
 the tool writes is held to a fresh run by one drift check, `OutputDrift.Check`, which a consumer's test
 can run too.
 
+The audit is a model of Avalonia's resource lookup, and the runtime theme check, by `plans/00003`,
+reads it against the real one. `RuntimeCheckPlan.For` works out from `AuditRunner.Run`'s result, and
+the names a map holds, what to ask: for each consumer, under each theme and variant, every key it
+references and does not define, with the audit's answer. The source package sets each theme and
+variant up afresh in the running application, its own styles and resources set aside, asks
+`Application.TryGetResource`, and hands the answers to `RuntimeCheckPlan.Compare`, whose result names
+each difference, counts the lookups, and names in `Skipped` what was not checked. What needs no
+running framework is the library's, public and tested beside the audit; `src/XamlQuality.ThemeRuntime`
+holds the rest.
+
 This analysis moved here from DiffView, and its surface shipped public. DiffView binds to it, so
 narrowing it is a breaking change rather than a tidy-up. `src/XamlQuality/Properties/AssemblyInfo.cs`
 records which types are public and which stay internal.
@@ -195,8 +208,8 @@ does not run it. `tools/AGENTS.md` says how.
 
 ## Who consumes this
 
-Other repositories in the same family consume both packages. ScopedEditors' tests run the rules, and
-DiffView runs the audit and commits its report. That is why the public surface is treated as a
+Other repositories in the same family consume the library and the tool. ScopedEditors' tests run the
+rules, and DiffView runs the audit and commits its report. That is why the public surface is treated as a
 contract. `PROGRESS.md` lists which members each consumer uses.
 
 ## Releases
@@ -216,7 +229,10 @@ counts.
 | Invariant | Failure signature if broken | Canonical source |
 |---|---|---|
 | The rules library takes no package reference and no framework dependency | A consumer's test project inherits dependencies it did not choose, and the rules stop working against WPF or MAUI markup | `src/XamlQuality/XamlQuality.csproj`; `Directory.Packages.props`, whose `Tool` group is for the CLI only; test `AssemblyQualityTests.BNAQ1003_no_assembly_references_a_framework_or_another_family_package` |
-| Every shipped assembly passes the family's AssemblyQuality rules with nothing skipped, and the scan finds each project under `src` by the assembly name its csproj declares | A package ships a violation of a rule nothing ran, a type a rule could not read passes as clean, or a scan that silently drops `ThemeAudit.dll` reads as clean | `AssemblyQualityTests`, one test per rule and `Every_shipped_assembly_is_in_the_scan`; `Directory.Packages.props`, whose `Testing` group pins `Bennewitz.Ninja.AssemblyQuality` |
+| Every shipped assembly passes the family's AssemblyQuality rules with nothing skipped, and the scan finds each project under `src` by the assembly name its csproj declares, but one that declares `SourceOnlyPackage`, which ships no assembly and whose package `SourceOnlyPackageTests` holds instead | A package ships a violation of a rule nothing ran, a type a rule could not read passes as clean, a scan that silently drops `ThemeAudit.dll` reads as clean, or the exemption hides a project that ships an assembly | `AssemblyQualityTests`, one test per rule and `Every_shipped_assembly_is_in_the_scan`; `SourceOnlyPackageTests.DeclaresSourceOnly`; `Directory.Packages.props`, whose `Testing` group pins `Bennewitz.Ninja.AssemblyQuality` |
+| A source-only package holds its project's `.cs` files as compile content for the library's framework, and the README, and no assembly; depends on the library alone, at a minimum of its own version; is no development dependency; and each file starts `// <auto-generated/>`, then `#nullable enable`, has no using directive, names every type outside it from `global::`, declares no public type and names no test framework. It is packed without a build | A file fails to compile in an adopting project that turns implicit usings off or declares a global alias of a name it uses; `dotnet add package` leaves the library's compile assets out, and the files do not compile (CS0103); a stray using of a test framework passes here, where the files compile only in a test project, and fails in an adopter; or a pack that builds rebuilds the library at another version between a release's build and its pack | `src/XamlQuality.ThemeRuntime/XamlQuality.ThemeRuntime.csproj`; `SourceOnlyPackageTests`; `tests/XamlQuality.ThemeRuntime.Tests`, which compiles the files with implicit usings off and, in `HostileAliases.cs`, a global alias of each name they use |
+| The runtime check's names, the library's half and the source half's alike, are permanent from the release that first carries them, and a member added later is an `init` property, never a new positional parameter | Every adopting test is written against them, and a source half compiled against a newer library, which the package's minimum allows, stops compiling | `RuntimeCheckPlan` remarks; `src/XamlQuality/Properties/AssemblyInfo.cs` |
+| No project in `XamlQuality.slnx` but `tests/XamlQuality.ThemeRuntime.Tests` takes a package whose id names Avalonia, directly or through another package, as read from each project's restore graph | Avalonia reaches the library's tests or a shipped assembly unannounced, or a project whose graph is missing passes for one that takes nothing | `AvaloniaConfinementTests` |
 | A rule returns findings; it never throws or asserts on a violation | The library chooses the consumer's test runner and severity for them | `IXamlRule`, `XamlRuleResult`, `XamlFinding` |
 | Every result reports `Inspected`, and a rule names what it saw but could not check in `Skipped` | A rule that checked nothing returns zero findings, which reads as a clean codebase | `XamlRuleResult.Inspected`, `XamlRuleResult.Skipped`, `XamlSkip`; tests `ExpanderAutomationNameRuleTests.MarkupWithNoExpanders_InspectsNothingAndReportsNothing`, `GridSlotOverflowRuleTests.MarkupWithNoGrid_InspectsNothing`, `TemplatePartRuleTests.WithoutAssemblies_EveryThemedControlIsNamedAsSkipped` |
 | Elements are matched by local name, never by qualified name | A rule goes silently inert on the frameworks whose markup namespace it did not name | `InteractiveAutomationNameRule` remarks; test `ExpanderAutomationNameRuleTests.WpfMarkup_IsScannedToo` |
@@ -270,7 +286,7 @@ counts.
 | The content digest is rooted at the deepest directory the scanned files share, never at the configuration's directory | The same files hash differently on a developer machine and in CI, so a committed report can never pass in both | `AuditRunner.CommonRoot`, `AuditRunner.Digest`; tests `DigestLocationTests.TheSameContentInTwoLocations_HashesTheSame`, `DigestLocationTests.ARenameThatDoesNotReorder_StillMovesTheDigest` |
 | The content digest reads each CRLF pair as LF, and a consumer's files are read in the order of their path below the scanned directory, written with `/` | A Windows checkout, where git writes LF as CRLF and `\` sorts sibling directories differently, hashes differently from Linux and macOS, so a committed report fails on one platform | `AuditRunner.Digest` remarks, `XamlFiles` remarks; tests `DigestPlatformTests.ACrlfCheckout_HashesAsAnLfOne`, `DigestPlatformTests.AnLfCheckout_HashesAsItAlwaysHas`, `DigestPlatformTests.AConsumersFiles_AreOrderedByTheirPathWithForwardSlashes` |
 | The parts report's format is a contract: `TemplatePartReading.ToMarkdown` writes LF, invariant culture, no timestamp and no absolute path; a code span's fence is longer than any run of backticks in it, and a line break in a value reads as a space; a control's rows follow the order its themes declare its parts, then the parts no theme declares, ordinally; and a part the code declares or looks up that a theme lacks reads **missing** in that theme's column, exactly `BNXQ1003`'s findings. A change to the format is recorded under "Effect on a consumer" | Every consumer's committed report fails its drift check on the next upgrade, unannounced; one generated on Windows differs from one generated on Linux; or a generic type's name, or an id holding a line break, breaks a heading or a table row | `TemplatePartReport` remarks; tests `TemplatePartReportTests.TheReport_IsTheGoldenText_ByteForByte`, `TemplatePartReportTests.TheReport_HasNoCarriageReturn`, `TemplatePartReportTests.OneTheme_TakesPlainColumns_AndNothingSkipped_IsSaid`, `TemplatePartReportTests.ACodeSpan_IsFencedPastAnyBacktickInIt_AndKeepsItsRowOnOneLine` |
-| The drift check is one call, `OutputDrift.Check`: CRLF reads as LF; a stale output's fresh text is written beside it as `name.received.ext`, which a check that finds the output up to date removes, and so does `OutputDrift.Write`, through which the tool writes every output; the audit's scans never read a received copy; `theme-audit`'s `report`, `compat` and `parts` all run it, and exit 0 up to date, 1 stale, missing or unreadable, 2 on a configuration error | A Windows checkout reads as drift; a consumer's test compares differently from the tool; a CI step that branches on an exit code or a message breaks; or a received copy left where the audit scans changes the next report | `OutputDrift` remarks; `src/XamlQuality.ThemeAudit/Program.cs`; tests `OutputDriftTests`, `ThemeAuditToolTests`, `ReceivedCopyTests` |
+| The drift check is one call, `OutputDrift.Check`: CRLF reads as LF; a stale output's fresh text is written beside it as `name.received.ext`, which a check that finds the output up to date removes, and so does `OutputDrift.Write`, through which the tool writes every output; the audit's scans never read a received copy; `theme-audit`'s `report`, `compat` and `parts` all run it, and exit 0 up to date, 1 stale, missing or unreadable, 2 on a configuration error | A Windows checkout reads as drift; a consumer's test compares differently from the tool; a CI step that branches on an exit code or a message breaks; or a received copy left where the audit scans changes the next report | `OutputDrift` remarks; `PartsRunner` remarks; `src/XamlQuality.ThemeAudit/Program.cs`; tests `OutputDriftTests`, `ThemeAuditToolTests`, `ReceivedCopyTests`, `PartsRunnerTests.AReceivedCopyAmongTheMarkup_IsNotRead` |
 | The theme mappings reach a consumer's output as `Mappings/<name>.json` | `"mapping": "FluentToSemi"` is a file-not-found for every `PackageReference` consumer | The `None` item in `src/XamlQuality/XamlQuality.csproj`, where `Link`, `PackageCopyToOutput` and `PackagePath` are all load-bearing |
 | The release names each package it publishes; no step globs `*.nupkg` | A future packable project is published permanently, or attached to a GitHub Release nobody chose it for | `.github/workflows/release.yml`; tests `ReleaseWorkflowTests.The_release_workflow_names_every_package_it_publishes`, `ReleaseWorkflowTests.The_release_workflow_still_has_both_publishing_steps` |
 | `NUGET_USER` is a repository variable holding the nuget.org profile name, and a release refuses to run without it | A masked value hides why a login fails, and a tag with it unset creates a GitHub Release for a package that never shipped | `.github/workflows/release.yml`, step `Refuse to release without NUGET_USER`; `docs/publishing.md` |
@@ -290,17 +306,25 @@ dotnet run --file tools/real-code.cs
 dotnet run --file tools/real-code.cs -- --update
 dotnet run --file tools/mutate.cs -- <TestClass> <catalog.json>
 dotnet run --file tools/probe.cs -- <pattern>
+dotnet run --file scripts/fetch-reference.cs
+dotnet run --file scripts/fetch-reference.cs -- --status
 ```
 
 - The third regenerates the README's rules table (`RulesCatalogTests`). Commit the result; the build
   never writes a tracked file.
 - The fifth compares what every rule prints over the pinned real code with `main`'s record, and the
   sixth rewrites the record from this tree. Read every line that moved before committing it.
-- The seventh plants each defect of a catalog in a copy of the tree and runs one test class; it
-  refuses a run estimated past 30 minutes.
+- The seventh plants each defect of a catalog in a copy of the tree and runs one test class, from the
+  test project that holds it; it refuses a run estimated past 30 minutes.
 - The eighth measures the headless probe's cases whose id matches the pattern, a trailing `*` taking
   a prefix, and judges what `BNXQ1005`, `BNXQ1009` and `BNXQ1010` say about each against the
   measurements; it exits 1 when a measurement refutes a verdict.
+- The ninth fetches the real themes' sources into `reference/`, at the versions
+  `Directory.Packages.props` pins, for work by hand, and the tenth reports whether each is there at
+  its pin. No test, build or CI job reads them.
+- A local build of the solution wants `AVALONIA_TELEMETRY_OPTOUT=1`: `tests/XamlQuality.ThemeRuntime.Tests`
+  takes Avalonia, whose build telemetry otherwise starts a process that outlives the build. Every job
+  of `ci.yml` and `release.yml` sets it.
 - Tests run on Microsoft.Testing.Platform (`global.json`), so `dotnet test` takes `--solution` and
   rejects VSTest-only switches such as `--nologo`.
 - Write `-p:` rather than `/p:`. The workflows use `/p:` because they run on Linux; Git Bash on

@@ -8,6 +8,7 @@ from silently.
 |---|---|
 | `Bennewitz.Ninja.XamlQuality` | The **rules library**. Zero dependencies |
 | `Bennewitz.Ninja.XamlQuality.ThemeAudit` | The **`theme-audit` CLI**, for CI and for generating theme-compat dictionaries |
+| `Bennewitz.Ninja.XamlQuality.ThemeRuntime` | The **runtime theme check**, as source files an Avalonia test project compiles: the audit's answers read against Avalonia's own resource lookup |
 
 ## Why a library and not a test package
 
@@ -32,6 +33,10 @@ exactly like a clean codebase. Findings alone is a number that cannot rise, so i
 Every rule reads markup as text or as XML, so this works against WPF and MAUI XAML as well as
 Avalonia's. A quality analyser that drags dependencies into a consumer's test project is one
 people stop referencing.
+
+The one check that needs a running Avalonia, the runtime theme check, ships as source files that
+compile against whatever Avalonia the adopting project pins, so nothing published here references
+Avalonia either.
 
 ## Rules
 
@@ -286,6 +291,51 @@ The assemblies load apart from the tool's own, each dependency from the folder o
 names, so name them in a build output that holds their dependencies, as an application's or a test project's does:
 a library's own holds none, and its controls would not load. A library that defines a base class of your controls,
 such as a text editor's, names its base class's lookups when it is listed too.
+
+## The runtime theme check
+
+The audit is a model of Avalonia's resource lookup: its theme dictionaries, variants that inherit from others, and
+merged and included dictionaries. `Bennewitz.Ninja.XamlQuality.ThemeRuntime` reads that model against the real
+lookup. For each consumer, under each theme the audit reads it with and each of that theme's variants, it asks
+`Application.TryGetResource` for every key the consumer references and does not define itself, and compares the answer
+with the audit's. Each disagreement is a `RuntimeDifference` of one of three kinds: a key the audit calls defined that
+Avalonia does not find, one it calls undefined that Avalonia finds, and a lookup that throws, with its message.
+
+The package holds source files, not an assembly: add it to an Avalonia test project that runs headless, and they
+compile there against that project's Avalonia, beside `Bennewitz.Ninja.XamlQuality`, which does the planning and the
+comparing. Nothing is built from a name: a map gives a factory for each theme, the `avares://` URI of each dictionary
+the configuration merges, and the `ThemeVariant` instance of each variant, since a variant built from its name loses
+what it inherits.
+
+```csharp
+[AvaloniaFact]
+public void The_audit_reads_the_themes_as_Avalonia_does()
+{
+    AuditResult audit = AuditRunner.Run(AuditConfig.Load("theme-audit.json"));
+    ThemeRuntimeMap map = new()
+    {
+        Themes = new Dictionary<string, Func<IStyle>> { ["Fluent"] = () => new FluentTheme(), ["Semi"] = () => new SemiTheme() },
+        Merges = new Dictionary<string, Uri> { ["src/MyApp/Themes/SemiCompat.axaml"] = new("avares://MyApp/Themes/SemiCompat.axaml") },
+        Variants = new Dictionary<string, IReadOnlyDictionary<string, ThemeVariant>>
+        {
+            ["Fluent"] = new Dictionary<string, ThemeVariant> { ["Light"] = ThemeVariant.Light, ["Dark"] = ThemeVariant.Dark },
+            ["Semi"] = new Dictionary<string, ThemeVariant> { ["Light"] = ThemeVariant.Light, ["Dark"] = ThemeVariant.Dark, ["Aquatic"] = SemiTheme.Aquatic },
+        },
+    };
+
+    RuntimeCheckResult result = ThemeRuntimeCheck.Run(audit, map);
+
+    Assert.True(result.Differences.Count == 0, string.Join(Environment.NewLine, result.Differences));
+    Assert.True(result.Inspected > 0, "The check asked Avalonia nothing.");
+    Assert.Equal(["App: {x:Type Button}"], result.Skipped.Select(skip => skip.Subject));
+}
+```
+
+Assert all three. `Inspected` above zero, since a check that asked nothing agrees with everything; and `Skipped` equal
+to the list you expect, so that a theme or a dictionary that stops loading, or a theme, merge path or variant the map
+does not name, fails the test instead of passing unchecked. The check builds every theme and merged dictionary afresh
+for each theme and variant, sets the application's own styles and resources aside while it asks, and puts everything
+back. It runs on Avalonia's UI thread, so run it in a test that nothing runs beside.
 
 ## Versioning
 

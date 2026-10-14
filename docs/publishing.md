@@ -4,12 +4,13 @@ This repository publishes through **NuGet.org Trusted Publishing (OIDC)**. There
 stored anywhere: the release workflow mints a short-lived token per run, so nothing in this
 repository would still be valid if it leaked.
 
-Two packages ship together from one tag:
+Three packages ship together from one tag:
 
 | Package | Kind |
 |---|---|
 | `Bennewitz.Ninja.XamlQuality` | Library |
 | `Bennewitz.Ninja.XamlQuality.ThemeAudit` | `dotnet tool` — command `theme-audit` |
+| `Bennewitz.Ninja.XamlQuality.ThemeRuntime` | Source only: `.cs` files an Avalonia test project compiles, and no assembly |
 
 ---
 
@@ -49,12 +50,14 @@ At <https://www.nuget.org/account/trustedpublishing> → **Add policy**.
 | Workflow File | `release.yml` |
 | Environment | **leave blank** |
 | Scopes | **Publish new packages** *and* **Publish new versions of existing packages** |
-| Package pattern | `Bennewitz.Ninja.XamlQuality*` — covers both ids |
+| Package pattern | `Bennewitz.Ninja.XamlQuality*` — covers every id |
 
 ⛔ **The scope must permit publishing NEW packages.** A policy scoped only to new versions of
-existing packages matches nothing until an id exists, and both ids here are new until the first
-release lands. This is invisible in the field list and produces a generic 401 that reads as though
-the repository name were wrong.
+existing packages matches nothing until an id exists, and an id is new until the release that first
+carries it, as `Bennewitz.Ninja.XamlQuality.ThemeRuntime` is. This is invisible in the field list and
+produces a generic 401 that reads as though the repository name were wrong. Before tagging a release
+that carries a new id, check on nuget.org that the policy's scopes still permit new packages: the
+preflight cannot prove it.
 
 ⛔ **Environment must be BLANK.** It is filled in only when the publishing job declares
 `environment:`, and this one deliberately does not. A value here matches nothing, and the failure
@@ -73,10 +76,10 @@ against a delete-and-recreate attack, so it stays provisional until then and goe
 nothing publishes inside the window. The window can be restarted at any time. This repository is
 public, so it does not apply here; it explains a policy that silently stops working elsewhere.
 
-⭐ **Neither package exists on nuget.org yet, and that is fine.** The `Bennewitz.Ninja.*` prefix
-reservation lets a policy be created for an id that has never been published.
+⭐ **An id that has never been published is fine.** The `Bennewitz.Ninja.*` prefix reservation lets
+a policy cover an id before its first package exists.
 
-⛔ **One policy with a pattern is the only shape that works for two ids.** Two exact-id policies do
+⛔ **One policy with a pattern is the only shape that works for several ids.** Exact-id policies do
 **not** work, and the way they fail is expensive: nuget.org mints **one** API key per token
 exchange, scoped to **one** matching policy. Both policies match the same OIDC claims — same owner,
 same repository, same workflow — so it picks one, and the package covered by the other is rejected
@@ -94,9 +97,9 @@ free.
 
 ⚠ **A green preflight proves the login works, not that every id is covered.** The exchange returns
 one key scoped to one policy, so it succeeds long before any package id is considered. The run
-summary prints both ids for exactly this reason: confirm a **single** policy whose pattern covers
-both, rather than a policy per id. Nothing in a preflight can catch a coverage gap — only the push
-can, and by then half the release is permanent.
+summary prints every id for exactly this reason: confirm a **single** policy whose pattern covers
+them all, rather than a policy per id. Nothing in a preflight can catch a coverage gap — only the
+push can, and by then part of the release is permanent.
 
 ---
 
@@ -136,8 +139,8 @@ is what separates a release from the preflight in step 3; leaving it blank never
 gh run watch --repo JanusMael/Bennewitz.Ninja.XamlQuality --exit-status
 ```
 
-It builds, runs the full suite, packs both projects, logs in over OIDC, pushes both packages, and
-creates the GitHub Release. Every gate runs **before** the push, because the push is the
+It builds, runs the full suite, packs every packable project, logs in over OIDC, pushes the three
+packages, and creates the GitHub Release. Every gate runs **before** the push, because the push is the
 irreversible part.
 
 ### 6 · Verify against the feed, not against the workflow
@@ -147,6 +150,7 @@ A green workflow says the steps exited zero. Ask nuget.org:
 ```bash
 curl -s https://api.nuget.org/v3-flatcontainer/bennewitz.ninja.xamlquality/index.json
 curl -s https://api.nuget.org/v3-flatcontainer/bennewitz.ninja.xamlquality.themeaudit/index.json
+curl -s https://api.nuget.org/v3-flatcontainer/bennewitz.ninja.xamlquality.themeruntime/index.json
 ```
 
 Each should list the new version. Indexing takes a few minutes, so a miss immediately after the run
@@ -183,12 +187,12 @@ either dispatch the workflow by hand or cut the next day's version.
 | **Token expired** | More than an hour between login and push | The two steps are adjacent here; suspect a stalled build |
 | `already_exists` | Re-running a completed release | Expected — `--skip-duplicate` makes it a no-op |
 | GitHub Release **422** | A release already exists for that tag | Delete the conflicting release, then re-run |
-| One package pushed, the other **403** | A policy per id: one exchange mints one key scoped to one policy | Replace both with a single policy patterned `Bennewitz.Ninja.XamlQuality*`, then `gh run rerun` — `--skip-duplicate` no-ops the one already live and the other pushes at the same version |
+| One package pushed, another **403** | A policy per id: one exchange mints one key scoped to one policy | Replace them with a single policy patterned `Bennewitz.Ninja.XamlQuality*`, then `gh run rerun` — `--skip-duplicate` no-ops the ones already live and the rest push at the same version |
 
-⚠ **The `403` row is the one worth expecting**, because it is the only failure that leaves the two
+⚠ **The `403` row is the one worth expecting**, because it is the only failure that leaves the
 packages at different versions. It is survivable only because the tag can be replayed: `gh run
-rerun` re-reads the same commit, `--skip-duplicate` makes the live package a no-op, and the rejected
-one goes up at the same version. Fix the policy first — a rerun against an unchanged policy fails
+rerun` re-reads the same commit, `--skip-duplicate` makes a live package a no-op, and a rejected one
+goes up at the same version. Fix the policy first — a rerun against an unchanged policy fails
 identically.
 
 ### Working the 401
