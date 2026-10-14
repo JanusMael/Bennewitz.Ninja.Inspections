@@ -2,6 +2,8 @@ bin/
 obj/
 artifacts/
 packages/
+# The real themes' sources, which scripts/fetch-reference.cs fetches for work by hand.
+reference/
 *.user
 .vs/
 .idea/
