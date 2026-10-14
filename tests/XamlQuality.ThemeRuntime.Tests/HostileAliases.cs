@@ -1,9 +1,9 @@
-// Global aliases named after the types the runtime check's files use, each for an unrelated type, as an
-// adopting project's own global aliases may be: DiffView already aliases ThemeVariant in its test files,
-// and a project that makes such an alias global must still compile the package. The files name every
-// type from global::, so none of these may take a name in them; a name they leave unqualified fails to
-// compile here. This project's own files declare their usings inside their namespace, which is searched
-// before these.
+// Global aliases named after the Avalonia and library types the runtime check's files use, each for an
+// unrelated type, as an adopting project's own global aliases may be: DiffView already aliases
+// ThemeVariant in its test files, and a project that makes such an alias global must still compile the
+// package. The files name every type from global::, so none of these may take a name in them; a name
+// they leave unqualified fails to compile here. This project's own files declare their usings inside
+// their namespace, which is searched before these.
 global using Application = System.Text.StringBuilder;
 global using AuditResult = System.Text.StringBuilder;
 global using Dispatcher = System.Text.StringBuilder;

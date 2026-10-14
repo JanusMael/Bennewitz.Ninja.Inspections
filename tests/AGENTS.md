@@ -15,11 +15,11 @@ removes.
 `XamlQuality.ThemeRuntime.Tests` compiles `src/XamlQuality.ThemeRuntime/*.cs`, the files the
 source-only package ships, with Avalonia's headless platform, and runs them over fixture themes, by
 `plans/00003`. It compiles them as a hostile adopting project would: implicit usings off, the language
-version a project gets by default, and `HostileAliases.cs`'s global aliases, each named after a type
-the files use, so a name they leave unqualified fails to build. Its own files put their usings inside
-their namespace, which lookup searches before the aliases. `Fixtures/theme-audit.json` audits the
-themes under `Fixtures/Themes`, compiled and loaded by `avares://`, for the consumer under
-`Fixtures/Consumers`, which is data and never compiled.
+version a project gets by default, and `HostileAliases.cs`'s global aliases, named after the Avalonia
+and library types the files use, so a name they leave unqualified fails to build. Its own files put
+their usings inside their namespace, which lookup searches before the aliases.
+`Fixtures/theme-audit.json` audits the themes under `Fixtures/Themes`, compiled and loaded by
+`avares://`, for the consumer under `Fixtures/Consumers`, which is data and never compiled.
 
 ## Rules
 
