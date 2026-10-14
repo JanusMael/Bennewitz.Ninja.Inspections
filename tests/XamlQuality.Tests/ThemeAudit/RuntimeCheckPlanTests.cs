@@ -115,6 +115,47 @@ public sealed class RuntimeCheckPlanTests : IDisposable
     }
 
     [Fact]
+    public void A_theme_no_consumer_is_audited_under_is_neither_set_up_nor_named()
+    {
+        Directory.CreateDirectory(Path.Combine(_root, "theme"));
+        Directory.CreateDirectory(Path.Combine(_root, "app"));
+        File.WriteAllText(Path.Combine(_root, "theme", "Theme.axaml"),
+            """
+            <ResourceDictionary xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+              <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light"><SolidColorBrush x:Key="Ink" Color="#000000" /></ResourceDictionary>
+                <ResourceDictionary x:Key="Dark"><SolidColorBrush x:Key="Ink" Color="#FFFFFF" /></ResourceDictionary>
+              </ResourceDictionary.ThemeDictionaries>
+            </ResourceDictionary>
+            """);
+        File.WriteAllText(Path.Combine(_root, "app", "A.axaml"),
+            """
+            <Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+              <Style Selector="Border"><Setter Property="Background" Value="{DynamicResource Ink}" /></Style>
+            </Styles>
+            """);
+        AuditResult audit = AuditRunner.Run(AuditConfig.Parse(
+            """
+            {
+              "themes": [
+                { "name": "Theme", "entry": "theme/Theme.axaml", "baseDirectory": "theme", "variants": ["Light", "Dark"] },
+                { "name": "Unused", "entry": "theme/Theme.axaml", "baseDirectory": "theme", "variants": ["Light", "Dark"] }
+              ],
+              "consumers": [ { "name": "App", "paths": ["app"], "themes": ["Theme"] } ]
+            }
+            """, _root));
+
+        // The map names no factory for the theme the consumer is not audited under, and that is no skip:
+        // there is nothing to ask under it.
+        RuntimeCheckPlan plan = RuntimeCheckPlan.For(audit,
+            new Dictionary<string, IReadOnlySet<string>> { ["Theme"] = new HashSet<string>(["Light", "Dark"]) },
+            new HashSet<string>());
+
+        Assert.Equal([("Theme", "Light"), ("Theme", "Dark")], plan.Setups.Select(s => (s.Theme, s.DisplayName)).ToArray());
+        Assert.Empty(plan.Skipped);
+    }
+
+    [Fact]
     public void Compare_names_each_kind_of_difference_in_the_plans_order_and_counts_the_answers()
     {
         RuntimeCheckPlan plan = RuntimeCheckPlan.For(_audit, Everything(), Compat);
