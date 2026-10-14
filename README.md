@@ -305,9 +305,18 @@ The package holds source files, not an assembly: add it to an Avalonia test proj
 compile there against that project's Avalonia, beside `Bennewitz.Ninja.XamlQuality`, which does the planning and the
 comparing. Nothing is built from a name: a map gives a factory for each theme, the `avares://` URI of each dictionary
 the configuration merges, and the `ThemeVariant` instance of each variant, since a variant built from its name loses
-what it inherits.
+what it inherits. A file that imports both `Avalonia.Styling` and the audit's namespace aliases
+`ThemeVariant`, which both declare.
 
 ```csharp
+using Avalonia.Headless.XUnit;
+using Avalonia.Styling;
+using Avalonia.Themes.Fluent;
+using Bennewitz.Ninja.XamlQuality.ThemeAudit;
+using Bennewitz.Ninja.XamlQuality.ThemeRuntime;
+using Semi.Avalonia;
+using ThemeVariant = Avalonia.Styling.ThemeVariant;
+
 [AvaloniaFact]
 public void The_audit_reads_the_themes_as_Avalonia_does()
 {
