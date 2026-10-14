@@ -8,7 +8,7 @@ released, who depends on what, and the rule backlog with any questions open for 
 | | |
 |---|---|
 | Published | `2026.4.1014`: `Bennewitz.Ninja.XamlQuality`, `Bennewitz.Ninja.XamlQuality.ThemeAudit` and, for the first time, `Bennewitz.Ninja.XamlQuality.ThemeRuntime`, released 2026-10-14. What it changed for a consumer is in its [release notes](https://github.com/JanusMael/Bennewitz.Ninja.XamlQuality/releases/tag/v2026.4.1014) |
-| `main` | carries one unreleased change, `BNXQ1003`'s from its assessment, listed below |
+| `main` | carries one unreleased change, `BNXQ1003`'s from its assessment, and a docs change, both listed below |
 | Next release | Not scheduled; the developer decides. One release per calendar day |
 | Order of work | `BNXQ1009`'s `ItemsSource` reading, by the developer's order of 2026-10-13, now that `BNXQ1003`'s assessment is decided |
 | Agent skill | `drivable-ui`, served from `main` as a Claude Code plugin since PR #47, by the developer's decision of 2026-09-29: `claude plugin marketplace add JanusMael/Bennewitz.Ninja.XamlQuality`, then `claude plugin install drivable-ui@xamlquality`. It is in neither package, so it ships on merge, not on a tag |
@@ -49,6 +49,7 @@ merges only, and both give a branch's commits new hashes, so a row cites its pul
 | Commit or PR | Change | Effect on a consumer |
 |---|---|---|
 | PR #79 | `BNXQ1003`, by the developer's assessment of 2026-10-14, now that its reading is public. A name that more than one top-level type the scan was given carries is no control's: the rule reads a theme's target by its name alone, so each theme of such a name is named in `Skipped`, as `BNXQ1006` names one, rather than checked against both classes' parts, and so is the name where parts were found in its types' code and nothing themes it. The reading has no entry for it and names it in its own `Skipped`, where before it merged both classes' parts into one entry, as plan 00002's decision 5 had it. A template is still followed through direct calls only, as the developer decided, and the two skips that leaves, a themed control with no part found and parts with no theme, now name a call through an interface or a virtual method, and a lambda, among their causes. A `PART_` constant nothing looks up is still checked against its control's theme, as plan 00002's decision 9 left it, by the developer's decision too | Where two scanned types carry one name, its themes are skipped rather than checked, so the findings they gave go. Some were false: they compared one class's theme with both classes' parts. Some were true: where only one of the two has parts, as a control that shares its name with a model, PR #79's review measured a true finding lost, and the developer kept the skip. A themed name that partless types share is skipped as such, where it was a control with no part found. The parts report loses that name's merged entry and names it among what was not read, so `theme-audit parts` counts one more not read. Two skips read differently. On real code nothing else moves: over DiffView's `bf6b734`, AvaloniaEdit's assembly included, the parts report is as before byte for byte, and the real-code record changes only in the wording of DiffView's two skips |
+| PR #80 | `docs/avalonia-gotchas.md` gains a section on logging, with two entries from the WPF-to-Avalonia port, landed as the port measured or read them and not measured again here, by the developer's decision of 2026-10-14, each saying it was not reproduced here: `LogToTrace()`, the project template's default, writes Avalonia's warnings nowhere on Linux, where with no debugger attached the only trace listener has no file; and `LogToTrace`, `LogToTextWriter` and `LogToDelegate` all drop the level, since all three go through `StringLogSink`, so the fix is an `ILogSink` of the application's own. The port's sink is described as the case measured: 13 headless tests held it, and in the port's running application its first run logged 352 warnings no run had seen. The first entry carries a candidate rule, the one the trim analyser's entry already names | Docs only |
 
 ## Consumers inside the family
 
@@ -129,6 +130,7 @@ ARM64 machine is not reproduced here, and stays out of the documents, by the dev
 | 2026-10-13 | The WPF-to-Avalonia port | Two findings, headless on Avalonia 12.1.3 with Semi.Avalonia 12.1.0.1. A subclass that borrows its base's theme through `StyleKeyOverride` is not selected by a style that names its own type, only by one that names the base, its cause inferred and not read. And Semi's `TextBox` template puts `InnerRightContent` in an `Auto` column beside the text's star column, so wide inner content squeezes the text to nothing: a 183 px block left the text 0 px wide when the box was offered 159 to 220 px | Received, and a receipt sent on 2026-10-13. Both landed in PR #75 as the port measured them, the first one's cause as inferred, not reproduced here, by the developer's decision of 2026-10-14 |
 | 2026-10-13 | The WPF-to-Avalonia port | Four findings, headless on Avalonia 12.1.3 with Semi.Avalonia 12.1.0.1. Semi's `TextBox` pads its `InnerLeftContent` whenever the content is not null, a hidden one included, by `TextBoxInnerLeftContentPadding`, and its `InnerRightContent` likewise; Semi's `Button` sets a `MinHeight` of 32, which wins over a local `Height`; a `MeasureOverride` decision taken from a template's inner layout is not revisited when content inside the template changes and the control's desired size does not; and measuring a template twice inside one `MeasureOverride` after changing a descendant's `MaxWidth` changes nothing unless every visual ancestor between is invalidated too. All four measured, the last two with their causes inferred | Received, and a receipt sent on 2026-10-13. Sent again on 2026-10-14, and a second receipt sent. All four landed in PR #75 as the port measured them, the last two causes as inferred, not reproduced here, by the developer's decision of 2026-10-14 |
 | 2026-10-13 | DiffView | Two lessons for the guide's section 5, from verifying its click guard on a real desktop. A one-off harness written beside a DPI-aware driver was itself unaware, and at 200% fed a 2200x1440 window's virtualised 1113x756 back into `SetWindowPos`. And a negative result about a guard is evidence only once the condition it guards against is shown present: measure `WindowFromPoint` at the click point first, and report a run whose premise failed as unread, never as a failure | Received, offered to use or discard. Not checked |
+| 2026-10-14 | The WPF-to-Avalonia port | Two findings on Avalonia 12.1.3 and .NET 10, headless on Linux: `LogToTrace()`, the project template's default, writes Avalonia's warnings nowhere, since with no debugger attached the only trace listener has no file, and `LogToTrace`, `LogToTextWriter` and `LogToDelegate` all drop the level. Later the same day, the fix it made, a sink of its own held by 13 headless tests, each seen to fail against a deliberate break of it; then that sink in its running application, under Xwayland, whose first run logged 352 warnings no run had seen, and where a `{ReflectionBinding}` to a missing property, planted on a window, built green and failed the UI run on its log. It announced a third finding, on compiled bindings through a null intermediate, to follow once it is measured | Received, and a receipt sent on 2026-10-14. Both landed in PR #80 as the port measured or read them, its fix and its running application's measurement with them, not reproduced here, by the developer's decision of 2026-10-14, but for one detail: the port read `StringLogSink` writing an event's source as `(Type #hash)`, and at 12.1.3 it writes a named element's as `(Type #Name)`, read here in the source, so the entry says only that the source is written in parentheses. The developer put a rule candidate that came of the first finding on the backlog the same day, below. The outcome is not yet sent |
 
 ## Rule backlog
 
@@ -139,11 +141,27 @@ The rules were written in the order decided on 2026-09-23, and all of them are n
 `BNXQ1006`, the peer check, `BNXQ1007`, the explicit `AutomationId`, `BNXQ1008`, the zero-size slot,
 and `BNXQ1009`, the `ToString()` containers. One candidate came in since, the row that takes no
 click where it draws nothing, from the gotchas entry on a row whose `Background` is null, and it is
-written as `BNXQ1010`, by the developer's decision of 2026-09-28. No candidate is open.
+written as `BNXQ1010`, by the developer's decision of 2026-09-28. Another candidate is open:
+
+- **A binding the XAML compiler does not check:** `{ReflectionBinding …}`, or a `{Binding}` that
+  `x:CompileBindings="False"` makes one, put on the backlog by the developer on 2026-10-14, when the logging
+  entries of `docs/avalonia-gotchas.md` arrived. A broken one shows only at run time, as a warning
+  that `LogToTrace()`, the project template's default, writes nowhere on Linux: in the port's
+  application, one planted on a window built green and only the run's log showed it. And the trim
+  analyser never sees it, only ILLink does, as that document's entry on the analyser says. Whether a
+  plain `{Binding}` compiles depends on the project's MSBuild default, which no markup scan reads;
+  at 12.1.3 Avalonia's own `packages/Avalonia/Avalonia.props` sets
+  `AvaloniaUseCompiledBindingsByDefault` to true where a project leaves it unset, so a plain one
+  goes unchecked only where a project sets it to false. On the real code the comparison pins, no
+  markup writes either form, and ClaudeForge, DiffView and ScopedEditors all set the property to
+  true; every mention of `ReflectionBinding` there is in a comment. So the rule would guard against
+  a regression, and report nothing on them today. No id until it is written.
 
 **Not a fit:** the guide's rule 10, keeping popups in the window's tree. Avalonia's `OverlayPopups` is
 set in C# at startup, where no markup scan can see it. That check belongs in the application, as a
-startup assertion or a headless test.
+startup assertion or a headless test. Nor is the `LogToTrace()` call the logging entries warn
+against, by the developer's decision of 2026-10-14: it is C# start-up code too, and the family's
+template already leaves it out.
 
 ## Questions for the developer
 
