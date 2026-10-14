@@ -1,5 +1,5 @@
 {
-  "description": "Static analysis rules for XAML markup quality — accessibility names, theme tokens, resource keys and contrast. Dependency-free, no Avalonia reference. Ships as Bennewitz.Ninja.XamlQuality and Bennewitz.Ninja.XamlQuality.ThemeAudit.",
+  "description": "Static analysis rules for XAML markup quality — accessibility names, theme tokens, resource keys and contrast. Dependency-free, no Avalonia reference. Ships as Bennewitz.Ninja.XamlQuality, Bennewitz.Ninja.XamlQuality.ThemeAudit and Bennewitz.Ninja.XamlQuality.ThemeRuntime.",
   "homepage": "",
   "topics": [
     "csharp",
