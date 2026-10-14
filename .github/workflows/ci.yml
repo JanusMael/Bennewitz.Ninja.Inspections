@@ -13,6 +13,9 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  # The solution builds tests/XamlQuality.ThemeRuntime.Tests, which takes Avalonia, and Avalonia's
+  # build telemetry otherwise starts a process that outlives the build.
+  AVALONIA_TELEMETRY_OPTOUT: 1
 
 jobs:
   build-and-test:

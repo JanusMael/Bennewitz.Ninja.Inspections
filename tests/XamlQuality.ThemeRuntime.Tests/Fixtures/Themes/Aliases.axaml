@@ -1,0 +1,17 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Merged after the theme, as a compat dictionary is: aliases into the theme. An alias looks its
+       target up under the variant of the dictionary that holds it, and one outside any variant's
+       dictionary under none, which reads only the Default ones. -->
+  <ResourceDictionary.ThemeDictionaries>
+    <ResourceDictionary x:Key="Dark">
+      <!-- Its target is Contrast's alone, which neither Dark nor Default holds: it throws under Dark,
+           and under Contrast, which finds it through Dark. -->
+      <StaticResource x:Key="DarkAlias" ResourceKey="OnlyContrast" />
+    </ResourceDictionary>
+  </ResourceDictionary.ThemeDictionaries>
+  <!-- Its target is in Default: found under every variant. -->
+  <StaticResource x:Key="GoodAlias" ResourceKey="Ink" />
+  <!-- Its target is Dark's alone, and an alias here reads only Default: it throws under every variant. -->
+  <StaticResource x:Key="TopAlias" ResourceKey="OnlyDark" />
+</ResourceDictionary>

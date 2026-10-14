@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The runtime theme check's Avalonia half, shipped as source, by plans/00003. Its .cs files compile
+       in the project that adopts the package, against that project's own Avalonia, so nothing this
+       repository ships references Avalonia. What needs no running framework is the library's
+       RuntimeCheckPlan, which the files call.
+       ⛔ This project compiles none of the files: it has no Avalonia to compile them against.
+       tests/XamlQuality.ThemeRuntime.Tests compiles them, and Packaging/SourceOnlyPackageTests packs
+       this project and checks what its package holds. -->
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>Bennewitz.Ninja.XamlQuality.ThemeRuntime</PackageId>
+    <AssemblyName>XamlQuality.ThemeRuntime</AssemblyName>
+    <Description>
+      The runtime half of the XamlQuality theme audit, as source files an Avalonia test project
+      compiles against its own Avalonia. It builds each audited theme and variant in the running
+      application, asks Application.TryGetResource for every key a consumer references, and reports
+      where Avalonia's answer differs from the audit's.
+
+      Source only: the package holds no assembly and references no Avalonia package, so the check
+      runs against whatever Avalonia the adopting project pins. It depends on
+      Bennewitz.Ninja.XamlQuality at a minimum of the same release, whose RuntimeCheckPlan does
+      the rest.
+    </Description>
+    <PackageTags>xaml;avalonia;theme;resources;testing;source</PackageTags>
+    <!-- Read by AssemblyQualityTests, which leaves this project out of its scan of shipped
+         assemblies, and by SourceOnlyPackageTests, which packs it and fails when the package holds an
+         assembly. -->
+    <SourceOnlyPackage>true</SourceOnlyPackage>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <!-- NU5128: a package with dependencies and no lib/ folder. The dependency is the library the
+         files call, so it is the point; the family's Templates package suppresses it too. -->
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Packs as a dependency on the library at a minimum of this release. -->
+    <ProjectReference Include="../XamlQuality/XamlQuality.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- contentFiles for the library's framework, so the files reach only a project it serves. -->
+    <None Remove="*.cs" />
+    <None Include="*.cs"
+          Pack="true"
+          PackagePath="contentFiles/cs/net10.0/Bennewitz.Ninja.XamlQuality.ThemeRuntime/"
+          BuildAction="Compile"
+          PackageCopyToOutput="false" />
+  </ItemGroup>
+</Project>
