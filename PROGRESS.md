@@ -8,9 +8,9 @@ released, who depends on what, and the rule backlog with any questions open for 
 | | |
 |---|---|
 | Published | `2026.4.1014`: `Bennewitz.Ninja.XamlQuality`, `Bennewitz.Ninja.XamlQuality.ThemeAudit` and, for the first time, `Bennewitz.Ninja.XamlQuality.ThemeRuntime`, released 2026-10-14. What it changed for a consumer is in its [release notes](https://github.com/JanusMael/Bennewitz.Ninja.XamlQuality/releases/tag/v2026.4.1014) |
-| `main` | carries nothing unreleased |
+| `main` | carries one unreleased change, `BNXQ1003`'s from its assessment, listed below |
 | Next release | Not scheduled; the developer decides. One release per calendar day |
-| Order of work | Whether `BNXQ1003` should change now that its reading is public, then `BNXQ1009`'s `ItemsSource` reading, by the developer's order of 2026-10-13 |
+| Order of work | `BNXQ1009`'s `ItemsSource` reading, by the developer's order of 2026-10-13, now that `BNXQ1003`'s assessment is decided |
 | Agent skill | `drivable-ui`, served from `main` as a Claude Code plugin since PR #47, by the developer's decision of 2026-09-29: `claude plugin marketplace add JanusMael/Bennewitz.Ninja.XamlQuality`, then `claude plugin install drivable-ui@xamlquality`. It is in neither package, so it ships on merge, not on a tag |
 | Verification tooling | Under `tools/`, by [`plans/00001`](plans/00001-verification-tooling.md), complete: the real-code comparison, `tools/real-code.cs`, since PR #53; the mutation runner, `tools/mutate.cs`, since PR #54; and the headless probe, `tools/probe.cs` over `tools/probe/`, since PR #56. CI's required `Verification tools` job runs the first two and builds the third. Where they depart from the plan is listed below |
 
@@ -38,7 +38,9 @@ working documents are left out. A change that makes a rule stricter or adds API 
 effect on a consumer, so the release that carries it can say so. `main` takes squash and rebase
 merges only, and both give a branch's commits new hashes, so a row cites its pull request.
 
-Nothing yet.
+| Commit or PR | Change | Effect on a consumer |
+|---|---|---|
+| PR #79 | `BNXQ1003`, by the developer's assessment of 2026-10-14, now that its reading is public. A name that more than one top-level type the scan was given carries is no control's: a `ControlTheme` names its target without the namespace, so each theme of such a name is named in `Skipped`, as `BNXQ1006` names one, rather than checked against both classes' parts, and so is the name where parts were found in its types' code and nothing themes it. The reading has no entry for it and names it in its own `Skipped`, where it merged both classes' parts before. A template is still followed through direct calls only, as the developer decided, and the two skips that leaves, a themed control with no part found and parts with no theme, now name a call through an interface or a virtual method, and a lambda, among their causes. A `PART_` constant nothing looks up is still checked against its control's theme, as plan 00002's decision 9 left it, by the developer's decision too | Where two scanned types carry one name, its themes are skipped rather than checked, so the findings they gave, each comparing one class's theme with both classes' parts, go, and the parts report loses that name's merged entry. Two skips read differently. Nothing else changes: over DiffView's `bf6b734`, AvaloniaEdit's assembly included, the parts report is as before byte for byte, and the real-code record changes only in the wording of DiffView's two skips |
 
 ## Consumers inside the family
 
@@ -105,7 +107,7 @@ ARM64 machine is not reproduced here, and stays out of the documents, by the dev
 |---|---|---|---|
 | 2026-09-28 | DiffView | Five lessons from its plan 00029: raising a menu item's `Click` does not toggle it, key bindings run before `KeyDown`, and three facts about driving X11 | Received, and a receipt sent on 2026-10-10. Not checked |
 | 2026-09-30 | DiffView | A headless hit-test reads the last composed frame, not the layout | Received, and a receipt sent on 2026-10-10. Measured on 2026-10-13, headless on Avalonia 12.1.3 and on a real window in Windows Sandbox, and landed in PR #59: it holds on a real window too, until the next frame is composed, in 10 rounds of 10; headless, `CaptureRenderedFrame()`, or `RunJobs` followed by a forced render tick, settles it, and neither `RunJobs` nor a forced tick alone does. The outcome went to DiffView on 2026-10-13 |
-| 2026-10-03 | DiffView | A public `BNXQ1003` reading: per control, the parts it looks up as distinct from the `PART_` constants it only declares, and which code makes each lookup | Accepted. [Plan 00002](plans/00002-template-part-reading.md), approved on 2026-10-13, takes it in two steps: the reading, with the parts each theme declares, then a parts report the theme audit writes and checks. Step A, the reading, landed in PR #70, and step B, the parts report and its drift check, in PR #72. `2026.4.1014` carries both, released on 2026-10-14, which DiffView's plan 00030 was waiting for; DiffView is to be told |
+| 2026-10-03 | DiffView | A public `BNXQ1003` reading: per control, the parts it looks up as distinct from the `PART_` constants it only declares, and which code makes each lookup | Accepted. [Plan 00002](plans/00002-template-part-reading.md), approved on 2026-10-13, takes it in two steps: the reading, with the parts each theme declares, then a parts report the theme audit writes and checks. Step A, the reading, landed in PR #70, and step B, the parts report and its drift check, in PR #72. `2026.4.1014` carries both, released on 2026-10-14, which DiffView's plan 00030 was waiting for, and DiffView was told that day. The assessment of `BNXQ1003` that plan 00002 left for after plan 00003 was decided on 2026-10-14, in PR #79 |
 | 2026-10-08 | DiffView | Twelve findings from driving an Avalonia app on Windows through UI Automation | Received, and a receipt sent on 2026-10-10. Items 1, 2, 3, 5, 6, 7, 8 and 11 measured in Windows Sandbox on 2026-10-13, on Avalonia 12.1.3: 1, 2, 3, 5 and 11 hold; 6 holds for a process that has sent no input, refused in the second session, but not for one that has just sent input, which took the foreground in both; 8 is narrowed, keys reaching a window with nothing focused but only its own bindings; 7 did not reproduce, in either session, and is left out. Items 1 and 2 landed in PR #59; 3, 5, 6, 8 and 11 in the guide in PR #60, 3 as a sentence. 4, 9, 10 and 12 were not measured here. Its suggestion of a layer for a by-hand driver with a person watching landed in section 4 in PR #67, by the developer's decision of 2026-10-13. The outcome went to DiffView on 2026-10-13 |
 | 2026-10-08 | The WPF-to-Avalonia port | A correction to the render-tier entry, the cost of the software renderer, and a headless click that lands where a control used to be | Received, and a receipt sent on 2026-10-10. The correction measured on x64 in Windows Sandbox on 2026-10-13, and landed in PR #65, changed: with no GPU the guest's adapter 0 was the Basic Render Driver and Avalonia drew through ANGLE on WARP, and the fix tells that adapter by its name, or its vendor and device, as well as the software flag, which two of its three entries in the guest lacked. The correction's ARM64 rule and measurement, and the renderer's cost, measured on ARM64 alone, are left out, by the developer's decision of 2026-10-12; its x64 comparison of a forced `Software` against the default, made with a GPU and not repeated here, is not landed either, since the entry is about telling software rendering apart, not about its cost; on 2026-10-14 the developer kept both out again. The outcome went to the port's live session on 2026-10-13, not to the retired one that sent this, by the developer's decision of that day. The headless click landed in PR #75 as the port measured it, not reproduced here, by the developer's decision of 2026-10-14 |
 | 2026-10-09 | DiffView | Two driving lessons: a drag's success is not its effect, and a menu's automation window is not the popup it is drawn in | Received, and a receipt sent on 2026-10-10. Measured in Windows Sandbox on 2026-10-13: the drag's holds; the menu's is changed, its items being under the main window's element and nearest the popup's window, which is where they are drawn, alike for a menu in XAML, one built in code and a context menu. Both landed in the guide in PR #60, the menu's as changed. The outcome went to DiffView on 2026-10-13 |
@@ -145,7 +147,7 @@ None open.
   shipped in `2026.4.1014`, from PR #75, by [plan 00003](plans/00003-runtime-theme-check.md): the
   publishing policy was read on nuget.org before the tag, permitting new packages, and the
   repository's description names the package, by the plan's decision 9. DiffView's test is its first
-  adopter, to be told that the release carries the package.
+  adopter, and DiffView was told on 2026-10-14 that the release carries the package.
 - **Two gaps in the runtime check's tests, found by PR #75's review.** Plan 00003's step 2 asks the
   test project to show an unmapped merge path in `Skipped`; only the library's
   `RuntimeCheckPlanTests.A_theme_whose_merged_dictionary_the_map_does_not_name_is_not_checked_without_it`
@@ -161,14 +163,6 @@ None open.
   `Avalonia.Styling` and `Bennewitz.Ninja.XamlQuality.ThemeAudit` fails with CS0104 until it aliases
   one, as the README's example and DiffView's files do. The shipped source files name every type from
   `global::`. Renaming the audit's type would break its consumers.
-- **`BNXQ1003` follows a template through direct calls only.** A call through an interface or a
-  virtual method names the method declared, not the one that runs, so an implementation reached only
-  that way keeps its lookups as its own type's. In DiffView, `SideBySideDiffView`'s
-  `IDiffSurface.OnPartsAttached` is reached so, and its lookup is credited to `SideBySideDiffView`,
-  where it belongs; following the dispatch would credit it to `DiffViewer` too, which hands the same
-  controller its template. Nor is a template a closure captures followed, so a themed subclass of a
-  base whose `OnApplyTemplate` looks a part up inside a lambda reads as having no parts, as it did
-  before the reading was public. A question for the assessment of `BNXQ1003` after plan 00003.
 - **Avalonia-specific rules in a package of their own, for later (the developer, 2026-10-13).** The
   library is compile-time and references no framework, and `BNXQ1005`, `BNXQ1009` and `BNXQ1010`
   already read Avalonia's behaviour by reflection. Moving them, with `ThemeReader`, `ResourceScope`,
