@@ -9,8 +9,9 @@
 // ⭐ COPIES, NOT THE TREE. Each worker holds its own copy of the working tree under
 // artifacts/mutate/<pool>/, brought level with the tree at the start of every run, with its own build
 // output and its own temp folder. The tree itself is never edited, so a stopped run cannot leave a
-// defect in it. A defect under src/XamlQuality/ rebuilds the library alone and swaps its DLL into the
-// tests' output; any other rebuilds the test project.
+// defect in it. The class runs from the test project that holds it, the folder under tests/ its file is
+// in. A defect under src/XamlQuality/ rebuilds the library alone and swaps its DLL into that project's
+// output; any other rebuilds that project.
 //
 // ⛔ UNDER 30 MINUTES. After the first worker's baseline it times one library rebuild and one class
 // run, estimates the whole run from them, and refuses a run estimated past 30 minutes unless given
@@ -34,6 +35,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 string? testClass = null, catalogPath = null, outputPath = null, poolName = null;
 int workerCount = 4;
@@ -290,18 +292,50 @@ sealed record Mutation(string Id, string File, string Old, string New, string[] 
 /// <summary>What one defect did: the line the output carries, and the tests that failed.</summary>
 sealed record Result(string Line, bool Ok, IReadOnlyCollection<string> Failed, double Seconds = 0);
 
+/// <summary>
+/// A test project under tests/, by paths from the repository root: its project file, its Release output,
+/// and the name of the test assembly it builds there.
+/// </summary>
+sealed record TestProject(string Project, string Output, string Assembly)
+{
+    /// <summary>The project in the folder under tests/ that holds <paramref name="classFile"/>.</summary>
+    public static TestProject Holding(string root, string classFile)
+    {
+        string[] below = Path.GetRelativePath(Path.Combine(root, "tests"), classFile).Replace('\\', '/').Split('/');
+        if (below.Length < 2)
+        {
+            throw new InvalidOperationException($"{classFile} is in no project folder under tests/.");
+        }
+
+        string folder = "tests/" + below[0];
+        string[] projects = Directory.GetFiles(Path.Combine(root, folder), "*.csproj");
+        if (projects.Length != 1)
+        {
+            throw new InvalidOperationException($"{folder} holds {projects.Length} project files, so the test project is not known.");
+        }
+
+        string file = Path.GetFileName(projects[0]);
+        string assembly = XDocument.Load(projects[0]).Descendants("AssemblyName").Select(element => element.Value.Trim()).FirstOrDefault(value => value.Length > 0)
+            ?? Path.GetFileNameWithoutExtension(file);
+        return new TestProject($"{folder}/{file}", $"{folder}/bin/Release/net10.0", assembly);
+    }
+}
+
 /// <summary>A copy of the working tree, its build output, and its temp folder.</summary>
 sealed class Worker(int index, string pool, string tree, string testClass)
 {
     private const string LibraryProject = "src/XamlQuality/XamlQuality.csproj";
-    private const string TestProject = "tests/XamlQuality.Tests/XamlQuality.Tests.csproj";
     private const string LibraryOutput = "src/XamlQuality/bin/Release/net10.0";
-    private const string TestOutput = "tests/XamlQuality.Tests/bin/Release/net10.0";
     private static readonly UTF8Encoding Utf8 = new(encoderShouldEmitUTF8Identifier: false);
+
+    // ⚠ Avalonia's build telemetry starts a process that outlives the build, and a test project here
+    // takes Avalonia, so every build turns it off, as real-code.cs and probe.cs do.
+    private static readonly Dictionary<string, string> BuildEnvironment = new() { ["AVALONIA_TELEMETRY_OPTOUT"] = "1" };
 
     private double baselineBuild;
     private double classRun;
     private string? qualifiedClass;
+    private TestProject? testProject;
 
     public int Index => index;
 
@@ -311,13 +345,16 @@ sealed class Worker(int index, string pool, string tree, string testClass)
     // and two workers sharing one delete each other's.
     private string Temp => Path.Combine(pool, $"w{index}-tmp");
 
+    /// <summary>The test project that holds the class, read from the copy once it is level with the tree.</summary>
+    private TestProject Tests => testProject ??= TestProject.Holding(Root, ClassFile());
+
     /// <summary>Brings the copy level with the tree, builds it, and checks the class passes as it stands.</summary>
     public void Prepare(IReadOnlyList<string> files, CancellationToken token)
     {
         Mirror(files);
         Directory.CreateDirectory(Temp);
         Stopwatch timer = Stopwatch.StartNew();
-        (int code, string output) = Build(TestProject, restore: true);
+        (int code, string output) = Build(Tests.Project, restore: true);
         baselineBuild = timer.Elapsed.TotalSeconds;
         token.ThrowIfCancellationRequested();
         if (code != 0)
@@ -331,12 +368,13 @@ sealed class Worker(int index, string pool, string tree, string testClass)
         token.ThrowIfCancellationRequested();
 
         // ⛔ A class filter that matches nothing exits 0 with "Total: 0", and every defect would then
-        // read as caught by nothing: the baseline must run at least the class's [Fact] tests.
+        // read as caught by nothing: the baseline must run at least the class's [Fact] and
+        // [AvaloniaFact] tests.
         int facts = DiscoverTests().Length;
         if (failed.Count > 0 || exit != 0 || total == 0 || total < facts)
         {
             throw new InvalidOperationException(
-                $"worker {index}: the baseline is not clean: failed {Py.List(failed.Order(StringComparer.Ordinal))}, exit {exit}, {total} tests run of the {facts} [Fact] tests found");
+                $"worker {index}: the baseline is not clean: failed {Py.List(failed.Order(StringComparer.Ordinal))}, exit {exit}, {total} tests run of the {facts} [Fact] and [AvaloniaFact] tests found");
         }
 
         Console.Error.WriteLine($"worker {index}: ready, baseline clean");
@@ -356,9 +394,12 @@ sealed class Worker(int index, string pool, string tree, string testClass)
         return mutations.Sum(mutation => (IsLibrary(mutation.File) ? library : baselineBuild) + classRun) / workers;
     }
 
-    /// <summary>The class's [Fact] methods, as pmutate_fast.py found them.</summary>
+    /// <summary>
+    /// The class's [Fact] methods, as pmutate_fast.py found them, and its [AvaloniaFact] ones, which
+    /// Avalonia.Headless.XUnit runs on its UI thread; either may be an async Task.
+    /// </summary>
     public string[] DiscoverTests() =>
-        [.. Regex.Matches(File.ReadAllText(ClassFile()), @"\[Fact\]\s+public void (\w+)\(")
+        [.. Regex.Matches(File.ReadAllText(ClassFile()), @"\[(?:Fact|AvaloniaFact)\]\s+public (?:async\s+)?(?:void|Task) (\w+)\(")
             .Select(match => match.Groups[1].Value)
             .Order(StringComparer.Ordinal)];
 
@@ -505,11 +546,11 @@ sealed class Worker(int index, string pool, string tree, string testClass)
             arguments.Add("--no-incremental");
         }
 
-        (int code, string output, string errors) = Shell.Run("dotnet", Root, null, arguments, Shell.Timeout);
+        (int code, string output, string errors) = Shell.Run("dotnet", Root, BuildEnvironment, arguments, Shell.Timeout);
         return (code, output + errors);
     }
 
-    private (int Code, string Output) BuildFor(string file) => IsLibrary(file) ? BuildLibrary(incremental: true) : Build(TestProject, restore: false);
+    private (int Code, string Output) BuildFor(string file) => IsLibrary(file) ? BuildLibrary(incremental: true) : Build(Tests.Project, restore: false);
 
     private (int Code, string Output) BuildLibrary(bool incremental)
     {
@@ -522,7 +563,7 @@ sealed class Worker(int index, string pool, string tree, string testClass)
                 string built = Path.Combine(Root, LibraryOutput, name);
                 if (File.Exists(built))
                 {
-                    File.Copy(built, Path.Combine(Root, TestOutput, name), overwrite: true);
+                    File.Copy(built, Path.Combine(Root, Tests.Output, name), overwrite: true);
                 }
             }
         }
@@ -535,7 +576,7 @@ sealed class Worker(int index, string pool, string tree, string testClass)
         qualifiedClass ??= QualifiedClass();
         Dictionary<string, string> environment = new() { ["TMP"] = Temp, ["TEMP"] = Temp, ["TMPDIR"] = Temp };
         (int exit, string output, string errors) = Shell.Run("dotnet", Root, environment,
-            [Path.Combine(Root, TestOutput, "XamlQuality.Tests.dll"), "-class", qualifiedClass], Shell.Timeout);
+            [Path.Combine(Root, Tests.Output, Tests.Assembly + ".dll"), "-class", qualifiedClass], Shell.Timeout);
         HashSet<string> failed = [];
         Regex name = new(Regex.Escape(testClass) + @"\.(\w+)");
         foreach (string line in (output + errors).ReplaceLineEndings("\n").Split('\n'))
@@ -553,11 +594,21 @@ sealed class Worker(int index, string pool, string tree, string testClass)
         return (failed, exit, total);
     }
 
-    private string ClassFile() =>
-        Directory.EnumerateFiles(Path.Combine(Root, "tests"), testClass + ".cs", SearchOption.AllDirectories)
-            .Where(path => !Path.GetRelativePath(Root, path).Replace('\\', '/').Split('/').Any(part => part is "bin" or "obj"))
-            .FirstOrDefault()
-        ?? throw new InvalidOperationException($"no file under tests/ is called {testClass}.cs.");
+    private string ClassFile()
+    {
+        string[] found =
+        [
+            .. Directory.EnumerateFiles(Path.Combine(Root, "tests"), testClass + ".cs", SearchOption.AllDirectories)
+                .Where(path => !Path.GetRelativePath(Root, path).Replace('\\', '/').Split('/').Any(part => part is "bin" or "obj")),
+        ];
+
+        return found.Length switch
+        {
+            1 => found[0],
+            0 => throw new InvalidOperationException($"no file under tests/ is called {testClass}.cs."),
+            _ => throw new InvalidOperationException($"{found.Length} files under tests/ are called {testClass}.cs, so the test project is not known."),
+        };
+    }
 
     private string QualifiedClass() =>
         Regex.Match(File.ReadAllText(ClassFile()), @"^namespace\s+([\w.]+)\s*;", RegexOptions.Multiline) is { Success: true } match
