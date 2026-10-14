@@ -1030,7 +1030,7 @@ Notes: `[ObservableProperty]`'s setter only raises `PropertyChanged` when the va
 
 Measured on Avalonia 12.1.3 and .NET 10, headless on Linux, not reproduced here: a probe bound a `TextBlock` with `new ReflectionBinding("NoSuchProperty")` to a `DataContext` of `new object()`, showed a `Window` around it and called `Dispatcher.UIThread.RunJobs()`, under each route in a process of its own. A sink of the probe's own on `Logger.Sink` received a `Warning` in the `Binding` area from the `TextBlock`, with the template `An error occurred binding {Property} to {Expression} at {ExpressionErrorPoint}: {Message}` and its values, so the error is raised. Under `LogToTrace()` the process printed nothing but the probe's own two lines. Under `LogToTextWriter(Console.Out)` it printed the error, in the line the next entry shows.
 
-In a running application, on Linux under GNOME on Wayland with the application under Xwayland, the sink the next entry describes logged 352 warnings on its first run that had always been raised and never seen: 351 binding warnings that a value is null, from 13 bindings in a list's row template, once for each of 27 rows, and one about a font installed on that machine. A `Tag="{ReflectionBinding $self.NoSuchPropertyForTheSmokeRun}"` planted on the main window built green, and the UI run, which reads the application's log and fails on a lookup Avalonia could not complete, failed on the warning it raised; with the binding removed and the application rebuilt, the run passed. Measured on Avalonia 12.1.3, not reproduced here.
+In a running application, on Linux under GNOME on Wayland with the application under Xwayland, the sink the next entry describes logged 352 warnings on its first run that had always been raised and never seen: 351 binding warnings that a value is null, from 13 bindings in a list's row template, once for each of 27 rows, as the last entry of this section explains, and one about a font installed on that machine. A `Tag="{ReflectionBinding $self.NoSuchPropertyForTheSmokeRun}"` planted on the main window built green, and the UI run, which reads the application's log and fails on a lookup Avalonia could not complete, failed on the warning it raised; with the binding removed and the application rebuilt, the run passed. Measured on Avalonia 12.1.3, not reproduced here.
 
 ⭐ **Candidate rule.** A binding the XAML compiler does not check shows a broken path only at run time, as one of these warnings: the planted `{ReflectionBinding …}` above built green. Markup that asks for one, `{ReflectionBinding …}` or a `{Binding}` that `x:CompileBindings="False"` makes one, is visible to a scan; whether a plain `{Binding}` compiles depends on the project's MSBuild default, which no markup scan reads. It is the candidate the entry on the trim analyser, under *Trim safety*, already names. The `LogToTrace()` call itself is C# start-up code, which no markup scan reads.
 
@@ -1051,6 +1051,27 @@ A cosmetic difference, read and measured: the overload with property values writ
 In the case measured, the sink is built to write from Warning up into the application's Serilog log: the level kept, the area as the entry's `SourceContext`, `Avalonia.Binding`, the template and its values passed through, and the control that raised the event appended by type and, where it has one, by name. It holds the events that come before the application's log exists, at most 1,000 and a count of the rest, and releases them in order once the log is configured. It asks for the logger at each write rather than capturing it, since a Serilog logger bound when the sink is built, before the log is configured, writes nowhere. Thirteen headless tests held it, each seen to fail against one of four deliberate breaks of it; with `IsEnabled` answering no to every level, nine failed, among them one in which a binding error Avalonia itself raised reaches the sink through Avalonia's own `Logger`. The tests check the values and the control in the message as rendered, not in the log's file. In a running application it logged the warnings the entry above counts.
 
 Measured on Avalonia 12.1.3 and .NET 10 on Linux, headless but for the running application, with the causes read in the source at 12.1.3, not reproduced here.
+
+### A compiled binding through a null intermediate logs "Value is null" for every binding on every container where it is null
+
+**Symptom:** A row template whose bindings all run through one property of the row's item, `Line`, which is null by design while a page is shorter than the page size, logs a warning for every binding on every empty or not-yet-filled container:
+
+```text
+WRN Avalonia.Binding An error occurred binding X to Line.Y.Value at Line: Value is null.
+```
+
+These stay unseen until Avalonia's log reaches a file at all, as the first entry of this section says.
+
+**Cause:** Read in the source at 12.1.3, `src/Avalonia.Base/Data/Core/BindingExpression.cs`: a node's error is logged before the value is cleared and the fallback published, so a `FallbackValue` cannot silence it; only the source node's `ShouldLogErrors` decides. Read too, `src/Avalonia.Base/Data/CompiledBindingPath.cs`: a compiled path carries `acceptsNull` on its property elements, which a null-conditional path compiles to.
+
+**Fix:** Make a nullable step `?.`, as `Line?.Y.Value`. Then give any value-type target without a converter a `TargetNullValue`, or the warning moves rather than goes. A `Nullable<T>` target, such as a `bool?`, takes the null as it is: read here in `TypeUtilities.AcceptsNull` at 12.1.3, not measured.
+
+```xml
+Text="{Binding Line?.LineNumber.Value}"
+IsVisible="{Binding Line?.ShowIndicator.Value, TargetNullValue=False}"
+```
+
+Measured on Avalonia 12.1.3 and .NET 10 on Linux, not reproduced here. In the running application, under GNOME on Wayland with the application under Xwayland, 13 bindings in a row template logged 351 such warnings in one run, once for each of 27 rows, and about 800 of each across 15 harnesses that draw rows. A headless fixture that draws an empty slot beside a filled one, with Avalonia's log captured, failed with exactly the application's 13 warnings. With every path made `Line?.Y.Value`, one was left: an `IsVisible`, a `bool` with no converter, reported that it could not convert the null the path now yields. The other twelve logged nothing: six run through converters that answer null, with no colour, `Normal` or a fallback icon; four bind text, formatted text or an automation name; and two sit inside a `MultiBinding`, a negated path `!Line?.X.Value` among them. `TargetNullValue=False` on the `IsVisible` binding turned the fixture green. In the running application the log went from 373 entries, 352 of them warnings, to 22 entries with one, about a font installed on that machine. A UI run that fails on any entry from Avalonia, but those about a font installed on the machine, failed on 27 entries with one binding put back to `Line.LineNumber.Value`, and passed with it restored.
 
 ---
 
