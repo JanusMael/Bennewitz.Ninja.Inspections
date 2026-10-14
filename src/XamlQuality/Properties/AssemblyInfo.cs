@@ -28,4 +28,8 @@ using System.Runtime.CompilerServices;
 // checks rather than a second one; its names bind once a release carries them. Its step B adds four
 // public ThemeAudit types, as permanent: OutputDrift and DriftState, the drift check a consumer's
 // test shares with the tool, and PartsConfig and PartsRunner, the parts report's configuration and
-// reading.
+// reading. Plans/00003 adds seven more, as permanent: RuntimeCheckPlan, RuntimeSetup, RuntimeLookup,
+// RuntimeAnswer, RuntimeCheckResult, RuntimeDifference and RuntimeDifferenceKind, the runtime theme
+// check's library half, which the source package Bennewitz.Ninja.XamlQuality.ThemeRuntime calls. A
+// member added to them later is an init property, never a new positional parameter: an adopting
+// project may compile an older source half against a newer library.
