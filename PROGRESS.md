@@ -10,7 +10,7 @@ released, who depends on what, and the rule backlog with any questions open for 
 | Published | `2026.3.928`: `Bennewitz.Ninja.XamlQuality` and `Bennewitz.Ninja.XamlQuality.ThemeAudit`, released 2026-09-28. What it changed for a consumer is in its [release notes](https://github.com/JanusMael/Bennewitz.Ninja.XamlQuality/releases/tag/v2026.3.928) |
 | `main` | carries `BNXQ1010`, a new rule, `BNXQ1003`'s public reading, the theme audit's parts report and drift check, and the docs changes listed below |
 | Next release | Once `BNXQ1003`'s public reading and `BNXQ1009`'s `ItemsSource` follow-up have landed, not on `BNXQ1010` alone, by the developer's decision of 2026-10-12. One release per calendar day |
-| Order of work | Plan 00003, the runtime check of the themes as a source-only package, then whether `BNXQ1003` should change now that its reading is public, then `BNXQ1009`'s `ItemsSource` reading, by the developer's order of 2026-10-13, which put plan 00002's two steps first |
+| Order of work | [Plan 00003](plans/00003-runtime-theme-check.md), the runtime check of the themes, approved on 2026-10-14, then whether `BNXQ1003` should change now that its reading is public, then `BNXQ1009`'s `ItemsSource` reading, by the developer's order of 2026-10-13, which put plan 00002's two steps first |
 | Agent skill | `drivable-ui`, served from `main` as a Claude Code plugin since PR #47, by the developer's decision of 2026-09-29: `claude plugin marketplace add JanusMael/Bennewitz.Ninja.XamlQuality`, then `claude plugin install drivable-ui@xamlquality`. It is in neither package, so it ships on merge, not on a tag |
 | Verification tooling | Under `tools/`, by [`plans/00001`](plans/00001-verification-tooling.md), complete: the real-code comparison, `tools/real-code.cs`, since PR #53; the mutation runner, `tools/mutate.cs`, since PR #54; and the headless probe, `tools/probe.cs` over `tools/probe/`, since PR #56. CI's required `Verification tools` job runs the first two and builds the third. Where they depart from the plan is listed below |
 
@@ -154,12 +154,15 @@ None open.
 
 ## Follow-ups
 
-- **The runtime check of the themes, as a source-only package (the developer's decision of
-  2026-10-13).** DiffView's `ThemeResolutionTests` switch the application's theme and variant and ask
-  `TryGetResource` for each key, against gap lists the audit already reports. Shipped from here as
-  `.cs` files that compile into each consumer against its own Avalonia, with the gaps taken from the
-  audit's result, the check serves any Avalonia consumer without this repository referencing Avalonia.
-  Plan 00003, after plan 00002.
+- **The runtime check of the themes (the developer's decisions of 2026-10-13 and 2026-10-14).**
+  DiffView's `ThemeResolutionTests` switch the application's theme and variant and ask
+  `TryGetResource` for each key, against gap lists the audit already reports.
+  [Plan 00003](plans/00003-runtime-theme-check.md), approved on 2026-10-14, ships the check from here:
+  what needs a running Avalonia as `.cs` files that compile into each adopting project against its own
+  Avalonia, the package `Bennewitz.Ninja.XamlQuality.ThemeRuntime`, and the rest public in the library,
+  with the gaps taken from the audit's result, so that it serves any Avalonia project while this
+  repository references no Avalonia. Its tests use fixture themes only, and a script no test uses
+  fetches the real themes' sources for work by hand. It is next in the code lane.
 - **`BNXQ1003` follows a template through direct calls only.** A call through an interface or a
   virtual method names the method declared, not the one that runs, so an implementation reached only
   that way keeps its lookups as its own type's. In DiffView, `SideBySideDiffView`'s
