@@ -10,7 +10,7 @@ imports the root's and sets `IsPackable` to `false`, and no project here is in `
 | `real-code/inputs.json` | Each input's repository and commit, the folder its markup is read from, the project its assemblies are built from, and the assemblies the rules read | `real-code.cs` |
 | `real-code/expected/` | What `main`'s rules print over each input, the library's hash left out: the record a change is compared with | written by `real-code.cs --update` |
 | `Runner/` | Prints what the rules say about markup and build output, built against this tree's library; `--each` reads every folder in a folder as markup of its own, in one process | `real-code.cs`; `probe.cs` |
-| `mutate.cs` | Plants each defect a catalog lists in a copy of the working tree, one at a time, runs one test class, and reports whether exactly the tests the catalog expects failed | `dotnet run --file tools/mutate.cs -- <TestClass> <catalog.json>`; CI's `Verification tools` job, over `mutate/smoke.json` |
+| `mutate.cs` | Plants each defect a catalog lists in a copy of the working tree, one at a time, runs one test class from the test project that holds it, and reports whether exactly the tests the catalog expects failed | `dotnet run --file tools/mutate.cs -- <TestClass> <catalog.json>`; CI's `Verification tools` job, over `mutate/smoke.json` |
 | `mutate/smoke.json` | Two defects in code that rarely changes, each failing one known test of `ExpanderAutomationNameRuleTests`: the catalog CI runs to show the runner still works | `mutate.cs` |
 | `probe.cs` | Measures the probe's cases headless under Avalonia's Fluent, Simple and Semi themes, runs `BNXQ1010`, `BNXQ1009` and `BNXQ1005` over each, and judges every verdict against what was measured | `dotnet run --file tools/probe.cs -- <pattern>`; CI's `Verification tools` job builds it |
 | `probe/Probe/` | The headless probe, built as `FpProbe6`: the cases the reviews of those three rules wrote, each a list, combo or tab control, and the passes that measure them | `probe.cs`; CI's `Verification tools` job builds it |
@@ -38,6 +38,12 @@ imports the root's and sets `IsPackable` to `false`, and no project here is in `
   once in `file`, a path from the repository root, and `expect` names the tests of the class the
   defect should fail. A catalog belongs to the change it checks and stays outside the repository;
   `mutate/smoke.json` is the one committed.
+- The class runs from the test project its file is in, the folder under `tests/` that holds it, so a
+  class of `XamlQuality.ThemeRuntime.Tests` runs headless under Avalonia, and its `[AvaloniaFact]`
+  tests are counted with the `[Fact]` ones. A defect in the library swaps the rebuilt DLL into that
+  project's output; any other rebuilds that project.
+- A defect is built without a restore, so one that changes what restore resolves, such as a
+  reference's `PrivateAssets`, reads as caught by nothing: measure it by hand in a restored copy.
 - Each worker copies the working tree, uncommitted changes included, into `artifacts/mutate/<pool>/`,
   and the tree itself is never edited. Runs of different classes can go at once, since the pool is
   named after the class unless `--pool` says otherwise; `--workers N` sets how many copies run.
@@ -79,10 +85,10 @@ imports the root's and sets `IsPackable` to `false`, and no project here is in `
 | The runner finds the rules as `RulesCatalogTests` does | A rule that has to be added to a list will one day be missing from it | `Runner/Program.cs` |
 | The runner writes UTF-8 | A redirected console on Windows writes in its code page, so a record made there would differ from one made on Linux | `Runner/Program.cs`, `Console.OutputEncoding` |
 | `mutate.cs` plants one defect a run, in a worker's copy, and puts the file back byte for byte, checked by hash | Two defects at once can mask each other; a defect left in a file is a regression nobody wrote; and a run killed while it edited the tree itself once left one behind | `Worker.Mutate`; the hash check that fails the run when a file does not go back |
-| A baseline must exit 0, fail nothing, and run at least the class's `[Fact]` tests | A `-class` filter that matches nothing exits 0 with "Total: 0", and every defect would then read as caught by nothing | `Worker.Prepare` |
+| A baseline must exit 0, fail nothing, and run at least the class's `[Fact]` and `[AvaloniaFact]` tests | A `-class` filter that matches nothing exits 0 with "Total: 0", and every defect would then read as caught by nothing | `Worker.Prepare` |
 | A run that ran no test, or exited non-zero without naming a failed one, is reported, never read as clean | Either would otherwise read as a defect no test caught, or one a test caught, by accident | `Worker.Mutate` |
-| Its builds take no MSBuild node reuse, and keep the shared compiler server | A reused node outlives the build, so a run, or one stopped with Ctrl+C, would leave processes behind; the compiler server serves every build on the machine, and turning it off took each defect from 2.7 s to 10 s | `Worker.Build` |
-| "Tests never failed" names a class's `[Fact]` tests only, as `pmutate_fast.py` did | A `[Theory]` that no defect fails is not named; `ItemContainerNameRuleTests` holds seventeen | `Worker.DiscoverTests`; `PROGRESS.md`'s follow-up |
+| Its builds take no MSBuild node reuse, keep the shared compiler server, and turn Avalonia's build telemetry off | A reused node outlives the build, so a run, or one stopped with Ctrl+C, would leave processes behind; the compiler server serves every build on the machine, and turning it off took each defect from 2.7 s to 10 s; and a test project here takes Avalonia, whose build telemetry starts a process that outlives the build | `Worker.Build`, `Worker.BuildEnvironment` |
+| "Tests never failed" names a class's `[Fact]` and `[AvaloniaFact]` tests only, as `pmutate_fast.py` named its `[Fact]` ones | A `[Theory]` that no defect fails is not named; `ItemContainerNameRuleTests` holds seventeen | `Worker.DiscoverTests`; `PROGRESS.md`'s follow-up |
 | A probe case keeps its id and what it measures; a new question is a new case | The reviews' verdicts cite cases by id, so an edited case silently changes what they say was measured | `probe/Probe/`; the root `AGENTS.md`'s invariants |
 | The probe's assembly and namespace stay `FpProbe6` | Every case's markup names it, and the measurements and the rules' messages quote it, so under another name the records stop comparing | `probe/Probe/Probe.csproj` |
 | The probe measures with `J16_CCTOR_OK` set and `J15_CCTOR_OK` unset, and the rules run with neither | Two reviews' cases hold a class constructor that fails unless its review's switch is set, as one that needs what a scan's process lacks does. Judge 16 measured its cases with its switch set and judge 15 its own with it unset, so `U5B5` measures its constructor failing; set either otherwise and a measurement moves from the one its review judged, and read with either, the rules never meet the failure the cases are for | `measuring` and `scanning` in `probe.cs` |
