@@ -26,7 +26,8 @@ namespace Bennewitz.Ninja.XamlQuality.Rules;
 /// <param name="Controls">Every type the rule credits a part to, by name.</param>
 /// <param name="Skipped">
 /// What could not be read, and why: a type whose code could be read only in part, a type a scanned assembly defines that
-/// did not load, and, when the scan was given no assemblies, that.
+/// did not load, a name more than one top-level type the scan was given carries where parts were found in their code,
+/// and, when the scan was given no assemblies, that.
 /// </param>
 public sealed record TemplatePartReading(IReadOnlyList<ControlTemplateParts> Controls, IReadOnlyList<XamlSkip> Skipped)
 {
@@ -46,7 +47,8 @@ public sealed record TemplatePartReading(IReadOnlyList<ControlTemplateParts> Con
 /// <summary>One type's template parts: the constants it declares, the lookups made on its template, and its themes.</summary>
 /// <remarks>
 /// ⚠ <b>Named as the rule names it</b>: by its simple name, the one a <c>ControlTheme</c>'s <c>TargetType</c> gives.
-/// Two scanned types of one simple name are one entry, as they are one control to the rule. An entry is usually a
+/// A name more than one top-level type the scan was given carries is no entry, since a theme cannot say which of them it
+/// themes; the reading names it in <see cref="TemplatePartReading.Skipped"/> instead. An entry is usually a
 /// control; it is a helper where no control hands it the template its lookups are made on, since the rule then keeps
 /// those lookups as the helper's own, and names it in a skip when no theme targets it.
 /// </remarks>

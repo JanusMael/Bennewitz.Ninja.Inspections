@@ -1,8 +1,8 @@
 BNXQ1001: inspected 0, findings 0, skipped 0
 BNXQ1002: inspected 15, findings 0, skipped 0
 BNXQ1003: inspected 47, findings 0, skipped 2
-  skipped Themes/DiffPaneHeader.axaml:14 DiffPaneHeader: It has a ControlTheme here, but no template part was found in its code: no PART_ constant, and no PART_ literal passed to a Find or Get lookup. Either it has no parts, or it names them in a way this rule cannot read: built at runtime, or looked up through a helper named otherwise.
-  skipped Themes/DiffStatusStrip.axaml:15 DiffStatusStrip: It has a ControlTheme here, but no template part was found in its code: no PART_ constant, and no PART_ literal passed to a Find or Get lookup. Either it has no parts, or it names them in a way this rule cannot read: built at runtime, or looked up through a helper named otherwise.
+  skipped Themes/DiffPaneHeader.axaml:14 DiffPaneHeader: It has a ControlTheme here, but no template part was found in its code: no PART_ constant, and no PART_ literal passed to a Find or Get lookup. Either it has no parts, or it names them in a way this rule cannot read: built at runtime, looked up through a helper named otherwise, or looked up in code its template reaches only through an interface or virtual call, or in a lambda another type declares, which this rule credits to the type that declares that code.
+  skipped Themes/DiffStatusStrip.axaml:15 DiffStatusStrip: It has a ControlTheme here, but no template part was found in its code: no PART_ constant, and no PART_ literal passed to a Find or Get lookup. Either it has no parts, or it names them in a way this rule cannot read: built at runtime, looked up through a helper named otherwise, or looked up in code its template reaches only through an interface or virtual call, or in a lambda another type declares, which this rule credits to the type that declares that code.
 BNXQ1004: inspected 0, findings 0, skipped 0
 BNXQ1005: inspected 0, findings 0, skipped 0
 BNXQ1006: inspected 7, findings 0, skipped 0

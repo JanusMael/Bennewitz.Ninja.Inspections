@@ -104,6 +104,18 @@ public sealed class TemplatePartRule : IXamlRule
         {
             themed.Add(target);
 
+            if (reading.Shared.TryGetValue(target, out (string Types, bool HasParts) twins))
+            {
+                skipped.Add(new XamlSkip(
+                    target,
+                    $"More than one type the scan was given is named {target}: {twins.Types}. A ControlTheme names "
+                    + "its target without the namespace this rule reads, so which one it themes is not known, and its "
+                    + "parts were not checked.",
+                    file.RelativePath,
+                    line));
+                continue;
+            }
+
             if (theme is null)
             {
                 if (reading.Known.Contains(target))
@@ -117,7 +129,10 @@ public sealed class TemplatePartRule : IXamlRule
                             : "It has a ControlTheme here, but no template part was found in its code: no "
                               + "PART_ constant, and no PART_ literal passed to a Find or Get lookup. Either it "
                               + "has no parts, or it names them in a way this rule cannot read: built at "
-                              + "runtime, or looked up through a helper named otherwise.",
+                              + "runtime, looked up through a helper named otherwise, or looked up in code its "
+                              + "template reaches only through an interface or virtual call, or in a lambda "
+                              + "another type declares, which this rule credits to the type that declares that "
+                              + "code.",
                         file.RelativePath,
                         line));
                 }
@@ -176,7 +191,20 @@ public sealed class TemplatePartRule : IXamlRule
                 control.Name,
                 $"It declares {string.Join(", ", Wanted(control))}, but no ControlTheme for it is in the scanned "
                 + "markup, so those parts were not checked. Its theme may ship from another package; "
-                + "if it is yours, scan the folder that holds it."));
+                + "if it is yours, scan the folder that holds it. Or these parts are another control's, looked up "
+                + "in code its template reaches only through an interface or virtual call, or in a lambda this "
+                + "type declares, which this rule does not follow, so that control's theme was not checked for them."));
+        }
+
+        foreach (KeyValuePair<string, (string Types, bool HasParts)> twin in reading.Shared
+                     .Where(twin => twin.Value.HasParts && !themed.Contains(twin.Key))
+                     .OrderBy(twin => twin.Key, StringComparer.Ordinal))
+        {
+            skipped.Add(new XamlSkip(
+                twin.Key,
+                $"More than one type the scan was given is named {twin.Key}: {twin.Value.Types}, and parts were "
+                + "found in their code. A ControlTheme names its target without the namespace this rule reads, so "
+                + "their parts were not read as one control's, and none was checked."));
         }
 
         return new XamlRuleResult(findings, inspected) { Skipped = skipped };
@@ -204,7 +232,8 @@ public sealed class TemplatePartRule : IXamlRule
     /// ⚠ <b>An entry is every type the rule credits a part to</b>, by the simple name a <c>ControlTheme</c>'s
     /// <c>TargetType</c> gives. That is a control, or a helper no control hands the template its lookups are made on,
     /// whose lookups the rule keeps as its own. A themed control that declares no part has no entry: the rule names
-    /// it in a skip instead.
+    /// it in a skip instead. Nor has a name more than one top-level type the scan was given carries, since a theme
+    /// cannot say which of them it themes: the reading names it in its skips, where parts were found in their code.
     /// </para>
     /// </remarks>
     /// <param name="context">The scan, with the assemblies that define its controls.</param>
@@ -258,11 +287,25 @@ public sealed class TemplatePartRule : IXamlRule
     /// are credited to the outermost type that declares them, the one a <c>ControlTheme</c> targets.
     /// </para>
     /// <para>
-    /// ⚠ <b>Three limits.</b> A name built at runtime (<c>"PART_" + name</c>) is invisible, and so is
+    /// ⚠ <b>Four limits.</b> A name built at runtime (<c>"PART_" + name</c>) is invisible, and so is
     /// a lookup through a helper whose name does not start with <c>Find</c> or <c>Get</c>; a control
-    /// left with no parts that way is named in <see cref="XamlRuleResult.Skipped"/>. And a lookup no
+    /// left with no parts that way is named in <see cref="XamlRuleResult.Skipped"/>. A lookup no
     /// control hands its template to is taken to be on its own type's template, so one that reaches
-    /// into a child control's template is checked against this type's theme, and reported there.
+    /// into a child control's template is checked against this type's theme, and reported there. And
+    /// the template is followed through direct calls only: a call through an interface or a virtual
+    /// method names the method declared, not the one that runs, and creating a lambda calls nothing, so
+    /// code the template reaches only that way keeps its lookups as its own type's. Following every
+    /// implementation would charge one control with another's lookups: in one real codebase two controls
+    /// hand one controller their templates, it calls back through an interface, and only one of the two
+    /// has the part its implementation looks up. So the skips that name a control with no part found,
+    /// and parts with no theme, say so instead.
+    /// </para>
+    /// <para>
+    /// ⛔ <b>A name more than one top-level type carries is no control's.</b> A <c>ControlTheme</c> names
+    /// its target without the namespace, so which of them it themes is not known, and read as one, a
+    /// theme for either would be checked against both classes' parts. Each theme of such a name is
+    /// named in <see cref="XamlRuleResult.Skipped"/>, as <c>BNXQ1006</c> names it, and so is the name
+    /// where parts were found in its types' code and nothing themes it.
     /// </para>
     /// </remarks>
     private static Reading ReadControls(XamlScanContext context)
@@ -277,7 +320,7 @@ public sealed class TemplatePartRule : IXamlRule
                 "Assemblies",
                 "The scan was given no assemblies, so no template part was read. Call WithAssemblies with the "
                 + "assemblies that define the controls, and with any library that defines a base class of theirs.");
-            return new Reading(new TemplatePartReading([], [nothingRead]), [], known, partlyRead, notLoaded);
+            return new Reading(new TemplatePartReading([], [nothingRead]), [], known, partlyRead, notLoaded, new(StringComparer.Ordinal));
         }
 
         HashSet<Assembly> scanned = [.. context.Assemblies];
@@ -332,6 +375,14 @@ public sealed class TemplatePartRule : IXamlRule
                 }
             }
         }
+
+        // The names more than one top-level type carries, each with the full names that carry it. A theme names its
+        // target without the namespace, so it cannot say which of them it themes.
+        Dictionary<string, string[]> twins = topLevel
+            .GroupBy(type => type.Name, StringComparer.Ordinal)
+            .Select(named => (Name: named.Key, Types: FullNames(named)))
+            .Where(named => named.Types.Length > 1)
+            .ToDictionary(named => named.Name, named => named.Types, StringComparer.Ordinal);
 
         // Which controls hand each method their template.
         Dictionary<(Module Module, int Token), List<Type>> handedBy = [];
@@ -395,6 +446,7 @@ public sealed class TemplatePartRule : IXamlRule
         ControlTemplateParts[] controls =
         [
             .. constants.Keys.Union(credited.Keys, StringComparer.Ordinal)
+                .Where(name => !twins.ContainsKey(name))
                 .Order(StringComparer.Ordinal)
                 .Select(name => new ControlTemplateParts(
                     name,
@@ -412,6 +464,11 @@ public sealed class TemplatePartRule : IXamlRule
                     themesOf.TryGetValue(name, out List<ThemeParts>? targeting) ? targeting : [])),
         ];
 
+        Dictionary<string, (string Types, bool HasParts)> shared = twins.ToDictionary(
+            twin => twin.Key,
+            twin => (LoadedTypes.List(twin.Value), constants.ContainsKey(twin.Key) || credited.ContainsKey(twin.Key)),
+            StringComparer.Ordinal);
+
         XamlSkip[] skipped =
         [
             .. notLoaded.Select(entry => new XamlSkip(
@@ -422,11 +479,16 @@ public sealed class TemplatePartRule : IXamlRule
                     entry.Key,
                     $"Part of its code could not be read: {entry.Value}. A part it looks up there is not in this "
                     + $"reading, though the parts found in the rest are. {LoadedTypes.Remedy}")))
+                .Concat(shared.Where(twin => twin.Value.HasParts).Select(twin => new XamlSkip(
+                    twin.Key,
+                    $"More than one type the scan was given is named {twin.Key}: {twin.Value.Types}. A ControlTheme "
+                    + "names its target without the namespace this rule reads, so whose parts these are is not known, "
+                    + "and none of them is in this reading.")))
                 .OrderBy(skip => skip.Subject, StringComparer.Ordinal)
                 .ThenBy(skip => skip.Reason, StringComparer.Ordinal),
         ];
 
-        return new Reading(new TemplatePartReading(controls, skipped), themes, known, partlyRead, notLoaded);
+        return new Reading(new TemplatePartReading(controls, skipped), themes, known, partlyRead, notLoaded, shared);
     }
 
     /// <summary>
@@ -611,6 +673,10 @@ public sealed class TemplatePartRule : IXamlRule
         callee.GetParameters().Any(parameter =>
             parameter.ParameterType != typeof(object) && handed.Any(type => parameter.ParameterType.IsAssignableFrom(type)));
 
+    /// <summary>The full names of <paramref name="types"/>, each once, in ordinal order, so a reading compares as text.</summary>
+    private static string[] FullNames(IEnumerable<Type> types) =>
+        [.. types.Select(type => type.FullName ?? type.Name).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
+
     /// <summary>A method's identity across the reads that find it: its module and metadata token.</summary>
     private static (Module Module, int Token) KeyOf(MethodBase method) => (method.Module, method.MetadataToken);
 
@@ -715,14 +781,16 @@ public sealed class TemplatePartRule : IXamlRule
     /// <summary>
     /// What the scan says: the public reading; every theme in the scan's order, with the parts it declares where it
     /// targets a type with parts; the name of every type that loaded; each type whose code could not all be read,
-    /// with why; and each type the assemblies define that did not load, with the assembly that defines it and why.
+    /// with why; each type the assemblies define that did not load, with the assembly that defines it and why; and each
+    /// name more than one top-level type carries, with the types listed and whether parts were found in their code.
     /// </summary>
     private sealed record Reading(
         TemplatePartReading Parts,
         IReadOnlyList<ThemeSeen> Themes,
         HashSet<string> Known,
         Dictionary<string, string> PartlyRead,
-        Dictionary<string, (string Source, string Cause)> NotLoaded);
+        Dictionary<string, (string Source, string Cause)> NotLoaded,
+        Dictionary<string, (string Types, bool HasParts)> Shared);
 
     /// <summary>A theme in the scan, and the parts it declares where it targets a type with parts, else <c>null</c>.</summary>
     private sealed record ThemeSeen(XamlFile File, string Target, int? Line, ThemeParts? Parts);

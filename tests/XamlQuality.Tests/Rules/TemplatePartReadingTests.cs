@@ -434,6 +434,23 @@ public sealed class TemplatePartReadingTests : IDisposable
         Assert.Empty(Entry(reading, nameof(ProxyPanel)).Themes);
     }
 
+    /// <summary>
+    /// ⛔ A name two scanned types carry is no entry, since a theme cannot say which of them it themes: the reading
+    /// names it with both types, where it once merged their parts into one control's.
+    /// </summary>
+    [Fact]
+    public void ANameTwoScannedTypesCarry_HasNoEntry()
+    {
+        TemplatePartReading reading = Read();
+
+        Assert.DoesNotContain(reading.Controls, control => control.Name == "TwinPanel");
+        XamlSkip skip = Assert.Single(reading.Skipped, s => s.Subject == "TwinPanel");
+        Assert.Contains(
+            "named TwinPanel: XamlQuality.Tests.Rules.PartTwins.Elsewhere.TwinPanel and XamlQuality.Tests.Rules.PartTwins.TwinPanel. ",
+            skip.Reason,
+            StringComparison.Ordinal);
+    }
+
     // ── What could not be read ──────────────────────────────────────────────────
 
     /// <summary>

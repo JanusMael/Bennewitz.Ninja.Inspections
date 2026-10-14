@@ -541,4 +541,82 @@ public sealed class TemplatePartRuleTests : IDisposable
 
         Assert.Contains("ConstructingHost looks up the template part 'PART_Constructed'", finding.Message, StringComparison.Ordinal);
     }
+
+    // ── What the rule does not follow, said where it shows ──────────────────────
+
+    /// <summary>
+    /// A call through an interface names the method declared, not the one that runs, so the template is not followed
+    /// past it, and the implementation's lookup stays its own type's. Both skips that leaves say so, rather than tell
+    /// the control it has no parts.
+    /// </summary>
+    [Fact]
+    public void ALookupPastAnInterfaceCall_IsNamedInBothSkips()
+    {
+        Write("Interface.axaml", Theme("t:InterfaceHandingHost", "<Border Name=\"PART_Attached\" />"));
+
+        XamlRuleResult result = Run();
+
+        Assert.Empty(result.Findings);
+        XamlSkip host = Assert.Single(result.Skipped, s => s.Subject == nameof(InterfaceHandingHost));
+        Assert.Contains("only through an interface or virtual call", host.Reason, StringComparison.Ordinal);
+        XamlSkip attacher = Assert.Single(result.Skipped, s => s.Subject == nameof(InterfacePartAttacher));
+        Assert.Contains("PART_Attached", attacher.Reason, StringComparison.Ordinal);
+        Assert.Contains("only through an interface or virtual call", attacher.Reason, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A lambda a base class creates runs on its subclass's template, but creating one calls nothing, so the rule keeps
+    /// its lookup as the base's own. Both skips that leaves say so.
+    /// </summary>
+    [Fact]
+    public void ALookupInABaseClassesLambda_IsNamedInBothSkips()
+    {
+        Write("Deferred.axaml", Theme("t:LambdaInheritingHost", "<Border Name=\"PART_Later\" />"));
+
+        XamlRuleResult result = Run();
+
+        Assert.Empty(result.Findings);
+        XamlSkip host = Assert.Single(result.Skipped, s => s.Subject == nameof(LambdaInheritingHost));
+        Assert.Contains("or in a lambda another type declares", host.Reason, StringComparison.Ordinal);
+        XamlSkip lookingBase = Assert.Single(result.Skipped, s => s.Subject == nameof(LambdaLookingBase));
+        Assert.Contains("PART_Later", lookingBase.Reason, StringComparison.Ordinal);
+        Assert.Contains("or in a lambda this type declares", lookingBase.Reason, StringComparison.Ordinal);
+    }
+
+    // ── A name two scanned types carry ──────────────────────────────────────────
+
+    /// <summary>
+    /// ⛔ A theme names its target without the namespace, so it cannot say which of two controls of one name it themes.
+    /// Read as one control, a theme for either was checked against both classes' parts, a false finding for each part
+    /// only the other declares. It is named in <c>Skipped</c> instead, as <c>BNXQ1006</c> names it.
+    /// </summary>
+    [Fact]
+    public void ANameTwoScannedTypesCarry_IsSkipped()
+    {
+        Write("Twin.axaml", Theme("t:TwinPanel", "<Border Name=\"PART_Left\" />"));
+
+        XamlRuleResult result = Run();
+
+        Assert.Empty(result.Findings);
+        Assert.Equal(0, result.Inspected);
+        XamlSkip skip = Assert.Single(result.Skipped, s => s.Subject == "TwinPanel");
+        Assert.Contains(
+            "named TwinPanel: XamlQuality.Tests.Rules.PartTwins.Elsewhere.TwinPanel and XamlQuality.Tests.Rules.PartTwins.TwinPanel. ",
+            skip.Reason,
+            StringComparison.Ordinal);
+        Assert.Equal("Twin.axaml", skip.RelativePath);
+        Assert.NotNull(skip.Line);
+    }
+
+    /// <summary>Where nothing themes such a name, its types' parts are named as unchecked once, with no file.</summary>
+    [Fact]
+    public void ANameTwoScannedTypesCarry_WithNoTheme_IsSkippedOnce()
+    {
+        Write("Other.axaml", Theme("t:SomethingElse", "<Border />"));
+
+        XamlSkip skip = Assert.Single(Run().Skipped, s => s.Subject == "TwinPanel");
+
+        Assert.Contains("More than one type the scan was given is named TwinPanel", skip.Reason, StringComparison.Ordinal);
+        Assert.Null(skip.RelativePath);
+    }
 }

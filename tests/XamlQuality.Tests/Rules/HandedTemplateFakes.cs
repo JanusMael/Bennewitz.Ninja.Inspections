@@ -158,3 +158,40 @@ internal sealed class ConstructedHelper
     /// <param name="e">A control's applied template.</param>
     public ConstructedHelper(HandedTemplateArgs e) => _ = e.NameScope.Find("PART_Constructed");
 }
+
+/// <summary>What a control hands its template to through an interface, as DiffView's controller calls its surface back.</summary>
+public interface IPartAttacher
+{
+    /// <summary>Attaches to the template's parts.</summary>
+    /// <param name="e">A control's applied template.</param>
+    void Attach(HandedTemplateArgs e);
+}
+
+/// <summary>Looks a part up on the template it is handed through the interface.</summary>
+public sealed class InterfacePartAttacher : IPartAttacher
+{
+    /// <inheritdoc />
+    public void Attach(HandedTemplateArgs e) => _ = e.NameScope.Find("PART_Attached");
+}
+
+/// <summary>Hands its template on through an interface call, which names the method declared, not the one that runs.</summary>
+public sealed class InterfaceHandingHost : HandedTemplatedControl
+{
+    private readonly IPartAttacher _attacher = new InterfacePartAttacher();
+
+    /// <inheritdoc />
+    protected override void OnApplyTemplate(HandedTemplateArgs e) => _attacher.Attach(e);
+}
+
+/// <summary>A base class that looks its subclasses' part up in a lambda, which runs after its <c>OnApplyTemplate</c> returns.</summary>
+public abstract class LambdaLookingBase : HandedTemplatedControl
+{
+    /// <summary>The lookup, deferred as a control defers one to its next layout pass.</summary>
+    public Func<object?>? Deferred { get; private set; }
+
+    /// <inheritdoc />
+    protected override void OnApplyTemplate(HandedTemplateArgs e) => Deferred = () => e.NameScope.Find("PART_Later");
+}
+
+/// <summary>Inherits its base's lambda, which runs on this control's template.</summary>
+public sealed class LambdaInheritingHost : LambdaLookingBase;

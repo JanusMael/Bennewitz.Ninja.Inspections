@@ -83,10 +83,17 @@ lookup: a call whose name starts with `Find` or `Get`, such as `NameScope.Find("
 on, to a helper, down a chain of calls or into a constructor, or made by a base class's
 `OnApplyTemplate`, is the control's, and is checked against its theme. A literal passed to
 anything else is ignored, which is what keeps compiled XAML out: it passes every element name to
-`set_Name` and `Register`. Three limits. A name built at runtime (`"PART_" + name`) is invisible,
-and so is a lookup through a helper named otherwise. And a lookup no control hands its
-template to is taken to be on its own type's template, so one that reaches into a child control's
-template is reported against that type.
+`set_Name` and `Register`. Four limits. A name built at runtime (`"PART_" + name`) is invisible,
+and so is a lookup through a helper named otherwise. A lookup no control hands its template to is
+taken to be on its own type's template, so one that reaches into a child control's template is
+reported against that type. And a template is followed through direct calls only: code it reaches
+through an interface or a virtual call, or in a lambda another type declares, keeps its lookups as
+that type's, and the skips that name a control with no part found, or parts with no theme, say so.
+
+A name that two scanned types carry, in different namespaces, is no control's to `BNXQ1003`. A
+`ControlTheme` names its target without the namespace, so the rule cannot say which of them a theme
+is for, and names each such theme in `Skipped`, as `BNXQ1006` does, rather than check it against
+both classes' parts.
 
 **`BNXQ1003`'s reading is public.** `TemplatePartRule.ReadParts(context)` returns what the rule reads
 from the same scan: for each control, the `PART_` constants it declares, each part looked up on its
@@ -95,8 +102,9 @@ template to, by type, method and assembly, and the parts each of its themes decl
 and the automation id. The rule's findings are exactly the constants and looked-up parts a theme does
 not declare, so a parts reference built from the reading lists what the rule checked, in an order that
 compares as text. A constant nothing looks up, which a style selector may be all that needs, is listed
-apart from the lookups. A base class in an assembly the scan was not given is not read: pass the
-library that defines it to `WithAssemblies` as well.
+apart from the lookups. A name two scanned types carry has no entry, and the reading's `Skipped`
+names it. A base class in an assembly the scan was not given is not read: pass the library that
+defines it to `WithAssemblies` as well.
 
 **`BNXQ1004` counts only what it measured.** A control in an `Auto` or `*` row or column, or one that
 declares no size, has nothing to measure, so it is neither inspected nor skipped. Markup whose grids
