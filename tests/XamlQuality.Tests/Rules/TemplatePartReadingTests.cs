@@ -435,8 +435,9 @@ public sealed class TemplatePartReadingTests : IDisposable
     }
 
     /// <summary>
-    /// ⛔ A name two scanned types carry is no entry, since a theme cannot say which of them it themes: the reading
-    /// names it with both types, where it once merged their parts into one control's.
+    /// ⛔ A name two scanned types carry is no entry, since the rule reads a theme's target by its name alone and cannot
+    /// say which of them a theme is for: the reading names it with both types, where it once merged their parts into
+    /// one control's.
     /// </summary>
     [Fact]
     public void ANameTwoScannedTypesCarry_HasNoEntry()
@@ -449,6 +450,20 @@ public sealed class TemplatePartReadingTests : IDisposable
             "named TwinPanel: XamlQuality.Tests.Rules.PartTwins.Elsewhere.TwinPanel and XamlQuality.Tests.Rules.PartTwins.TwinPanel. ",
             skip.Reason,
             StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The reading names a shared name only where parts were found in its types' code, lookups alone included: where
+    /// partless types share a name, the reading leaves nothing out.
+    /// </summary>
+    [Fact]
+    public void ASharedName_IsNamedOnlyWherePartsWereFound()
+    {
+        TemplatePartReading reading = Read();
+
+        Assert.Single(reading.Skipped, s => s.Subject == "LookingTwin");
+        Assert.DoesNotContain(reading.Controls, control => control.Name == "LookingTwin");
+        Assert.DoesNotContain(reading.Skipped, s => s.Subject == "Twin");
     }
 
     // ── What could not be read ──────────────────────────────────────────────────

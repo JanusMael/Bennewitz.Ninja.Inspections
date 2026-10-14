@@ -586,9 +586,9 @@ public sealed class TemplatePartRuleTests : IDisposable
     // ── A name two scanned types carry ──────────────────────────────────────────
 
     /// <summary>
-    /// ⛔ A theme names its target without the namespace, so it cannot say which of two controls of one name it themes.
-    /// Read as one control, a theme for either was checked against both classes' parts, a false finding for each part
-    /// only the other declares. It is named in <c>Skipped</c> instead, as <c>BNXQ1006</c> names it.
+    /// ⛔ The rule reads a theme's target by its name alone, so it cannot say which of two controls of one name a theme
+    /// is for. Read as one control, a theme for either was checked against both classes' parts, a false finding for each
+    /// part only the other declares. It is named in <c>Skipped</c> instead, as <c>BNXQ1006</c> names it.
     /// </summary>
     [Fact]
     public void ANameTwoScannedTypesCarry_IsSkipped()
@@ -618,5 +618,52 @@ public sealed class TemplatePartRuleTests : IDisposable
 
         Assert.Contains("More than one type the scan was given is named TwinPanel", skip.Reason, StringComparison.Ordinal);
         Assert.Null(skip.RelativePath);
+    }
+
+    /// <summary>Parts that are lookups alone are parts: a name two such types carry is named once, unchecked.</summary>
+    [Fact]
+    public void ANameTwoTypesWithLookupsOnlyCarry_IsSkippedOnce()
+    {
+        Write("Other.axaml", Theme("t:SomethingElse", "<Border />"));
+
+        XamlSkip skip = Assert.Single(Run().Skipped, s => s.Subject == "LookingTwin");
+
+        Assert.Contains("More than one type the scan was given is named LookingTwin", skip.Reason, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A name two partless types carry is skipped where a theme targets it, as any shared name is, and named nowhere
+    /// else: with no part to check, nothing went unchecked.
+    /// </summary>
+    [Fact]
+    public void ANameTwoPartlessTypesCarry_IsSkippedOnlyWhereThemed()
+    {
+        Write("Twin.axaml", Theme("t:Twin", "<Border />"));
+
+        XamlSkip themed = Assert.Single(Run().Skipped, s => s.Subject == "Twin");
+        Assert.Contains("More than one type the scan was given is named Twin", themed.Reason, StringComparison.Ordinal);
+
+        File.Delete(Path.Combine(_root, "Twin.axaml"));
+        Write("Other.axaml", Theme("t:SomethingElse", "<Border />"));
+
+        Assert.DoesNotContain(Run().Skipped, s => s.Subject == "Twin");
+    }
+
+    /// <summary>
+    /// ⛔ One assembly passed twice, as the assemblies of two of its types are, makes no name its own twin: a theme of a
+    /// name only one type carries is still checked.
+    /// </summary>
+    [Fact]
+    public void AnAssemblyPassedTwice_MakesNoNameATwin()
+    {
+        Write("Bad.axaml", Theme("t:ProxyPanel", "<Border Name=\"PART_Header\" />"));
+
+        XamlRuleResult result = new TemplatePartRule().Analyze(
+            XamlScanContext.Load(_root).WithAssemblies(typeof(ProxyPanel).Assembly, typeof(PartlessPanel).Assembly));
+
+        Assert.Equal(2, result.Inspected);
+        XamlFinding finding = Assert.Single(result.Findings);
+        Assert.Contains("PART_Footer", finding.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(result.Skipped, s => s.Subject == nameof(ProxyPanel));
     }
 }

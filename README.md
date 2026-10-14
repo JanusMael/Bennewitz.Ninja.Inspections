@@ -90,10 +90,12 @@ reported against that type. And a template is followed through direct calls only
 through an interface or a virtual call, or in a lambda another type declares, keeps its lookups as
 that type's, and the skips that name a control with no part found, or parts with no theme, say so.
 
-A name that two scanned types carry, in different namespaces, is no control's to `BNXQ1003`. A
-`ControlTheme` names its target without the namespace, so the rule cannot say which of them a theme
-is for, and names each such theme in `Skipped`, as `BNXQ1006` does, rather than check it against
-both classes' parts.
+A name that two scanned types carry, in different namespaces, is no control's to `BNXQ1003`. The
+rule reads a `ControlTheme`'s target by its name alone, not by the namespace its prefix gives, so it
+cannot say which of them a theme is for. It names each such theme in `Skipped`, as `BNXQ1006` does,
+rather than check it against both classes' parts. That holds where only one of the two has parts,
+such as a control that shares its name with a model, so a check the theme's prefix would allow is
+skipped too.
 
 **`BNXQ1003`'s reading is public.** `TemplatePartRule.ReadParts(context)` returns what the rule reads
 from the same scan: for each control, the `PART_` constants it declares, each part looked up on its
@@ -226,8 +228,9 @@ owner may or may not be a binding, or an owner or a theme is not decided, the ru
 **Read `Skipped` as well as `Inspected`.** Every result also names what the rule saw but could not
 check. For `BNXQ1003` that is a control with a `ControlTheme` in the scan and no part found in its
 code, a control that declares parts but has no theme in the scan, one the scanned assemblies define
-but could not load, one whose code could be read only in part, and, when the scan was given no
-assemblies at all, every themed control. For `BNXQ1004` it is a control whose fit depends on a value
+but could not load, one whose code could be read only in part, a name more than one scanned type
+carries, where a theme targets it or parts were found in its types' code, and, when the scan was
+given no assemblies at all, every themed control. For `BNXQ1004` it is a control whose fit depends on a value
 markup cannot evaluate: a bound or resource-based definition, index, span, spacing or size, named
 in the reason. For `BNXQ1005` it is every key binding it could not decide: one where a style sets
 focus, rows with no item template, rows that present items of their own as a tree's do, and content

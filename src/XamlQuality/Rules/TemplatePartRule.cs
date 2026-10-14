@@ -232,8 +232,9 @@ public sealed class TemplatePartRule : IXamlRule
     /// ⚠ <b>An entry is every type the rule credits a part to</b>, by the simple name a <c>ControlTheme</c>'s
     /// <c>TargetType</c> gives. That is a control, or a helper no control hands the template its lookups are made on,
     /// whose lookups the rule keeps as its own. A themed control that declares no part has no entry: the rule names
-    /// it in a skip instead. Nor has a name more than one top-level type the scan was given carries, since a theme
-    /// cannot say which of them it themes: the reading names it in its skips, where parts were found in their code.
+    /// it in a skip instead. Nor has a name more than one top-level type the scan was given carries, since the rule
+    /// reads a theme's target by its name alone and so cannot say which of them a theme is for: the reading names it in
+    /// its skips, where parts were found in their code.
     /// </para>
     /// </remarks>
     /// <param name="context">The scan, with the assemblies that define its controls.</param>
@@ -301,11 +302,13 @@ public sealed class TemplatePartRule : IXamlRule
     /// and parts with no theme, say so instead.
     /// </para>
     /// <para>
-    /// ⛔ <b>A name more than one top-level type carries is no control's.</b> A <c>ControlTheme</c> names
-    /// its target without the namespace, so which of them it themes is not known, and read as one, a
-    /// theme for either would be checked against both classes' parts. Each theme of such a name is
-    /// named in <see cref="XamlRuleResult.Skipped"/>, as <c>BNXQ1006</c> names it, and so is the name
-    /// where parts were found in its types' code and nothing themes it.
+    /// ⛔ <b>A name more than one top-level type carries is no control's.</b> This rule reads a
+    /// <c>ControlTheme</c>'s target by its name alone, not by the namespace its prefix gives, so which of
+    /// them a theme is for is not known, and read as one, a theme for either would be checked against both
+    /// classes' parts. Each theme of such a name is named in <see cref="XamlRuleResult.Skipped"/>, as
+    /// <c>BNXQ1006</c> names it, and so is the name where parts were found in its types' code and nothing
+    /// themes it. A theme whose prefix names the one type with parts is skipped too, so a check the prefix
+    /// would allow is lost; reading the prefix, as <c>ThemeReader</c> does, would be a change of its own.
     /// </para>
     /// </remarks>
     private static Reading ReadControls(XamlScanContext context)
@@ -376,8 +379,8 @@ public sealed class TemplatePartRule : IXamlRule
             }
         }
 
-        // The names more than one top-level type carries, each with the full names that carry it. A theme names its
-        // target without the namespace, so it cannot say which of them it themes.
+        // The names more than one top-level type carries, each with the full names that carry it. This rule reads a
+        // theme's target by its name alone, so it cannot say which of them a theme is for.
         Dictionary<string, string[]> twins = topLevel
             .GroupBy(type => type.Name, StringComparer.Ordinal)
             .Select(named => (Name: named.Key, Types: FullNames(named)))
