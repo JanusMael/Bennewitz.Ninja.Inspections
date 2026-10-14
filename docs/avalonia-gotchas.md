@@ -12,8 +12,9 @@ agent can drive and verify through its automation tree.
 [Bennewitz.Ninja.XamlQuality](https://github.com/JanusMael/Bennewitz.Ninja.XamlQuality). Send a new
 foot-gun, or a correction to an entry, to the session working in that repository by message (it
 answers as `XamlQuality`), with the versions and the measurement or source that show it. When no
-such session is running, open an issue there instead. A claim is checked before it lands, and the
-sender hears the outcome. Keep no copy elsewhere; cite this file by path or URL.
+such session is running, open an issue there instead. A claim is checked before it lands, or its
+entry says it was not reproduced here, and the sender hears the outcome. Keep no copy elsewhere; cite
+this file by path or URL.
 
 ⭐ **An entry that can be checked mechanically belongs as a RULE in this library, not as prose
 here.** `BNXQ1004`, `BNXQ1005` and `BNXQ1010` began as entries below. `BNXQ1001` and `BNXQ1002` began as guards
@@ -155,6 +156,26 @@ Do **not** reach for `ClipToBounds="True"` across the tree. It costs a clip push
 </TextBlock>
 ```
 
+### A `MeasureOverride` decision taken from the template's inner layout is not revisited when only content inside the template changes
+
+**Symptom:** A control that decides something in `MeasureOverride` from how its template's parts measure keeps its first decision after the content inside the template changes, as long as the control's own desired size does not change.
+
+**Cause:** Inferred, not read: `ChildDesiredSizeChanged` stops climbing where a desired size stops changing, and the template's star column absorbs the change, so the control's measure is never invalidated.
+
+**Fix:** Invalidate the control's measure when the part changes size. In the case measured, `PART_ScrollViewer.SizeChanged` calls `InvalidateMeasure()` when the width changes. The second pass moves nothing.
+
+Measured on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and Semi.Avalonia 12.1.0.1, headless on Linux, not reproduced here: a floor the control kept for the typed text never ran, and the text was 0 px wide in a box 624 wide. A fixture in which the box grew hid it.
+
+### Measuring the template again inside one `MeasureOverride`, after changing a descendant's `MaxWidth`, changes nothing unless every ancestor between them is invalidated too
+
+**Symptom:** A control's `MeasureOverride` measures its template, changes the `MaxWidth` of an element inside it, and measures the template again, and the second measure does nothing.
+
+**Cause:** Inferred, not read: only the descendant's measure is invalidated, and the ancestors between it and the control, still valid, return at once for the same constraint.
+
+**Fix:** Invalidate the measure of every visual ancestor between the descendant and the control before measuring again.
+
+Measured by mutation on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and Semi.Avalonia 12.1.0.1, headless on Linux, not reproduced here.
+
 ---
 
 ## Styling / theming
@@ -250,6 +271,16 @@ explains.
 **Fix:** Qualify the setter's property with its owner, and share the property with `AddOwner` so that one setter styles every control in the selector. Where each control registers its own, give each its own style.
 
 ⚠ **A direct property can be styled the same way**, when it has a setter and the style has no activator such as `:pointerover`: one setter set it on both controls. With an activator the style builds, and applying it throws `InvalidOperationException`: "Cannot set direct property … because the style has an activator." Measured the same way.
+
+### A subclass that borrows its base's theme through `StyleKeyOverride` is not selected by a type selector naming its own type
+
+**Symptom:** A style that reaches into a custom control through the control's own type, such as `controls|MessageTextBox TextBlock.message`, never applies, and nothing is logged. The control derives from a framework control and returns the base's type from `StyleKeyOverride`, to borrow its theme. Written with the base's type, `TextBox TextBlock.message`, the same style applies.
+
+**Cause:** Inferred, not read: a type selector compares the control's style key, which `StyleKeyOverride` makes the base's. The selector's source was not read, and `:is()` was not tried.
+
+**Fix:** Name the type the style key gives, the base, in the selector.
+
+Measured on Avalonia 12.1.3 with Semi.Avalonia 12.1.0.1, headless on Linux, not reproduced here: for a `MessageTextBox : TextBox` returning `typeof(TextBox)`, the styles `controls|MessageTextBox TextBlock.message`, setting `Opacity` to 0.56, and `controls|MessageTextBox TextBlock.message.error`, setting a `Foreground` from the palette, never applied, and written with `TextBox` they did. Two fixtures held it, one reading the effective `Opacity` and `Foreground` and one the captured pixels, each checked by mutation.
 
 ---
 
@@ -347,6 +378,42 @@ breaks **loudly** rather than subtly, because three of its missing keys are stat
 ```
 
 In code, `SemiTheme.OverrideLocaleResources` applies a locale's strings to an application or to one element.
+
+### Semi's `TextBox` puts `InnerRightContent` in an `Auto` column, so wide inner content squeezes the text to nothing
+
+**Symptom:** A `TextBox` with wide `InnerRightContent` leaves no room for its text.
+
+**Cause:** Semi's `TextBox` template lays out its parts in a `Grid` whose columns are `Auto,*,Auto,Auto,Auto`, with `InnerRightContent` in column 4, an `Auto` column, beside the text's star column. The inner content takes its full width, and the text gets what is left.
+
+**Fix:** Cap the inner content's `MaxWidth` in `MeasureOverride`, from the width the box is offered, half of it in the case measured, and not from the box's own width, which sizes to its content. Invalidating the ancestors after setting the cap changed nothing visible there.
+
+Measured on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and Semi.Avalonia 12.1.0.1, headless on Linux, not reproduced here: a 183 px `TextBlock` as `InnerRightContent` left `PART_ScrollViewer` 0 px wide when the box was offered 220, 204 or 159 px, and 98 px wide at 319.
+
+### Semi's `TextBox` pads its inner content whenever it is not null, hidden content included
+
+**Symptom:** A `TextBox` whose `InnerLeftContent` is hidden still gives its text less room.
+
+**Cause:** Semi's template pads the presenter of `InnerLeftContent` by the resource `TextBoxInnerLeftContentPadding`, `0,0,12,0`, whenever the content is not null, `IsVisible="False"` included; only null removes the padding. `InnerRightContent` is padded the same way, by `TextBoxInnerRightContentPadding`, `12,0,0,0`.
+
+**Fix:** The padding resource resolves dynamically, so set it to 0 in the box's own resources and give the content a `Margin` for the gap, since a hidden control's margin is not measured. Or set the content to null while there is nothing to show, as the case measured did for `InnerRightContent` when it was empty.
+
+```xml
+<TextBox.Resources>
+    <Thickness x:Key="TextBoxInnerLeftContentPadding">0</Thickness>
+</TextBox.Resources>
+```
+
+Measured on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and Semi.Avalonia 12.1.0.1, headless on Linux, not reproduced here: a hidden 22 px button as `InnerLeftContent` left the text 22 px wide where it had 34, in a box 143 wide, and the resource set to 0 in the box's resources removed the padding.
+
+### Semi's `Button` has a `MinHeight` of 32, so a smaller `Height` is laid out at 32
+
+**Symptom:** A `Button` given `Height="24"` is laid out 32 tall, and a short button inside a `TextBox` makes the box taller than expected.
+
+**Cause:** Semi's `Button` theme sets `MinHeight` to 32, and a minimum wins over a local `Height`.
+
+**Fix:** Set `MinHeight="0"` on a button meant to be smaller.
+
+Measured on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and Semi.Avalonia 12.1.0.1, headless on Linux, not reproduced here: `Height="24"` laid out at 32, and a `Height="22"` button as a `TextBox`'s `InnerLeftContent` made the box 34 tall, not 32.
 
 ---
 
@@ -853,6 +920,16 @@ public IReadOnlyList<PropertyEditorViewModel> VisibleChildren =>
 
 References: `ObjectPropertyEditorViewModel` (prefix categories + lazy `VisibleChildren`), `PropertyCategoryViewModel`, and the `[PropView.Realized] group=… wrappers=N` trace in `GroupPropertiesView.axaml.cs` — that counter is the fastest way to catch a regression of this class (a healthy page realizes a screenful; hundreds means something is eagerly building a subtree again).
 
+### A `ScrollContentPresenter` loses a wheel notch when an `ILogicalScrollable`'s position moved before it raised `ScrollInvalidated`
+
+**Symptom:** One notch of the mouse wheel over a logically scrolled list does nothing.
+
+**Cause:** Read in the source at 12.1.3, `Presenters/ScrollContentPresenter.cs`. `OnPointerWheelChanged` computes the new offset from the presenter's own cached `Offset`, `y += -delta.Y * ScrollSize.Height`, clamped to `Extent.Height - Viewport.Height`. The cache is refreshed only in `UpdateFromScrollable`, on `ScrollInvalidated`, and the presenter pushes an offset to the scrollable only when its own `OffsetProperty` changes (`GetObservable(OffsetProperty).Skip(1)`). So a scrollable whose position moved before it raised `ScrollInvalidated`, through a bound `StartIndex` in the case measured, gets a notch computed from the old offset; at a stale maximum the notch clamps to the same value, nothing changes, and the notch is lost. In a running application rendering runs at a higher priority than input, so the exposure is a headless test that turns the wheel straight after `RunJobs()`, or a scrollable whose own position lags.
+
+**Fix:** Raise `ScrollInvalidated` when the scrollable's position changes. In a headless test, wait until the view model and the rows agree before turning the wheel.
+
+Measured on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and Semi.Avalonia 12.1.0.1, headless on Linux, not reproduced here: a 300-line log was scrolled to its end, sent to its start with Home, and turned one notch down in the first `RunJobs()` that showed line 1, with no `ForceRenderTimerTick()` between. The notch was lost in 7 runs of 30, the presenter at 5454, which is 6000 − 546, each time. Waiting until the view model's first index agreed with the rows, pumping `RunJobs()` and `ForceRenderTimerTick()`, and then turning the wheel lost it in none of 15. A render tick alone was not measured.
+
 ### There is no frame-rate cap: nothing ports WPF's `Timeline.DesiredFrameRate`
 
 **Symptom:** A WPF application that lowers `Timeline.DesiredFrameRate` to spare a slow machine has nothing to port it to. No animation type in Avalonia carries a frame rate, and no public setting caps the render loop.
@@ -1114,6 +1191,14 @@ They are the price of referencing DataGrid, not a defect to hunt for in your cod
 
 **Fix:** Run the application on the X11 backend wherever it is driven or audited over AT-SPI: under a Wayland session that offers Xwayland, as the measured GNOME session did, it runs through Xwayland, as `UsePlatformDetect()` alone gives it. An application that ships on the Wayland backend, through `UsePlatformDetect().UseWayland()` or `UsePlatformDetect().UseWaylandWithFallback()`, can leave that last call out when its harness starts it, as the measurement left out `UseWayland()`. Measured at 12.1.3 only.
 
+### On the Wayland backend, `Position`, `Topmost` and `Activate()` do nothing, and `Screen.Scaling` is always 1.0
+
+**Symptom:** On the Wayland backend, a window does not move when its `Position` is set, does not stay on top with `Topmost`, and is not activated by `Activate()`, and every screen's `Scaling` reads 1.0.
+
+**Cause:** Read in Avalonia.Wayland 12.1.3's package, not observed at run time and not reproduced here. Its documentation lists `WindowBaseImpl`'s `Move`, `SetTopmost`, `Activate`, `PointToClient` and `PointToScreen` as doing nothing, because "Wayland doesn't support" them. `SnapshotScreensImpl` reports a scaling of 1.0, since scaling is per window. `WaylandPlatformOptions` has no `OverlayPopups` and no `RenderingMode`, though `Popup.ShouldUseOverlayLayer` may still keep a popup inside the window, popup by popup, which was not measured. And the assembly holds no `xdg_activation`, so a window cannot ask for attention.
+
+**Fix:** Under the Wayland backend, rely on none of these: leave a window's placement, stacking and activation to the compositor, and take scaling from the window, not the screen.
+
 ### Over AT-SPI, a node keeps the children it was first asked for
 
 **Symptom:** A client asks a `ListBox` for its children and gets the same nodes for good, one for each row realised when it first asked. A scroll that recycles those rows' containers renames each node after the row its container holds now, in the order the list first answered them, and a node whose container holds no row answers `ListBoxItem`: scrolled from line 1 to line 145, its eleven children read `Line 155` down to `Line 145`, and scrolled back to line 1, `Line 2` to `Line 11` and `ListBoxItem`. A row realised in a container the list did not have when first asked never appears among its children, so a list first asked before its items were set answers one panel, its template's `Border`, for good, though the rows can still be reached by walking down from that panel. A `ComboBox` lists its items as its children only if it was first asked while open; first asked while closed, it keeps answering its template's root after it opens. Measured on Avalonia 12.1.3 under GNOME Shell 50.1, run headless with a virtual monitor, the application under Xwayland, read through libatspi 2.60: a list filled three seconds after its window opened, and asked before that, still answered one panel 13 to 15 seconds after it was first asked, three runs of three, and clearing libatspi's cache and finding the list again from the desktop changed nothing; the scroll to line 145, seven runs of seven, and back to line 1, three of three.
@@ -1267,6 +1352,26 @@ window.MouseUp(end, MouseButton.Left);
 ⚠ Press where the control draws. A press below the one line of a stretched `SelectableTextBlock` does not reach it, for the reason in the entry on a row whose `Background` is null.
 
 Measured on Avalonia 12.1.3, headless with Skia and the Fluent theme.
+
+### A headless click can land where the control used to be
+
+**Symptom:** A fixture's `MouseDown` and then `MouseUp` at a `Button`'s centre does nothing, and nothing throws. The button is the same instance, attached and enabled, and its command can execute. Sometimes it shows `IsPressed` after the press and no click follows; sometimes the press never reaches it.
+
+**Cause:** `HeadlessWindowExtensions` delivers every input, `MouseDown`, `MouseUp`, `MouseMove`, `MouseWheel` and `KeyPress`, through `RunJobsOnImpl`, which runs the dispatcher's queued jobs and renders before and after the input. A layout still pending when the fixture measured its target runs before the press, or between the press and the release, and a `Button` clicks on release only if the release point still hits it. In the case measured, a tab header was laid out again as its file finished loading, and the close button moved under the pointer.
+
+**Fix:** Let the view settle before measuring where to click. Wait on whatever changes the layout, not a fixed number of pumps, or measure again right before each press. The same goes for a scroll in a virtualised list whose page is fetched off the UI thread, where the rows can hold still across a pump while the fetch is in flight: wait until the view model and the list agree.
+
+Measured on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and Semi.Avalonia 12.1.0.1, with `RunJobsOnImpl` read in the source at 12.1.3, not reproduced here: run alone, the test failed in 9 runs of 10, the button showing pressed and then no click; with the fixture waiting for the file to finish loading before measuring the target, in none of 20.
+
+### Under Semi, a `SplitView`'s pane slides open, so a measurement right after it opens reads it part way
+
+**Symptom:** A headless fixture opens a `SplitView`'s pane, pumps the dispatcher and measures inside it, and reads the pane narrower than `OpenPaneLength`. A layout check then finds children escaping a column a few pixels too narrow, in some runs and not others.
+
+**Cause:** The pane slides open rather than appearing at its full width. Whether the slide comes from Semi's theme or from Avalonia's template was not established.
+
+**Fix:** Wait for the pane's `Bounds.Width` to reach `OpenPaneLength` before measuring inside it.
+
+Measured on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and Semi.Avalonia 12.1.0.1, headless on Linux, not reproduced here: with Semi's `SplitView` in `DisplayMode="Overlay"` and `OpenPaneLength="440"`, twelve openings measured after two pumps of `RunJobs()` and `ForceRenderTimerTick()` and a wait of 10 to 36 ms read the pane, its `PART_PaneRoot` and a `Border` in it, at 374 to 439 wide; after about half a second of pumping, at 440 every time. A layout-overflow check then read children escaping a column 3 to 6 px too narrow, in 2 suites of 5.
 
 ### A `PrintWindow` capture of an Avalonia window is solid black, and reports success, without `PW_RENDERFULLCONTENT`
 
