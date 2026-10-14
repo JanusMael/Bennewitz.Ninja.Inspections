@@ -47,8 +47,9 @@ public sealed record TemplatePartReading(IReadOnlyList<ControlTemplateParts> Con
 /// <summary>One type's template parts: the constants it declares, the lookups made on its template, and its themes.</summary>
 /// <remarks>
 /// ⚠ <b>Named as the rule names it</b>: by its simple name, the one a <c>ControlTheme</c>'s <c>TargetType</c> gives.
-/// A name more than one top-level type the scan was given carries is no entry, since a theme cannot say which of them it
-/// themes; the reading names it in <see cref="TemplatePartReading.Skipped"/> instead. An entry is usually a
+/// A name more than one top-level type the scan was given carries is no entry, since the rule reads a theme's target by
+/// its name alone and cannot say which of them a theme is for; the reading names it in
+/// <see cref="TemplatePartReading.Skipped"/> instead, where parts were found in their code. An entry is usually a
 /// control; it is a helper where no control hands it the template its lookups are made on, since the rule then keeps
 /// those lookups as the helper's own, and names it in a skip when no theme targets it.
 /// </remarks>
