@@ -22,7 +22,11 @@
          meant rewriting the one thing that proves the ported analysis still behaves — which is
          the worst possible file to rewrite during a move.
          ⓘ The rules library itself references no test framework at all, so this choice binds
-         nobody: a consumer asserts on findings with whatever runner they already use. -->
+         nobody: a consumer asserts on findings with whatever runner they already use.
+         ⛔ Held on the 3.x line, which Avalonia.Headless.XUnit 12.1.3 is built against
+         (xunit.v3.extensibility.core 3.2.2): on 4.0 its discoverer does not hook in, and every
+         [AvaloniaFact] in tests/XamlQuality.ThemeRuntime.Tests would run as a plain test with no
+         Application, as a family repository found on 12.1.2. -->
     <PackageVersion Include="xunit.v3" Version="3.2.2" />
     <!-- Same Microsoft.Testing.Platform line as xunit.v3 3.2.2 (1.9.1); a newer TrxReport pins
          the platform above what xunit's bundled MSBuild extension can load. -->
@@ -33,12 +37,15 @@
   </ItemGroup>
 
   <ItemGroup Label="Verification">
-    <!-- The headless probe under tools/probe only, which measures what Avalonia does under its
-         Fluent, Simple and Semi themes. ⛔ The rules LIBRARY takes none of these, as the Tool group
-         says: it reads markup as text, and nothing under tools/ ships. 12.1.3 is the Avalonia the
-         rules' framework claims were measured on. -->
+    <!-- The headless probe under tools/probe, which measures what Avalonia does under its Fluent,
+         Simple and Semi themes, and tests/XamlQuality.ThemeRuntime.Tests, which compiles the runtime
+         theme check's source files and runs them headless, by plans/00003. ⛔ The rules LIBRARY takes
+         none of these, as the Tool group says: it reads markup as text, and nothing under tools/
+         ships. No other project in XamlQuality.slnx may take one, which AvaloniaConfinementTests
+         holds. 12.1.3 is the Avalonia the rules' framework claims were measured on. -->
     <PackageVersion Include="Avalonia" Version="12.1.3" />
     <PackageVersion Include="Avalonia.Headless" Version="12.1.3" />
+    <PackageVersion Include="Avalonia.Headless.XUnit" Version="12.1.3" />
     <PackageVersion Include="Avalonia.Markup.Xaml.Loader" Version="12.1.3" />
     <PackageVersion Include="Avalonia.Skia" Version="12.1.3" />
     <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.3" />

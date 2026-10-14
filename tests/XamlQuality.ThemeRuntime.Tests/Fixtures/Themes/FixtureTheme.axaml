@@ -1,0 +1,31 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:XamlQuality.ThemeRuntime.Tests"
+        x:Class="XamlQuality.ThemeRuntime.Tests.FixtureTheme">
+  <!-- The shapes of the real themes the check must meet: a Default and a Dark dictionary, as Fluent's;
+       a variant that inherits Dark, its dictionary reached through an include, as Semi's high-contrast
+       ones are; and a key held only in a ControlTheme's own resources, which the audit counts as the
+       theme's and the application's lookup cannot reach. FixtureTheme.axaml.cs adds a resource in code,
+       which markup cannot show the audit. -->
+  <Styles.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Default">
+          <SolidColorBrush x:Key="Ink" Color="#101010" />
+          <SolidColorBrush x:Key="OnlyDefault" Color="#202020" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="Ink" Color="#F0F0F0" />
+          <SolidColorBrush x:Key="OnlyDark" Color="#E0E0E0" />
+        </ResourceDictionary>
+        <ResourceInclude x:Key="{x:Static local:FixtureVariants.Contrast}"
+                         Source="avares://XamlQuality.ThemeRuntime.Tests/Fixtures/Themes/Contrast.axaml" />
+      </ResourceDictionary.ThemeDictionaries>
+      <ControlTheme x:Key="{x:Type Button}" TargetType="Button">
+        <ControlTheme.Resources>
+          <SolidColorBrush x:Key="OnlyInControlTheme" Color="#303030" />
+        </ControlTheme.Resources>
+      </ControlTheme>
+    </ResourceDictionary>
+  </Styles.Resources>
+</Styles>

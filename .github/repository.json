@@ -21,5 +21,10 @@
   "content": [],
   "undocumented": {
     ".claude-plugin": "Holds only marketplace.json, the manifest Claude Code reads to serve the drivable-ui plugin in docs/ai-drivable-ui/plugin/. docs/AGENTS.md describes both."
+  },
+  "props": {
+    "XamlQuality.ThemeRuntime.Tests": {
+      "ImplicitUsings": "It compiles the runtime theme check's source files as an adopting project that turns implicit usings off would, so a file that leans on one fails here rather than in that project (plans/00003)."
+    }
   }
 }

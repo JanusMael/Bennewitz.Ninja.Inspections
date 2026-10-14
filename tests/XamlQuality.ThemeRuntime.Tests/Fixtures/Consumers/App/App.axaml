@@ -1,0 +1,27 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Data for the audit, never compiled. Every key the tests ask about, and one written as a markup
+       extension, which the check cannot ask about. -->
+  <Style Selector="Border.app">
+    <Setter Property="Background" Value="{DynamicResource Ink}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource OnlyDefault}" />
+  </Style>
+  <Style Selector="TextBlock.app">
+    <Setter Property="Foreground" Value="{DynamicResource OnlyDark}" />
+    <Setter Property="Background" Value="{DynamicResource OnlyContrast}" />
+  </Style>
+  <Style Selector="Button.app">
+    <Setter Property="Background" Value="{DynamicResource CodeAdded}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource OnlyInControlTheme}" />
+  </Style>
+  <Style Selector="Panel.app">
+    <Setter Property="Background" Value="{DynamicResource GoodAlias}" />
+  </Style>
+  <Style Selector="Panel.dark">
+    <Setter Property="Background" Value="{DynamicResource DarkAlias}" />
+  </Style>
+  <Style Selector="Panel.top">
+    <Setter Property="Background" Value="{DynamicResource TopAlias}" />
+  </Style>
+  <ControlTheme x:Key="AppButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}" />
+</Styles>

@@ -1,0 +1,21 @@
+{
+  // The audit the runtime check's tests read against Avalonia: the fixture theme, compiled into this
+  // project and reached as avares://XamlQuality.ThemeRuntime.Tests/..., so its base directory is the
+  // project's; the same theme with the alias dictionary merged after it; and one consumer.
+  "title": "Runtime check fixtures",
+  "report": "theme-audit.md",
+  "themes": [
+    {
+      "name": "Fixture",
+      "entry": "Themes/FixtureTheme.axaml",
+      "baseDirectory": "..",
+      "assembly": "XamlQuality.ThemeRuntime.Tests",
+      "variants": ["Light", "Dark", "Contrast"],
+      "inheritance": { "Contrast": "Dark" },
+    },
+    { "name": "Fixture + aliases", "extends": "Fixture", "merge": ["Themes/Aliases.axaml"] },
+  ],
+  "consumers": [
+    { "name": "App", "paths": ["Consumers/App"] },
+  ],
+}

@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The runtime theme check's Avalonia half, compiled from src/XamlQuality.ThemeRuntime/ and run
+       headless over fixture themes, by plans/00003. IsTestProject, OutputType and xunit come from
+       tests/Directory.Build.props.
+       ⛔ The only project in the solution that takes Avalonia. Packaging/AvaloniaConfinementTests in
+       XamlQuality.Tests fails when another one does. -->
+  <PropertyGroup>
+    <!-- The shipped files are compiled here as an adopting project that turns none of these on
+         would compile them: no implicit usings, no global using of the repository's, and the
+         language version a project gets by default. HostileAliases.cs adds the other side. The
+         family's ImplicitUsings rule is exempted for this project in .github/repository.json. -->
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>default</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Remove="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Headless.XUnit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/XamlQuality/XamlQuality.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../../src/XamlQuality.ThemeRuntime/*.cs" Link="ThemeRuntime/%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- A consumer's markup is data the audit reads from disk, never compiled: it references keys
+         nothing here defines. The fixture themes are compiled, and loaded by avares://. -->
+    <AvaloniaXaml Remove="Fixtures/Consumers/**" />
+    <!-- Serial execution: every Avalonia test shares the one headless dispatcher, and the check
+         changes the application while it runs. -->
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

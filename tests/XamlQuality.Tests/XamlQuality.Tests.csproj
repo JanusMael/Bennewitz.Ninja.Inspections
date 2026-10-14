@@ -5,6 +5,10 @@
     <!-- Referenced so ThemeAudit.dll lands in the test output, where AssemblyQualityTests scans it
          beside the library. -->
     <ProjectReference Include="../../src/XamlQuality.ThemeAudit/XamlQuality.ThemeAudit.csproj" />
+    <!-- Referenced without its output, which is no shipped assembly, so that building the tests
+         restores and builds the source-only package's project: SourceOnlyPackageTests packs it
+         without a build, and a pack without a build restores nothing. -->
+    <ProjectReference Include="../../src/XamlQuality.ThemeRuntime/XamlQuality.ThemeRuntime.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>

@@ -2,8 +2,10 @@
   <Folder Name="/src/">
     <Project Path="src/XamlQuality/XamlQuality.csproj" />
     <Project Path="src/XamlQuality.ThemeAudit/XamlQuality.ThemeAudit.csproj" />
+    <Project Path="src/XamlQuality.ThemeRuntime/XamlQuality.ThemeRuntime.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/XamlQuality.Tests/XamlQuality.Tests.csproj" />
+    <Project Path="tests/XamlQuality.ThemeRuntime.Tests/XamlQuality.ThemeRuntime.Tests.csproj" />
   </Folder>
 </Solution>

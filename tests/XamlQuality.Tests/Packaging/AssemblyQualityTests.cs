@@ -24,7 +24,9 @@ namespace XamlQuality.Tests.Packaging;
 /// <para>
 /// ⚠ <b>Zero findings means nothing unless something was inspected and nothing was skipped.</b> The
 /// scan holds every project under <c>src</c>, found by the assembly name its csproj declares, because
-/// the tool ships as <c>ThemeAudit.dll</c> rather than under its project's name. After that, an
+/// the tool ships as <c>ThemeAudit.dll</c> rather than under its project's name. A project that declares
+/// itself source-only ships its files and no assembly, so it is left out, and
+/// <see cref="SourceOnlyPackageTests"/> holds what it ships instead. After that, an
 /// inspected count of zero is accepted only where zero is true, and that case says why. And a rule
 /// names in <see cref="AssemblyRuleResult.Skipped"/> what it could not examine, such as a type whose
 /// signatures name an assembly that would not load, so each test asserts it empty: a skip makes the
@@ -161,12 +163,14 @@ public sealed class AssemblyQualityTests
     }
 
     /// <summary>
-    /// The assembly name of every project under <c>src</c>: the <c>AssemblyName</c> its csproj
-    /// declares, or the project's file name when it declares none.
+    /// The assembly name of every project under <c>src</c> that ships one: the <c>AssemblyName</c> its
+    /// csproj declares, or the project's file name when it declares none. A source-only project ships
+    /// none, and <see cref="SourceOnlyPackageTests"/> holds its package.
     /// </summary>
     private static string[] LoadAssemblyNames() =>
     [
         .. Directory.GetFiles(Path.Combine(RepoRoot(), "src"), "*.csproj", SearchOption.AllDirectories)
+            .Where(path => !SourceOnlyPackageTests.DeclaresSourceOnly(path))
             .Select(AssemblyNameOf)
             .Order(StringComparer.Ordinal),
     ];
