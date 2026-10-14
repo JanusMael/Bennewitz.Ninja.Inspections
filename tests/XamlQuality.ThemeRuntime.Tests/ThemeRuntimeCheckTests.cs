@@ -34,6 +34,8 @@ public sealed class ThemeRuntimeCheckTests
     {
         RuntimeCheckResult result = ThemeRuntimeCheck.Run(Audit(), Map());
 
+        // The application's own style and resources hold OnlyDark, OnlyContrast and GoodAlias, so a check
+        // that did not set them aside would find them where the audit finds them undefined.
         Assert.DoesNotContain(result.Differences, d => d.Lookup.Key is "Ink" or "OnlyDefault" or "OnlyDark" or "OnlyContrast" or "GoodAlias");
 
         // Two themes, three variants each, and the nine keys the consumer references and does not define.
@@ -89,12 +91,16 @@ public sealed class ThemeRuntimeCheckTests
     [AvaloniaFact]
     public void What_the_map_leaves_out_is_skipped_and_never_asked()
     {
+        // No Contrast for the first theme, and no factory for the second, whose variants and merged
+        // dictionary the map does name.
         ThemeRuntimeMap map = new()
         {
             Themes = new Dictionary<string, Func<IStyle>> { [Fixture] = () => new FixtureTheme() },
+            Merges = new Dictionary<string, Uri> { ["Themes/Aliases.axaml"] = AliasesUri },
             Variants = new Dictionary<string, IReadOnlyDictionary<string, ThemeVariant>>
             {
                 [Fixture] = new Dictionary<string, ThemeVariant> { ["Light"] = ThemeVariant.Light, ["Dark"] = ThemeVariant.Dark },
+                [WithAliases] = Variants(FixtureVariants.Contrast),
             },
         };
 
