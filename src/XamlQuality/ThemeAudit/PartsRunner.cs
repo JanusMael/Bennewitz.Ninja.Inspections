@@ -25,6 +25,11 @@ namespace Bennewitz.Ninja.XamlQuality.ThemeAudit;
 /// from two markup folders are told apart, ordered by file, then line. A folder inside another the configuration names,
 /// or named twice, is read once, with the folder that holds it, so no theme is read twice.
 /// </para>
+/// <para>
+/// ⚠ <b>A received copy is not read.</b> A failing check writes its fresh output beside a stale one as
+/// <c>name.received.ext</c>, which among the markup would read as a theme the consumer wrote; the reading leaves it
+/// out, as every scan of the audit does.
+/// </para>
 /// </remarks>
 public static class PartsRunner
 {
@@ -44,7 +49,8 @@ public static class PartsRunner
         List<TemplatePartReading> readings = [];
         foreach (string root in Outermost(parts.Markup.Select(config.Resolve)))
         {
-            TemplatePartReading reading = TemplatePartRule.ReadParts(XamlScanContext.Load(root).WithAssemblies(assemblies));
+            XamlScanContext scan = XamlScanContext.Load(root).Without(file => OutputDrift.IsReceived(file.Path)).WithAssemblies(assemblies);
+            TemplatePartReading reading = TemplatePartRule.ReadParts(scan);
             readings.Add(reading with
             {
                 Controls =

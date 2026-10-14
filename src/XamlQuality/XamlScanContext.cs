@@ -74,6 +74,14 @@ public sealed class XamlScanContext
         return new XamlScanContext(Root, Files, [.. assemblies]);
     }
 
+    /// <summary>The same scan without the files <paramref name="leaveOut"/> names.</summary>
+    /// <remarks>
+    /// For a reader that knows some files under the root are no markup a consumer wrote, as the theme audit knows its
+    /// drift check's received copies. Internal, so the scan a consumer loads stays every markup file under its root.
+    /// </remarks>
+    internal XamlScanContext Without(Func<XamlFile, bool> leaveOut) =>
+        new(Root, [.. Files.Where(file => !leaveOut(file))], Assemblies);
+
     /// <summary>Read every markup file under <paramref name="root"/>.</summary>
     /// <param name="root">Directory to scan, recursively.</param>
     /// <param name="excludedDirectories">

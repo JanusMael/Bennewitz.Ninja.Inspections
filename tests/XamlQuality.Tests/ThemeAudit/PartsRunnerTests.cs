@@ -76,6 +76,22 @@ public sealed class PartsRunnerTests : IDisposable
             Assert.Single(reading.Controls).Themes.Select(theme => $"{theme.File}:{theme.Line}"));
     }
 
+    /// <summary>
+    /// A received copy a failing check left among the markup, <c>name.received.axaml</c>, is the tool's own output and
+    /// no theme: the reading leaves it out, as every scan of the audit does.
+    /// </summary>
+    [Fact]
+    public void AReceivedCopyAmongTheMarkup_IsNotRead()
+    {
+        Theme("first", "PART_Needle");
+        File.Copy(Path.Combine(_root, "first", "Gauge.axaml"), Path.Combine(_root, "first", "Gauge.received.axaml"));
+
+        TemplatePartReading reading = PartsRunner.Read(Config("first"));
+
+        Assert.Equal(["first/Gauge.axaml:2"], Assert.Single(reading.Controls).Themes.Select(theme => $"{theme.File}:{theme.Line}"));
+        Assert.Empty(reading.Skipped);
+    }
+
     [Fact]
     public void AConfigurationWithNoPartsReport_IsAConfigurationError()
     {
