@@ -1,0 +1,24 @@
+{
+  // The real themes' sources, fetched into reference/ by scripts/fetch-reference.cs for work by hand,
+  // by plans/00003: nothing automated reads them. Each is fetched at the tag "tag" makes of the version
+  // Directory.Packages.props pins for its packages, which must agree, so the sources cannot drift from
+  // the packages a measurement runs. "sparse" lists the folders a checkout holds.
+  "sources": [
+    {
+      "name": "Avalonia",
+      "dir": "reference/Avalonia",
+      "url": "https://github.com/AvaloniaUI/Avalonia.git",
+      "packages": ["Avalonia.Themes.Fluent", "Avalonia.Themes.Simple"],
+      "tag": "{version}",
+      "sparse": ["src/Avalonia.Themes.Fluent", "src/Avalonia.Themes.Simple"]
+    },
+    {
+      "name": "Semi.Avalonia",
+      "dir": "reference/Semi.Avalonia",
+      "url": "https://github.com/irihitech/Semi.Avalonia.git",
+      "packages": ["Semi.Avalonia"],
+      "tag": "v{version}",
+      "sparse": ["src/Semi.Avalonia"]
+    }
+  ]
+}
