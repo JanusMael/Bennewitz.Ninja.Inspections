@@ -20,6 +20,10 @@ and library types the files use, so a name they leave unqualified fails to build
 their usings inside their namespace, which lookup searches before the aliases.
 `Fixtures/theme-audit.json` audits the themes under `Fixtures/Themes`, compiled and loaded by
 `avares://`, for the consumer under `Fixtures/Consumers`, which is data and never compiled.
+It also holds the audit's colours to what Avalonia draws, by `plans/00004`: `DrawnColourTests` loads
+each case's markup at test time with `Avalonia.Markup.Xaml.Loader`, presents it in Simple's window
+template, and reads the pixel Skia renders, which is why `TestApp` draws with Skia; the pixel must be
+what Skia's CPU raster draws for the colour the audit resolves.
 
 ## Rules
 
@@ -32,6 +36,7 @@ their usings inside their namespace, which lookup searches before the aliases.
 | A test that could pass vacuously has a companion proving there was something to check | A discovery that finds nothing agrees perfectly with an empty table or an empty scan | `RulesCatalogTests.RuleDiscovery_FindsTheRulesThatShip`; `ReleaseWorkflowTests.The_release_workflow_still_has_both_publishing_steps`; the `Inspected` and `Skipped` assertions in `AssemblyQualityTests`; `SourceOnlyPackageTests.A_source_only_project_is_found`; `AvaloniaConfinementTests.The_guard_reads_every_other_project_the_solution_holds` and `A_package_whose_id_names_Avalonia_is_found_and_a_project_is_not` |
 | Avalonia.Headless builds an application for each test, so `TestApp` holds its style and resources per instance | A style held statically belongs to the first test's application, and adding it to the next one's throws in that test's setup, so every test after the first errors before it runs | `TestApp.OwnStyle` |
 | `TestApp`'s own style, its `Styles` collection's resources and its own resources hold keys the consumer references and the audit finds undefined in some setup | Under keys nothing references, a check that left the application's styles or resources in place while it asked would pass every test | `ThemeRuntimeCheckTests.Where_the_audit_and_Avalonia_agree_nothing_is_reported_through_inheritance_an_include_or_an_alias` |
+| `DrawnColourTests` predicts each pixel with Skia's CPU raster arithmetic applied to the colour the audit resolves, never with the audit's exact blend, and holds it to the level | The raster blends in integers of its own, alike on every CPU, from two levels below the exact blend to one above, so the exact blend fails some colours, and a tolerance would hide a level the audit got wrong | `DrawnColourTests` (its private `Rastered`) |
 | `XamlQuality.ThemeRuntime.Tests` runs its tests one at a time | The check changes the application while it runs, on the one headless dispatcher every test shares | `xunit.runner.json` |
 | The README table is regenerated with `XQ_UPDATE_DOCS` set, never edited by hand, and the build never writes it | A build that edits a tracked file leaves CI with a dirty tree | `RulesCatalogTests.TheReadmeRulesTable_IsWhatTheRuleTypesSay` |
 | No test constructs a type in `Rules/FocusFakes.cs` | Constructing one runs its static constructor, which is `BNXQ1005`'s job; a test that ran it first would hide the cold read the rule has to get right | the file's header comment; test `KeyBindingFocusRuleTests.AListWithStockRows_IsLive_BecauseItsRowsTakeFocus` |

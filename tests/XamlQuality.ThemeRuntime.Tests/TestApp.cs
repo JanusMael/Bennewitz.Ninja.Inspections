@@ -6,10 +6,11 @@ using Avalonia;
 using Avalonia.Headless;
 
 /// <summary>
-/// The application every test runs under, headless, one for each test. Its own style, the resources its
-/// <c>Styles</c> collection holds and its own resources each hold a key the consumer references and the
-/// audit finds undefined in some setup, so a check that did not set them aside would find them there.
-/// Every run of the check must leave them as it found them.
+/// The application every test runs under, headless, one for each test, drawn by Skia so that a test can
+/// read the pixels a window renders. Its own style, the resources its <c>Styles</c> collection holds and
+/// its own resources each hold a key the consumer references and the audit finds undefined in some
+/// setup, so a check that did not set them aside would find them there. Every run of the check must
+/// leave them as it found them.
 /// </summary>
 public sealed class TestApp : Application
 {
@@ -34,5 +35,5 @@ public sealed class TestApp : Application
     }
 
     public static AppBuilder BuildAvaloniaApp() =>
-        AppBuilder.Configure<TestApp>().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = true });
+        AppBuilder.Configure<TestApp>().UseSkia().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false });
 }
