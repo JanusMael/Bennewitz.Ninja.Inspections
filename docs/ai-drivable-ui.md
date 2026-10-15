@@ -236,7 +236,13 @@ the same state: it was never activated.
    that stops early is not a pass**: set a flag as the run's last statement and lead the summary with
    DID NOT FINISH while it is unset, and count a reading never taken as INCONCLUSIVE.
 7. **Guard every negative.** "No bell appeared" is also what a view that never read the new line
-   reports — prove the line arrived before "nothing happened" means anything.
+   reports — prove the line arrived before "nothing happened" means anything. **A test of a guard
+   included**: a harness moved a window over its target, assumed the move had landed, clicked, and
+   read the click being allowed as a hole in the guard, without having shown the obstruction was at
+   that pixel. Measure the condition the guard is for before reading its answer, here the obstruction
+   topmost at the click point by `WindowFromPoint`, and report a run whose premise failed as
+   INCONCLUSIVE, never FAIL. Pair a refusal with the same click allowed once the obstruction is gone:
+   a guard that refuses everything refuses the case under test too.
 8. **Give every claim a control arm.** A second launch that differs in exactly one thing (the option
    off, the file not empty) and must come out differently. A harness whose control also fails is
    measuring itself — or, occasionally, a shared path in the application; check which.
@@ -246,7 +252,13 @@ the same state: it was never activated.
     cache with its last rectangle instead of throwing; assert absence as `FindFirst` returning null.
 11. **Assert in device-independent pixels, and print the display metrics, the DPI awareness and the
     session type at the top of every transcript.** A figure that looks doubled or halved is a DPI
-    story. Or make the claim a ratio that cancels the scale.
+    story. Or make the claim a ratio that cancels the scale. **Every process that reads a rectangle,
+    a one-off script beside the driver too**: one written beside a per-monitor aware driver was
+    itself unaware, and on a Windows console at 200% its `GetWindowRect` read a 2200 × 1440 window as
+    1113 × 756, which it fed back to `SetWindowPos`. So put the check in the driver's own refusals, not only in prose. ⚠
+    Another, launched the same way in the same session, printed that it was not per-monitor aware,
+    its `SetProcessDpiAwarenessContext` having been refused, and read physical coordinates all the
+    same; what differed was not established.
 12. **Count pixels by structure, not by colour alone.** ClearType fringing makes a raw coloured-pixel
     count meaningless; count scanlines at least 60% filled, or compare two regions of the same row,
     and make any blankness guard sample the same pixels the assertion reads.
