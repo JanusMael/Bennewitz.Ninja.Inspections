@@ -16,7 +16,8 @@
 //             null and something in its template takes the row's Background; a "draw no background"
 //             finding holds where every row draws nothing; a clean verdict is MISSED where either holds.
 //   BNXQ1009  a finding holds where, under every theme, every row's peer reports its item's
-//             ToString(); a clean verdict is MISSED where that is so.
+//             ToString(), and that is object's or the compiler's, which name the item by its type,
+//             not one its type writes; a clean verdict is MISSED where that is so.
 //   BNXQ1005  a finding holds where, under every theme, nothing takes focus and F5 ran the command 0
 //             times; a clean verdict is MISSED where that is so.
 //   A skip claims nothing, and markup that does not load under some theme makes every verdict claim
@@ -208,7 +209,7 @@ static class Judge
     private static readonly Regex Counts = new(@"^(BNXQ10\d\d): inspected (\d+), findings (\d+), skipped (\d+)$");
     private static readonly Regex Start = new(@"start (\S+)");
     private static readonly Regex State = new(@"\[([^\]]*)\]");
-    private static readonly Regex Peer = new(@"peer name ""([^""]*)"" \(item ToString ""([^""]*)""\)");
+    private static readonly Regex Peer = new(@"peer name ""([^""]*)"" \(item ToString ""([^""]*)""(?:, written by ([^)]*))?\)");
     private static readonly Regex Focus = new(@"focus: takes focus \[([^\]]*)\]");
     private static readonly Regex Runs = new(@"F5 ran the command (\d+) time");
 
@@ -420,9 +421,11 @@ static class Judge
                 continue;
             }
 
+            // A ToString() the item's type writes names it by what it is, as a string or an enum's member does.
             Match[] peers = Peer.Matches(string.Join("\n", lines)).ToArray();
             summary.Add($"{theme}: peers {string.Join('/', peers.Select(peer => peer.Groups[1].Value))}");
-            toStringAll = toStringAll && peers.Length > 0 && peers.All(peer => peer.Groups[1].Value == peer.Groups[2].Value);
+            toStringAll = toStringAll && peers.Length > 0
+                          && peers.All(peer => peer.Groups[1].Value == peer.Groups[2].Value && peer.Groups[3].Value != "its type");
         }
 
         string measured = string.Join("; ", summary);
