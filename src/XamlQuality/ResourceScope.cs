@@ -279,6 +279,9 @@ internal sealed partial class ResourceScope
     /// <summary>Every <c>Style</c> in the scan that has a selector and is not inside a <c>ControlTheme</c>, nested ones included.</summary>
     internal IReadOnlyList<(XamlFile File, XElement Style)> Styles => _styles;
 
+    /// <summary>The files whose root is an <c>Application</c>, whose styles, resources and data templates an element reaches last.</summary>
+    internal IReadOnlyList<XamlFile> Applications => _applications;
+
     /// <summary>
     /// Every <c>Style</c> that reaches <paramref name="from"/> as far as markup shows it: those in its
     /// own <c>Styles</c> and each ancestor's, then the application's, with the styles nested in them
