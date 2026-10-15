@@ -291,6 +291,15 @@ writing the output. The audit never reads a received copy, but ignore `*.receive
 `.axaml` before a build, which compiles it too. A test that generates an output in its own process runs the same
 comparison with `OutputDrift.Check`, and writes the output with `OutputDrift.Write`.
 
+**A colour is what Avalonia draws.** A brush's alpha is its colour's times every opacity on the way, truncated to a
+whole byte once, as Avalonia's Skia renderer paints it. A brush's `Color` and `Opacity` are read as attributes, as a
+whole `{StaticResource}` or `{DynamicResource}`, or as property elements holding a literal or a `<StaticResource>`,
+an `Opacity` naming an `x:Double`. A brush whose `Color` names a brush, which Avalonia does not load, and one whose
+`Color` or `Opacity` is a binding or anything else the audit cannot read, has no colour rather than a guessed one, so
+a contrast pair that names it reads `n/a`. A contrast figure composites a translucent colour over its background
+exactly. Skia's CPU renderer, as headless tests run it, blends a translucent colour in integers of its own, the same
+on every CPU, from two levels below the exact blend to one above it.
+
 **The parts report is the template parts reference a control library commits.** For each control it lists the
 `PART_` constants the code declares, each part some code looks up on the control's template and whose code that is,
 and the parts each of its themes declares, with the element and the automation id. A part a theme lacks that the code
