@@ -244,6 +244,87 @@ parts.SetAction(parseResult =>
 
 root.Subcommands.Add(parts);
 
+// ---- brand: the brand documents -----------------------------------------------------------------
+
+Command brand = new("brand", "Fill each configured brand document from its template and its theme's palette, and write it.");
+brand.Options.Add(configOption);
+brand.Options.Add(checkOption);
+brand.SetAction(parseResult =>
+{
+    FileInfo configFile = parseResult.GetValue(configOption)!;
+    bool check = parseResult.GetValue(checkOption);
+
+    try
+    {
+        AuditConfig config = AuditConfig.Load(configFile.FullName);
+        if (config.Brand.Count == 0)
+        {
+            Console.Error.WriteLine("theme-audit: the configuration declares no brand documents.");
+            return 2;
+        }
+
+        // Every document is filled before any is written, so one whose claim fails leaves the others as they were.
+        List<(string Output, BrandResult Result)> documents = [.. config.Brand.Select(entry => (config.Resolve(entry.Output), BrandRunner.Fill(config, entry)))];
+        if (documents.Any(document => document.Result.Problems.Count > 0))
+        {
+            foreach ((string output, BrandResult result) in documents.Where(document => document.Result.Problems.Count > 0))
+            {
+                Console.Error.WriteLine($"theme-audit: {config.Relative(output)} cannot be filled — {result.Problems.Count} problem(s):");
+                foreach (string problem in result.Problems)
+                {
+                    Console.Error.WriteLine($"  {problem}");
+                }
+            }
+
+            Console.Error.WriteLine("theme-audit: nothing was written.");
+            return 1;
+        }
+
+        int stale = 0;
+        foreach ((string output, BrandResult result) in documents)
+        {
+            string relative = config.Relative(output);
+            string summary = $"{result.Markdown.Count(c => c == '\n')} lines";
+            if (check)
+            {
+                switch (OutputDrift.Check(output, result.Markdown))
+                {
+                    case DriftState.Missing:
+                        Console.Error.WriteLine($"theme-audit: {relative} does not exist; run `theme-audit brand` to create it.");
+                        stale++;
+                        break;
+                    case DriftState.Stale:
+                        Console.Error.WriteLine($"theme-audit: {relative} is stale — it differs from a fresh run ({summary}); regenerate it with `theme-audit brand`.");
+                        stale++;
+                        break;
+                    default:
+                        Console.WriteLine($"theme-audit: {relative} is up to date ({summary}).");
+                        break;
+                }
+
+                continue;
+            }
+
+            OutputDrift.Write(output, result.Markdown);
+            Console.WriteLine($"theme-audit: wrote {relative} ({summary}).");
+        }
+
+        return stale == 0 ? 0 : 1;
+    }
+    catch (AuditConfigException ex)
+    {
+        Console.Error.WriteLine($"theme-audit: {ex.Message}");
+        return 2;
+    }
+    catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+    {
+        Console.Error.WriteLine($"theme-audit: {ex.Message}");
+        return 1;
+    }
+});
+
+root.Subcommands.Add(brand);
+
 return root.Parse(args).Invoke();
 
 static string Summarize(CompatGeneration generation)

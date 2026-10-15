@@ -8,7 +8,11 @@ namespace Bennewitz.Ninja.XamlQuality.ThemeAudit;
 /// (<c>null</c> when a code provider supplied it), and a detached copy of the defining element so
 /// a generator can carry the definition verbatim into another dictionary.
 /// </summary>
-public sealed record ResourceDefinition(ResourceValue Value, string? File, XElement? Element);
+public sealed record ResourceDefinition(ResourceValue Value, string? File, XElement? Element)
+{
+    /// <summary>The line of <see cref="File"/> the defining element starts on; 0 when a code provider supplied it.</summary>
+    public int Line { get; init; }
+}
 
 /// <summary>
 /// Where a theme comes from and what the walker needs to read it completely: the entry file and
@@ -103,6 +107,17 @@ public sealed class VariantInventory
     }
 
     /// <summary>
+    /// The colour <paramref name="key"/> resolves to as <see cref="Resolve(string)"/> resolves it, drawn inside
+    /// elements whose opacities multiply to <paramref name="opacity"/>: the brush's own opacity times
+    /// <paramref name="opacity"/>, truncated once, as Avalonia's Skia renderer multiplies a brush's opacity by the
+    /// opacity its elements push before it makes the alpha.
+    /// </summary>
+    internal AuditColor? Resolve(string key, double opacity)
+    {
+        return Resolve(key, [], opacity, asColor: false);
+    }
+
+    /// <summary>
     /// Follows <paramref name="key"/>, <paramref name="opacity"/> being the product of the opacities
     /// met on the way, and <paramref name="asColor"/> whether a brush's <c>Color</c> named it, so that
     /// it must be a colour.
@@ -159,7 +174,7 @@ public sealed class VariantInventory
     /// solid brush at 12.1.3 (<c>DrawingContextImpl.CreatePaint</c>): the alpha times the opacity,
     /// truncated to a whole byte once.
     /// </summary>
-    private static AuditColor WithOpacity(AuditColor color, double opacity)
+    internal static AuditColor WithOpacity(AuditColor color, double opacity)
     {
         return opacity >= 1.0 ? color : color with { A = (byte)(color.A * opacity) };
     }

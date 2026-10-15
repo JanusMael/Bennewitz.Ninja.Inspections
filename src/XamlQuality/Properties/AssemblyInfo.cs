@@ -35,4 +35,7 @@ using System.Runtime.CompilerServices;
 // project may compile an older source half against a newer library. Plans/00004 adds three init
 // properties to the audit's ResourceValue records, as permanent: ColorLiteral.OpacityKey, and
 // Alias.OpacityKey and Alias.FromColor, which record a brush's Opacity written as a resource's key
-// and a brush's Color written as an alias.
+// and a brush's Color written as an alias. Its brand output adds, as permanent, the init property
+// ResourceDefinition.Line, AuditConfig.Brand, and four types: BrandConfig and BrandFrame, a brand
+// document's configuration, and BrandRunner and BrandResult, which fill one; a consumer's own program
+// calls BrandRunner.Fill with the blocks only its code can render.
