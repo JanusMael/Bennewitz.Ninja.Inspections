@@ -133,7 +133,7 @@ internal static class FrameworkStyles
 internal static partial class Cases
 {
     /// <summary>probe6's cases, then this judge's.</summary>
-    public static Case[] Every => [.. All, .. All7, .. All8, .. All9, .. All10, .. All11, .. All12, .. AllJ9, .. AllJ9c, .. AllR10, .. AllJ10, .. AllR11, .. AllJ11, .. AllJ12, .. AllJ13, .. AllJ14, .. AllJ15, .. AllJ16];
+    public static Case[] Every => [.. All, .. All7, .. All8, .. All9, .. All10, .. All11, .. All12, .. AllJ9, .. AllJ9c, .. AllR10, .. AllJ10, .. AllR11, .. AllJ11, .. AllJ12, .. AllJ13, .. AllJ14, .. AllJ15, .. AllJ16, .. AllIS];
 
     private const string Label = "<TextBlock Text=\"{Binding Label}\" HorizontalAlignment=\"Left\"/>";
 

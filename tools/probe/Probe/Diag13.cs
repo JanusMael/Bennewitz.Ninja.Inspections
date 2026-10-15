@@ -3,8 +3,10 @@ using Avalonia;
 using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Templates;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Layout;
 using Avalonia.LogicalTree;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -43,7 +45,38 @@ public sealed class Model13
 
     /// <summary>A selection a binding reads: the first row.</summary>
     public int Zero => 0;
+
+    /// <summary>The ItemsSource reading's cases: strings, each its own ToString().</summary>
+    public string[] Texts { get; } = ["Alpha", "Beta", "Gamma"];
+
+    /// <summary>The ItemsSource reading's cases: an enum's members, each named by its member.</summary>
+    public Mode13[] Modes { get; } = [Mode13.Alpha, Mode13.Beta, Mode13.Gamma];
+
+    /// <summary>The ItemsSource reading's cases: items whose type writes its own ToString().</summary>
+    public Labeled13[] Labeled { get; } = [new("Alpha"), new("Beta"), new("Gamma")];
+
+    /// <summary>The ItemsSource reading's cases: records, whose ToString() the compiler writes.</summary>
+    public Rec13[] Records { get; } = [new("Alpha"), new("Beta"), new("Gamma")];
 }
+
+/// <summary>The ItemsSource reading's cases: an enum whose members are what its rows show.</summary>
+public enum Mode13
+{
+    Alpha,
+    Beta,
+    Gamma,
+}
+
+/// <summary>The ItemsSource reading's cases: a type whose own ToString() is its label.</summary>
+public sealed class Labeled13(string label)
+{
+    public string Label { get; } = label;
+
+    public override string ToString() => Label;
+}
+
+/// <summary>The ItemsSource reading's cases: a record, whose ToString() the compiler writes.</summary>
+public sealed record Rec13(string Label);
 
 internal static class Diag13
 {
@@ -86,6 +119,17 @@ internal static partial class Facts9
     {
         List<string> lines = [];
         Window? window = null;
+
+        // An application data template, of the one kind the ItemsSource reading's cases name, so that every case measured
+        // before them keeps the measurement its review judged.
+        IDataTemplate? added = c.AppTemplate == "rowtext"
+            ? new FuncDataTemplate<Row>((row, _) => new TextBlock { Text = row.Label, HorizontalAlignment = HorizontalAlignment.Left })
+            : null;
+        if (added is not null)
+        {
+            Application.Current!.DataTemplates.Add(added);
+        }
+
         try
         {
             Control root;
@@ -188,19 +232,42 @@ internal static partial class Facts9
                 }
 
                 string name = ControlAutomationPeer.CreatePeerForElement(row).GetName() ?? "(null)";
-                string item = host.ItemsSource is System.Collections.IList list && index < list.Count ? list[index]?.ToString() ?? "null" : "?";
+                System.Collections.IList? items = host.ItemsSource as System.Collections.IList;
+                object? held = items is not null && index < items.Count ? items[index] : null;
+                string item = items is not null && index < items.Count ? held?.ToString() ?? "null" : "?";
                 string state = (row is ListBoxItem { IsSelected: true } ? "selected " : string.Empty) + (row.IsEffectivelyEnabled ? string.Empty : "disabled");
-                lines.Add($"row{index} {row.GetType().Name}: theme {KeyOf(host, row.Theme)}; peer name \"{name}\" (item ToString \"{item}\"); "
+                lines.Add($"row{index} {row.GetType().Name}: theme {KeyOf(host, row.Theme)}; peer name \"{name}\" (item ToString \"{item}\", written by {WrittenBy(held)}); "
                           + $"[{state.Trim()}] {Drawing(row, window)}");
             }
         }
         finally
         {
+            if (added is not null)
+            {
+                Application.Current!.DataTemplates.Remove(added);
+            }
+
             window?.Close();
             Dispatcher.UIThread.RunJobs();
         }
 
         return lines;
+    }
+
+    /// <summary>
+    /// Who wrote the ToString() an item resolves to: "object" for object's or ValueType's, which names the item by its
+    /// type, "the compiler" for a record's, which names it by its type and every property, else "its type".
+    /// </summary>
+    private static string WrittenBy(object? item)
+    {
+        if (item?.GetType().GetMethod("ToString", Type.EmptyTypes) is not { } method)
+        {
+            return "nobody";
+        }
+
+        return method.DeclaringType == typeof(object) || method.DeclaringType == typeof(ValueType) ? "object"
+            : method.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute), inherit: false) ? "the compiler"
+            : "its type";
     }
 
     /// <summary>The facts pass's reading of one row: start, takers, stand-ins and painters, with the row's own value restored after.</summary>

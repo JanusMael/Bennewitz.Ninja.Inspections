@@ -13,7 +13,7 @@ imports the root's and sets `IsPackable` to `false`, and no project here is in `
 | `mutate.cs` | Plants each defect a catalog lists in a copy of the working tree, one at a time, runs one test class from the test project that holds it, and reports whether exactly the tests the catalog expects failed | `dotnet run --file tools/mutate.cs -- <TestClass> <catalog.json>`; CI's `Verification tools` job, over `mutate/smoke.json` |
 | `mutate/smoke.json` | Two defects in code that rarely changes, each failing one known test of `ExpanderAutomationNameRuleTests`: the catalog CI runs to show the runner still works | `mutate.cs` |
 | `probe.cs` | Measures the probe's cases headless under Avalonia's Fluent, Simple and Semi themes, runs `BNXQ1010`, `BNXQ1009` and `BNXQ1005` over each, and judges every verdict against what was measured | `dotnet run --file tools/probe.cs -- <pattern>`; CI's `Verification tools` job builds it |
-| `probe/Probe/` | The headless probe, built as `FpProbe6`: the cases the reviews of those three rules wrote, each a list, combo or tab control, and the passes that measure them | `probe.cs`; CI's `Verification tools` job builds it |
+| `probe/Probe/` | The headless probe, built as `FpProbe6`: the cases the reviews of those three rules, and the changes to them, wrote, each a list, combo or tab control, and the passes that measure them | `probe.cs`; CI's `Verification tools` job builds it |
 | `probe/ProbeLib/` | A consumer's control library, which the probe references and the rules are not given | `probe/Probe/` |
 
 ## The real-code comparison

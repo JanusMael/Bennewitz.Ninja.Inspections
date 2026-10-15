@@ -202,9 +202,9 @@ what `main` printed. A change that alters what a rule says about real code shows
 and CI's `Verification tools` job holds every pull request to the record. The mutation runner plants
 each defect a catalog lists in a copy of the working tree, one at a time, and reports whether exactly
 the tests the catalog expects failed. The headless probe measures what Avalonia does with the cases
-the reviews of `BNXQ1005`, `BNXQ1009` and `BNXQ1010` wrote, under its Fluent, Simple and Semi themes,
-and judges what each of those rules says about each case against the measurements; CI builds it and
-does not run it. `tools/AGENTS.md` says how.
+the reviews of `BNXQ1005`, `BNXQ1009` and `BNXQ1010`, and the changes to them, wrote, under its
+Fluent, Simple and Semi themes, and judges what each of those rules says about each case against the
+measurements; CI builds it and does not run it. `tools/AGENTS.md` says how.
 
 ## Who consumes this
 
