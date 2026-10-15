@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- The runtime theme check's Avalonia half, compiled from src/XamlQuality.ThemeRuntime/ and run
-       headless over fixture themes, by plans/00003. IsTestProject, OutputType and xunit come from
+       headless over fixture themes, by plans/00003; and the audit's colours held to what Avalonia
+       draws, headless with Skia, by plans/00004. IsTestProject, OutputType and xunit come from
        tests/Directory.Build.props.
        ⛔ The only project in the solution that takes Avalonia. Packaging/AvaloniaConfinementTests in
        XamlQuality.Tests fails when another one does. -->
@@ -20,6 +21,12 @@
   <ItemGroup>
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.Headless.XUnit" />
+    <!-- DrawnColourTests: Skia draws the pixels the test reads, the loader loads each case's markup
+         at test time, so a case Avalonia does not load fails in its test rather than the build, and
+         Simple's window template presents the cell. -->
+    <PackageReference Include="Avalonia.Markup.Xaml.Loader" />
+    <PackageReference Include="Avalonia.Skia" />
+    <PackageReference Include="Avalonia.Themes.Simple" />
   </ItemGroup>
 
   <ItemGroup>
