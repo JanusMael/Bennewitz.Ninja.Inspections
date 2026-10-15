@@ -281,6 +281,7 @@ None is a violation, and some are correct; all are places where a clean result i
 | `theme-audit report` | Writes the audit report: the resource keys each theme leaves undefined for its consumers, and the colour pairs below a contrast floor |
 | `theme-audit compat` | Writes each configured compat dictionary: the keys one theme defines and another lacks, mapped onto the latter's tokens |
 | `theme-audit parts` | Writes the parts report: `BNXQ1003`'s reading of the configured controls |
+| `theme-audit brand` | Writes each configured brand document: a template filled from a theme's palette |
 | `theme-audit inventory <path>` | Lists the resource keys a folder defines, and writes nothing |
 
 **`--check` is the drift check.** Given to a command that writes, it compares instead of writing: it exits 0 when the
@@ -319,6 +320,52 @@ The assemblies load apart from the tool's own, each dependency from the folder o
 names, so name them in a build output that holds their dependencies, as an application's or a test project's does:
 a library's own holds none, and its controls would not load. A library that defines a base class of your controls,
 such as a text editor's, names its base class's lookups when it is listed too.
+
+**The brand document is a palette's catalogue that cannot drift from the palette.** Its prose is written by hand in a
+Markdown template; its placeholders write what nobody should type: each token's colour and where it is declared, the
+colour a stack of them draws as, every contrast figure, and a mermaid chart of the swatches in the variant's own
+colours. A placeholder can state a claim a sentence rests on. Every claim that no longer holds, and every placeholder
+that cannot be filled, is listed together, each with the template's line, and nothing is written.
+
+| Placeholder | Writes |
+|---|---|
+| `{{tok KEY}}` · `{{at KEY}}` | A token's colour, as `#AARRGGBB` · where it is declared, as its path from the theme's `baseDirectory` and its line |
+| `{{val COLOUR}}` | A colour, an opaque one as `#RRGGBB`. It takes no opacity |
+| `{{mix STACK}}` · `{{lab STACK}}` | The opaque colour a stack draws as · the same for a mermaid label, `#` as `#35;`. `{{mix STACK =#RRGGBB}}` claims it |
+| `{{cr FG on STACK}}` · `{{wc FG on STACK}}` | The WCAG 2.2 contrast of FG drawn over the stack, to one decimal place · its verdict for normal text. Either claims a bound with `<N` or `>=N` |
+| `{{near PATH "phrase"}}` | `PATH:LINE` of the one line holding the phrase; a second phrase makes a range |
+| `{{pin PACKAGE VERSION}}` | The version the nearest `Directory.Packages.props` pins, which must be the one named |
+| `{{swatches}}` | Every token as a swatch, file by file, four to a row, over the frame's ground |
+
+A COLOUR is `#RRGGBB`, `#AARRGGBB` or a token's key, and a token is a keyed colour or solid colour brush of the files
+`tokens` names, or a `StaticResource` or `DynamicResource` alias of one. A file of the theme that cannot be read,
+missing or not well-formed, is a problem too, since its tokens would be left out unseen; an include of another
+assembly's theme, which the audit does not follow, is not. A STACK is colours top first, separated by `/`, ending in one that draws opaque, and each colour in it may carry
+`@opacity`, a brush's and then an element's: white at 0.12 inside an element at 0.99 over the window is
+`#FFFFFF@0.12@0.99/WindowBackgroundBrush`. Its alpha is Avalonia's, every opacity on the way multiplied and truncated
+once. A placeholder the language does not define, `{{HUE_TABLE}}` say, is filled by a block: text your own program
+renders from what only its code knows, passed to `BrandRunner.Fill` under the placeholder's inside, which replaces it
+verbatim. The tool passes none.
+
+```json
+"brand": [
+  {
+    "template": "docs/Brand.template.md",
+    "output": "docs/Brand.md",
+    "theme": "App",
+    "variant": "Dark",
+    "tokens": ["src/App/Themes/Palette.axaml"],
+    "near": ["src/App"],
+    "frame": { "ground": "WindowBackgroundBrush", "stroke": "#5B5B5B", "text": "#F9F9F9" }
+  }
+]
+```
+
+`variant` is `Default` when omitted, and must be one the theme declares or `Default`, `Light` or `Dark`, which Avalonia
+serves from a theme that declares none of them; `tokens` is every file the theme reads when omitted, and `near`, where
+a `{{near}}` path is looked for, the configuration's folder; a template with no `{{swatches}}` needs no `frame`. A file-based program that calls
+the library sets `#:property PublishAot=false`: the configuration is read with reflection, which a file-based
+program's default, native AOT, turns off.
 
 ## The runtime theme check
 
