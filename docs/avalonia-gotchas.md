@@ -779,6 +779,14 @@ Measured on Avalonia 12.1.3, headless with Skia and the Fluent theme, with point
 
 Measured on Avalonia 12.1.3, headless with Skia and the Fluent theme: a `ListBox` of 400 strings, 270 pixels tall, with its first row focused and the key pressed through `KeyPressQwerty`.
 
+### Key bindings run before `KeyDown`, so a handler first on the key's route sees whether a command ran
+
+**Symptom:** A window that records which command each key ran records one for a key that ran nothing: Escape, pressed to dismiss a context menu with no find bar open, was recorded as `CloseFind`, because the record took any key that matched one of the view's gestures. Asking the command's `CanExecute` from the key handler instead comes too late: `CloseFind`, having closed the bar, answers no.
+
+**Cause:** `KeyboardDevice`, on the raw-key path, tries the key bindings of the focused element and its visual ancestors before it raises `KeyDown`, with the same `KeyEventArgs`, and `KeyBinding.TryHandle` marks the key handled only when its command could execute and did. So by the time any `KeyDown` handler runs, the binding has already run its command. Read with a decompiler in Avalonia 12.1.2's `Avalonia.Base` and `Avalonia.Controls`, not reproduced here.
+
+**Fix:** Read `Handled` in a tunnelling `KeyDown` handler on the window, added with `handledEventsToo: true`, so that it is first on the key's route: it is true exactly when a binding ran a command.
+
 ### `AvaloniaProperty` metadata reads its BASE default until the type's static constructor has run
 
 **Symptom:** A reflection sweep reports `Focusable` defaults to `false` for every control — `Button`, `TextBox`, `ComboBox`, `MenuItem`, all of them — which would mean nothing in Avalonia is focusable.
@@ -1230,17 +1238,36 @@ They are the price of referencing DataGrid, not a defect to hunt for in your cod
 
 **Useful for diagnostics:** `Environment.GetEnvironmentVariable("XDG_SESSION_TYPE")` returns `"wayland"` / `"x11"` / `"tty"` etc. on systemd-logind systems. Logging it on Linux startup makes bug reports self-identify the session type.
 
-### Driving an Avalonia app with `xdotool`: a menu is its own X window, a tooltip never appears, and accelerators do not arrive
+### Driving an Avalonia app with `xdotool`: a popup is its own X window, and accelerators do not arrive
 
-**Symptom:** A harness driving an Avalonia application under X11, with `xdotool` and window grabs, cannot find a menu's items in a grab of the main window. It never sees a tooltip, and it cannot open a menu by its keyboard accelerator, while clicks and plain keys work.
+**Symptom:** A harness driving an Avalonia application under X11, with `xdotool` and window grabs, cannot find a menu's items in a grab of the main window, and a popup it does find can be an empty box, or not the popup at all, so a click meant for a menu item lands elsewhere on the screen. It cannot open a menu by its keyboard accelerator, while clicks and plain keys work, and after it opens a context menu with a right-click, a key it sends can reach nothing.
 
-**Cause:** Three separate behaviours, measured on GNOME Shell 48.7 on Wayland with XWayland 24.1.6. The application was on Avalonia 12.1.2 through its X11 backend, and so was an XWayland client. `xdotool` was 3.20160805.1, and frames were grabbed with ffmpeg's `x11grab` by window id.
+**Cause:** Measured on GNOME Shell 48.7 on Wayland with XWayland 24.1.6. The application was on Avalonia 12.1.2 through its X11 backend, and so was an XWayland client. `xdotool` was 3.20160805.1, and frames were grabbed with ffmpeg's `x11grab` by window id. Not reproduced here.
 
-- **A menu popup is its own X window**: an override-redirect, unnamed child of the root. A grab of the main window never contains it.
-- **Synthetic pointer motion never raises a tooltip.** `xdotool mousemove` places the pointer, and a frame shows the cursor on the target, but no tooltip appears. The likely reason, not traced in source, is that synthetic motion never produces the dwell the tooltip service waits for.
+- **A popup, a menu or a tooltip, is its own X window**: an override-redirect, unnamed child of the root. A grab of the main window never contains it.
+- **A popup opens on one layout pass and lays itself out on the next**, so a frame taken between them is an empty box.
+- **Mutter keeps override-redirect windows of its own that are not popups**: a screen-sized guard window and a 1 × 1 at (−100, −100). A finder that took the tallest override-redirect window picked each of them in turn, and the 1 × 1, polled before the real popup was mapped, sent a menu click to (5, 729) on the screen.
 - **Keyboard accelerators sent with `xdotool` did not reach the menu.** `alt+v`, then the item's letter, did nothing, while clicking the menu worked. Plain keys such as `F7` and `ctrl+Down` reached a focused pane in the same session.
+- **After a synthetic right-click opened a context menu, X keyboard focus was on mutter's 1 × 1 window**, as `xdotool getwindowfocus` showed, so `xdotool key Escape` and `F7` reached nothing and the menu stayed open.
+- **Synthetic pointer motion raises a tooltip.** `xdotool mousemove` onto a line number, and onto a change marker in a margin, raised its tooltip in ten trials of ten on 2026-09-28, the pointer coming from outside the window, from its far corner, from another line of the same margin, and from the screen's (5, 5), and with the application in `pt-BR` too; the script behind an earlier attempt captured the same tooltip, pixel for pixel. On 2026-09-13 that attempt, on the same Avalonia, had raised none, and what made it fail was never established.
 
-**Fix:** To drive a menu, click the menu button and find the new large unnamed child in `xwininfo -root -children`. Grab that window to read the item positions, then click at the popup's screen origin plus the item's offset. A popup shorter than its items scrolls under `xdotool click 5`, and every item then moves, so grab again after scrolling. Judge tooltip text only from headless tests that assert it, never from a driven frame. Open menus by clicking, not by accelerator.
+**Fix:** Find a popup by diffing the root's children, `xwininfo -root -children`, against a mark taken before the action, never by counting or by name. Leave mutter's own windows out by their size, one as wide as the screen and one narrower than about 100 pixels, and wait until the popup's geometry holds still before grabbing it. Click at the popup's screen origin plus the item's offset, and refuse a click that falls outside the popup's own size. A popup shorter than its items scrolls under `xdotool click 5`, and every item then moves, so grab again after scrolling. Open menus by clicking, not by accelerator. After a right-click opens a context menu, run `xdotool windowactivate --sync` on the application's window before sending a key: Escape then reached it. A tooltip is found by the same diff, so its layout at its real size and in a locale can be judged from a driven frame; the headless tests that assert its text stay the evidence for the text.
+
+### Under X11, a grab cannot say whether an action took
+
+**Symptom:** A frame grabbed after a synthetic action shows the window as it was before the action, though the action happened. Or a grab succeeds, and every pixel of it is black.
+
+**Cause:** Measured in the environment of the entry above, not reproduced here. A frame grabbed with `x11grab` about 1 to 2 seconds after a synthetic action showed the window from before it, a fold and a copy both absent, while the application's log already held both; a grab moments later showed them. A grab that succeeds and comes back solid black means the session is not presenting: a closed remote-desktop connection leaves XWayland up with nothing composited.
+
+**Fix:** Read whether an action took from the application, from its log or its automation tree, and take a grab as a look at the result, never as the verdict. Check a grab's pixels before trusting it: one with no pixel brighter than black is a session not presenting, not the application's state.
+
+### Under X11, `xdotool getwindowgeometry` counts a window frame twice, and `xwininfo` lists windows in free text
+
+**Symptom:** Positions a harness takes from `xdotool getwindowgeometry` are off by the offset of the window's frame. A harness that parses `xwininfo`'s list of the root's children breaks when the session's language changes.
+
+**Cause:** Found in the environment of the entries above, not reproduced here. A reparenting window manager's frame is a window of its own, and `xdotool getwindowgeometry` counts its offset twice. `xwininfo`'s per-window field labels are fixed strings and are not translated, but each line of the root's child list holds the window's name, which is free text.
+
+**Fix:** Take positions from `xwininfo`'s absolute upper-left, and grab the client window, not the frame. Read each line of the root's child list by its two ends, the window id first and the geometry last. A harness that parses English text breaks exactly when someone is checking a translation.
 
 ### On the Wayland backend, an application is not on the AT-SPI bus
 
@@ -1411,6 +1438,14 @@ window.MouseUp(end, MouseButton.Left);
 ⚠ Press where the control draws. A press below the one line of a stretched `SelectableTextBlock` does not reach it, for the reason in the entry on a row whose `Background` is null.
 
 Measured on Avalonia 12.1.3, headless with Skia and the Fluent theme.
+
+### Raising `MenuItem.ClickEvent` does not toggle a checkable menu item
+
+**Symptom:** A headless test raises `Click` on a check or radio `MenuItem` with `RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent))`, and reads `IsChecked` as it was. The item's command runs.
+
+**Cause:** The toggle lives in `DefaultMenuInteractionHandler.Click(IMenuItem)`, which flips `IsChecked`, or for a radio item sets it, and only then calls `item.RaiseClick()`. `MenuItem`'s own class handler for `ClickEvent`, `OnClick`, only runs `Command`. Read with a decompiler in Avalonia 12.1.2's `Avalonia.Base` and `Avalonia.Controls`, not reproduced here.
+
+**Fix:** Choose the item as a person would. Open each menu above it with `IsSubMenuOpen = true`, focus the item and assert that `Focus()` returned true, then press Enter on the window: the handler's `KeyDown` for `Return` calls `Click(item)`. Assert afterwards that the menu closed, so that the Enter is known to have reached the item.
 
 ### A headless click can land where the control used to be
 
