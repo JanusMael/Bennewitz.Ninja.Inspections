@@ -12,14 +12,35 @@ public abstract record ResourceValue
     /// <paramref name="Opacity"/> is the brush's own <c>Opacity</c> (1 when absent), folded into
     /// the alpha when the colour is scored.
     /// </summary>
-    public sealed record ColorLiteral(AuditColor Color, double Opacity = 1.0) : ResourceValue;
+    public sealed record ColorLiteral(AuditColor Color, double Opacity = 1.0) : ResourceValue
+    {
+        /// <summary>
+        /// The key of the resource the brush's <c>Opacity</c> names, as either markup extension or a
+        /// <c>&lt;StaticResource&gt;</c> property element, in place of a literal <see cref="Opacity"/>;
+        /// the colour is scored at the number that resource holds. <c>null</c> when the opacity is a
+        /// literal or absent.
+        /// </summary>
+        public string? OpacityKey { get; init; }
+    }
 
     /// <summary>
-    /// An alias to another key: <c>Color="{DynamicResource X}"</c> or <c>ResourceKey="X"</c>.
+    /// An alias to another key: a brush's <c>Color="{DynamicResource X}"</c>, its <c>Color</c> as a
+    /// <c>&lt;StaticResource&gt;</c> property element, or <c>ResourceKey="X"</c>.
     /// <paramref name="Opacity"/> is the aliasing brush's own <c>Opacity</c> (1 when absent),
     /// multiplied along the chain when the colour is scored.
     /// </summary>
-    public sealed record Alias(string TargetKey, double Opacity = 1.0) : ResourceValue;
+    public sealed record Alias(string TargetKey, double Opacity = 1.0) : ResourceValue
+    {
+        /// <summary>The key of the resource the aliasing brush's <c>Opacity</c> names, as <see cref="ColorLiteral.OpacityKey"/>.</summary>
+        public string? OpacityKey { get; init; }
+
+        /// <summary>
+        /// Whether the alias is a brush's <c>Color</c>, which must name a colour: Avalonia 12.1.3 does
+        /// not load a brush whose <c>Color</c> names a brush, directly or through an alias, so the
+        /// audit gives such a brush no colour.
+        /// </summary>
+        public bool FromColor { get; init; }
+    }
 
     /// <summary>A defined key that is not a resolvable colour (a thickness, a gradient, a control theme).
     /// It still counts as defined for the undefined-key finding; it is just not colour-scored.</summary>
@@ -135,42 +156,88 @@ public static class ThemeDefinitionScanner
                 : new ResourceValue.Opaque();
         }
 
-        // <SolidColorBrush x:Key="A" Color="#.." /> or Color="{DynamicResource X}", either with an
-        // optional Opacity that scales the colour as seen.
+        // <SolidColorBrush x:Key="A" Color="#.." />, its Color a literal or a colour's key, and an
+        // optional Opacity, a literal or a number's key, that scales the colour as seen.
         if (localName.EndsWith("SolidColorBrush", StringComparison.Ordinal))
         {
-            double opacity = OpacityOf(element);
-            string? colorAttribute = element.Attribute("Color")?.Value;
-            if (colorAttribute is not null)
-            {
-                if (AuditColor.TryParse(colorAttribute, out AuditColor brushColor))
-                {
-                    return new ResourceValue.ColorLiteral(brushColor, opacity);
-                }
-
-                (ReferenceKind, string Key)? reference = ResourceReferenceScanner
-                    .ExtractMarkupReferences(colorAttribute)
-                    .Select(r => ((ReferenceKind, string)?)r)
-                    .FirstOrDefault();
-                if (reference is { } r)
-                {
-                    return new ResourceValue.Alias(r.Key, opacity);
-                }
-            }
+            return BrushValue(element);
         }
 
         return new ResourceValue.Opaque();
     }
 
-    private static double OpacityOf(XElement element)
+    /// <summary>
+    /// A brush's <c>Color</c> and <c>Opacity</c>, each written as an attribute, as a whole
+    /// <c>{StaticResource}</c> or <c>{DynamicResource}</c>, or as a property element holding a literal
+    /// or a <c>&lt;StaticResource&gt;</c>, which are the spellings Avalonia 12.1.3 was measured to
+    /// draw. Either written any other way, a binding, a resource inside another extension, or a word
+    /// that is no number, leaves the brush unscored: read as opaque, a translucent brush would be
+    /// scored as what it does not draw.
+    /// </summary>
+    private static ResourceValue BrushValue(XElement brush)
     {
-        string? text = element.Attribute("Opacity")?.Value;
-        if (text is not null
-            && double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double opacity))
+        Written opacity = WrittenProperty(brush, "Opacity");
+        double literalOpacity = 1.0;
+        if (opacity.Literal is { } opacityText)
         {
-            return Math.Clamp(opacity, 0, 1);
+            if (!double.TryParse(opacityText, NumberStyles.Float, CultureInfo.InvariantCulture, out literalOpacity))
+            {
+                return new ResourceValue.Opaque();
+            }
+
+            literalOpacity = Math.Clamp(literalOpacity, 0, 1);
+        }
+        else if (opacity.Unreadable)
+        {
+            return new ResourceValue.Opaque();
         }
 
-        return 1.0;
+        Written color = WrittenProperty(brush, "Color");
+        if (color.Literal is { } colorText)
+        {
+            return AuditColor.TryParse(colorText, out AuditColor literal)
+                ? new ResourceValue.ColorLiteral(literal, literalOpacity) { OpacityKey = opacity.Key }
+                : new ResourceValue.Opaque();
+        }
+
+        return color.Key is { } colorKey
+            ? new ResourceValue.Alias(colorKey, literalOpacity) { OpacityKey = opacity.Key, FromColor = true }
+            : new ResourceValue.Opaque();
+    }
+
+    /// <summary>How a brush writes one of its properties: a literal, a resource's key, unreadable, or not at all.</summary>
+    private readonly record struct Written(string? Literal, string? Key, bool Unreadable);
+
+    private static Written WrittenProperty(XElement brush, string property)
+    {
+        if (brush.Attribute(property)?.Value.Trim() is { } attribute)
+        {
+            if (!attribute.StartsWith('{'))
+            {
+                return new Written(attribute, null, false);
+            }
+
+            return ResourceReferenceScanner.TryReadWholeReference(attribute, out string key)
+                ? new Written(null, key, false)
+                : new Written(null, null, true);
+        }
+
+        XElement? element = brush.Elements().FirstOrDefault(e => e.Name.LocalName.EndsWith("." + property, StringComparison.Ordinal));
+        if (element is null)
+        {
+            return default;
+        }
+
+        List<XElement> held = [.. element.Elements()];
+        if (held.Count == 0)
+        {
+            string text = element.Value.Trim();
+            return text.Length > 0 ? new Written(text, null, false) : new Written(null, null, true);
+        }
+
+        return held is [{ Name.LocalName: "StaticResource" } reference]
+               && reference.Attribute("ResourceKey")?.Value.Trim() is { Length: > 0 } resourceKey
+            ? new Written(null, resourceKey, false)
+            : new Written(null, null, true);
     }
 }

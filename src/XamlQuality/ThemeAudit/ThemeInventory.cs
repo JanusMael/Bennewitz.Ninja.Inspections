@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Xml.Linq;
 
 namespace Bennewitz.Ninja.XamlQuality.ThemeAudit;
@@ -89,33 +90,78 @@ public sealed class VariantInventory
     }
 
     /// <summary>
-    /// The colour <paramref name="key"/> resolves to under this variant, following an alias chain
-    /// to its literal and multiplying every brush opacity on the way into the alpha; <c>null</c>
-    /// when the key is undefined, opaque, or an alias that dangles or cycles.
+    /// The colour <paramref name="key"/> resolves to under this variant, as Avalonia draws it: an
+    /// alias chain followed to its literal, and the alpha scaled by every brush opacity on the way,
+    /// an opacity a brush takes from a resource being the number that resource holds. <c>null</c>
+    /// when the key is undefined or opaque, when an alias dangles or cycles, when an opacity's
+    /// resource holds no number, and when a brush's <c>Color</c> names a brush, directly or through
+    /// an alias, which Avalonia 12.1.3 does not load.
     /// </summary>
     public AuditColor? Resolve(string key)
     {
-        return Resolve(key, [], 1.0);
+        return Resolve(key, [], 1.0, asColor: false);
     }
 
-    private AuditColor? Resolve(string key, HashSet<string> visiting, double opacity)
+    /// <summary>
+    /// Follows <paramref name="key"/>, <paramref name="opacity"/> being the product of the opacities
+    /// met on the way, and <paramref name="asColor"/> whether a brush's <c>Color</c> named it, so that
+    /// it must be a colour.
+    /// </summary>
+    private AuditColor? Resolve(string key, HashSet<string> visiting, double opacity, bool asColor)
     {
         if (!_effective.TryGetValue(key, out ResourceDefinition? definition) || !visiting.Add(key))
         {
             return null;
         }
 
-        return definition.Value switch
+        switch (definition.Value)
         {
-            ResourceValue.ColorLiteral literal => WithOpacity(literal.Color, opacity * literal.Opacity),
-            ResourceValue.Alias alias => Resolve(alias.TargetKey, visiting, opacity * alias.Opacity),
-            _ => null,
-        };
+            case ResourceValue.ColorLiteral literal when !(asColor && IsBrush(definition)):
+                return OpacityOf(literal.Opacity, literal.OpacityKey) is { } own
+                    ? WithOpacity(literal.Color, opacity * own)
+                    : null;
+            case ResourceValue.Alias alias when !(asColor && alias.FromColor):
+                return OpacityOf(alias.Opacity, alias.OpacityKey) is { } aliasing
+                    ? Resolve(alias.TargetKey, visiting, opacity * aliasing, asColor || alias.FromColor)
+                    : null;
+            default:
+                return null;
+        }
     }
 
+    /// <summary>
+    /// A brush's own opacity: <paramref name="literal"/>, or where the brush names a resource for it,
+    /// the number an <c>x:Double</c> under that key holds, clamped as a literal is; <c>null</c> when
+    /// the key holds no number.
+    /// </summary>
+    private double? OpacityOf(double literal, string? key)
+    {
+        if (key is null)
+        {
+            return literal;
+        }
+
+        return _effective.TryGetValue(key, out ResourceDefinition? definition)
+               && definition.Element is { Name.LocalName: "Double" } number
+               && double.TryParse(number.Value.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double value)
+            ? Math.Clamp(value, 0, 1)
+            : null;
+    }
+
+    /// <summary>Whether a definition is a brush, which a brush's <c>Color</c> cannot name.</summary>
+    private static bool IsBrush(ResourceDefinition definition)
+    {
+        return definition.Element?.Name.LocalName.EndsWith("SolidColorBrush", StringComparison.Ordinal) == true;
+    }
+
+    /// <summary>
+    /// <paramref name="color"/> at <paramref name="opacity"/>, as Avalonia's Skia renderer paints a
+    /// solid brush at 12.1.3 (<c>DrawingContextImpl.CreatePaint</c>): the alpha times the opacity,
+    /// truncated to a whole byte once.
+    /// </summary>
     private static AuditColor WithOpacity(AuditColor color, double opacity)
     {
-        return opacity >= 1.0 ? color : color with { A = (byte)Math.Round(color.A * opacity) };
+        return opacity >= 1.0 ? color : color with { A = (byte)(color.A * opacity) };
     }
 }
 
