@@ -7,9 +7,9 @@ namespace XamlQuality.Tests.ThemeAudit;
 public sealed class ConsoleCapture;
 
 /// <summary>
-/// The <c>theme-audit</c> tool's outputs and drift checks, <c>report</c>, <c>compat</c> and <c>parts</c>, by their exit
-/// codes and messages, over copies of the committed fixtures under <c>Fixtures/audit</c> and <c>Fixtures/compat</c>, and a
-/// control library emitted at test time.
+/// The <c>theme-audit</c> tool's outputs and drift checks, <c>report</c>, <c>compat</c>, <c>parts</c> and <c>brand</c>,
+/// by their exit codes and messages, over copies of the committed fixtures under <c>Fixtures/audit</c> and
+/// <c>Fixtures/compat</c>, a control library emitted at test time, and a palette and a brand template written here.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -68,6 +68,25 @@ public sealed class ThemeAuditToolTests : IDisposable
               "parts": { "report": "docs/template-parts.md", "markup": ["themes"], "assemblies": ["{{EmittedParts.Assembly.Replace('\\', '/')}}"] }
             }
             """);
+
+        Directory.CreateDirectory(Path.Combine(_root, "brand", "theme"));
+        File.WriteAllText(
+            Path.Combine(_root, "brand", "theme", "Palette.axaml"),
+            """
+            <ResourceDictionary xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+              <SolidColorBrush x:Key="GroundBrush" Color="#454545" />
+              <SolidColorBrush x:Key="AccentBrush" Color="#4CAF50" />
+            </ResourceDictionary>
+            """);
+        File.WriteAllText(BrandTemplate, "# Brand\n\nThe accent is {{tok AccentBrush}}, at {{cr AccentBrush on GroundBrush}} on the ground.\n");
+        File.WriteAllText(
+            BrandConfigPath,
+            """
+            {
+              "themes": [ { "name": "App", "entry": "theme/Palette.axaml", "baseDirectory": "theme" } ],
+              "brand": [ { "template": "Brand.template.md", "output": "docs/Brand.md", "theme": "App" } ]
+            }
+            """);
     }
 
     public void Dispose()
@@ -86,6 +105,12 @@ public sealed class ThemeAuditToolTests : IDisposable
     private string PartsConfig => Path.Combine(_root, "parts", "theme-audit.json");
 
     private string PartsReport => Path.Combine(_root, "parts", "docs", "template-parts.md");
+
+    private string BrandConfigPath => Path.Combine(_root, "brand", "theme-audit.json");
+
+    private string BrandTemplate => Path.Combine(_root, "brand", "Brand.template.md");
+
+    private string BrandDocument => Path.Combine(_root, "brand", "docs", "Brand.md");
 
     // ── report --check ──────────────────────────────────────────────────────────
 
@@ -328,6 +353,123 @@ public sealed class ThemeAuditToolTests : IDisposable
         Assert.Equal(
             (2, "", "theme-audit: 'parts' needs 'report', 'markup' and 'assemblies'\n"),
             Run("parts", "--config", PartsConfig));
+    }
+
+    // ── brand --check ───────────────────────────────────────────────────────────
+
+    private const string BrandSummary = "4 lines";
+
+    [Fact]
+    public void Brand_writes_each_document_and_says_where()
+    {
+        Assert.Equal(
+            (0, $"theme-audit: wrote docs/Brand.md ({BrandSummary}).\n", ""),
+            Run("brand", "--config", BrandConfigPath));
+
+        Assert.Equal(
+            "<!-- Generated from Brand.template.md by the theme audit's brand output. Edit the template, then regenerate this file. -->\n"
+            + "# Brand\n\nThe accent is #FF4CAF50, at 3.4:1 on the ground.\n",
+            File.ReadAllText(BrandDocument));
+    }
+
+    [Fact]
+    public void Brand_check_without_the_document_exits_1_and_says_how_to_create_it()
+    {
+        Assert.Equal(
+            (1, "", "theme-audit: docs/Brand.md does not exist; run `theme-audit brand` to create it.\n"),
+            Run("brand", "--check", "--config", BrandConfigPath));
+    }
+
+    [Fact]
+    public void Brand_check_on_a_fresh_document_exits_0()
+    {
+        Run("brand", "--config", BrandConfigPath);
+
+        Assert.Equal(
+            (0, $"theme-audit: docs/Brand.md is up to date ({BrandSummary}).\n", ""),
+            Run("brand", "--check", "--config", BrandConfigPath));
+    }
+
+    /// <summary>On drift the fresh document lands beside the committed one, and writing it again removes that copy.</summary>
+    [Fact]
+    public void Brand_check_on_a_stale_document_exits_1_and_writes_the_fresh_one_beside_it()
+    {
+        string received = Path.Combine(_root, "brand", "docs", "Brand.received.md");
+        Run("brand", "--config", BrandConfigPath);
+        string fresh = File.ReadAllText(BrandDocument);
+        File.AppendAllText(BrandDocument, "edited\n");
+
+        Assert.Equal(
+            (1, "", $"theme-audit: docs/Brand.md is stale — it differs from a fresh run ({BrandSummary}); regenerate it with `theme-audit brand`.\n"),
+            Run("brand", "--check", "--config", BrandConfigPath));
+        Assert.Equal(fresh, File.ReadAllText(received));
+
+        Run("brand", "--config", BrandConfigPath);
+
+        Assert.False(File.Exists(received));
+    }
+
+    /// <summary>Every problem of every document is listed, and no document is written, nor a received copy left.</summary>
+    [Fact]
+    public void Brand_whose_claims_fail_lists_every_problem_exits_1_and_writes_nothing()
+    {
+        File.WriteAllText(BrandTemplate, "{{cr AccentBrush on GroundBrush <3}}\n{{tok Nope}}\n");
+
+        Assert.Equal(
+            (1,
+                "",
+                "theme-audit: docs/Brand.md cannot be filled — 2 problem(s):\n"
+                + "  Brand.template.md:1: {{cr AccentBrush on GroundBrush <3}} is 3.45:1\n"
+                + "  Brand.template.md:2: {{tok Nope}}: Nope names no token\n"
+                + "theme-audit: nothing was written.\n"),
+            Run("brand", "--check", "--config", BrandConfigPath));
+        Assert.Equal(1, Run("brand", "--config", BrandConfigPath).ExitCode);
+        Assert.False(Directory.Exists(Path.Combine(_root, "brand", "docs")));
+    }
+
+    /// <summary>Every document is filled before any is written, so one that cannot be filled leaves the others unwritten too.</summary>
+    [Fact]
+    public void Brand_with_one_document_that_cannot_be_filled_writes_none_of_them()
+    {
+        File.WriteAllText(Path.Combine(_root, "brand", "Bad.template.md"), "{{tok Nope}}\n");
+        File.WriteAllText(
+            BrandConfigPath,
+            """
+            {
+              "themes": [ { "name": "App", "entry": "theme/Palette.axaml", "baseDirectory": "theme" } ],
+              "brand": [
+                { "template": "Brand.template.md", "output": "docs/Brand.md", "theme": "App" },
+                { "template": "Bad.template.md", "output": "docs/Bad.md", "theme": "App" }
+              ]
+            }
+            """);
+
+        Assert.Equal(
+            (1,
+                "",
+                "theme-audit: docs/Bad.md cannot be filled — 1 problem(s):\n"
+                + "  Bad.template.md:1: {{tok Nope}}: Nope names no token\n"
+                + "theme-audit: nothing was written.\n"),
+            Run("brand", "--config", BrandConfigPath));
+        Assert.False(Directory.Exists(Path.Combine(_root, "brand", "docs")));
+    }
+
+    [Fact]
+    public void Brand_with_no_documents_configured_exits_2()
+    {
+        Assert.Equal(
+            (2, "", "theme-audit: the configuration declares no brand documents.\n"),
+            Run("brand", "--check", "--config", AuditConfig));
+    }
+
+    [Fact]
+    public void A_brand_document_of_an_unknown_theme_is_a_configuration_error()
+    {
+        File.WriteAllText(BrandConfigPath, """{ "brand": [ { "template": "Brand.template.md", "output": "docs/Brand.md", "theme": "Nope" } ] }""");
+
+        Assert.Equal(
+            (2, "", "theme-audit: brand 'docs/Brand.md' names an unknown theme 'Nope'\n"),
+            Run("brand", "--config", BrandConfigPath));
     }
 
     /// <summary>
