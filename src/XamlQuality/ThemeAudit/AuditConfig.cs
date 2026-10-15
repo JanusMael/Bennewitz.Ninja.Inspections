@@ -39,6 +39,9 @@ public sealed class AuditConfig
     /// <summary>The template parts report <c>theme-audit parts</c> writes; none when omitted.</summary>
     public PartsConfig? Parts { get; set; }
 
+    /// <summary>The brand documents <c>theme-audit brand</c> fills, in configuration order.</summary>
+    public List<BrandConfig> Brand { get; set; } = [];
+
     /// <summary>The configuration file, absolute.</summary>
     [JsonIgnore]
     public string ConfigPath { get; private set; } = string.Empty;
@@ -196,7 +199,88 @@ public sealed class AuditConfig
         {
             throw new AuditConfigException("'parts' needs 'report', 'markup' and 'assemblies'");
         }
+
+        foreach (BrandConfig? brand in Brand ?? throw new AuditConfigException("'brand' must be a list of documents"))
+        {
+            if (brand is null)
+            {
+                throw new AuditConfigException("a 'brand' entry is empty");
+            }
+
+            if (string.IsNullOrWhiteSpace(brand.Template) || string.IsNullOrWhiteSpace(brand.Output)
+                || string.IsNullOrWhiteSpace(brand.Variant))
+            {
+                throw new AuditConfigException($"brand '{brand.Output}' needs a 'template', an 'output' and, when it names one, a 'variant'");
+            }
+
+            if (!names.Contains(brand.Theme))
+            {
+                throw new AuditConfigException($"brand '{brand.Output}' names an unknown theme '{brand.Theme}'");
+            }
+
+            if ((brand.Tokens ?? []).Concat(brand.Near ?? []).Any(string.IsNullOrWhiteSpace))
+            {
+                throw new AuditConfigException($"brand '{brand.Output}' names an empty path in 'tokens' or 'near'");
+            }
+
+            if (brand.Frame is { } frame
+                && (string.IsNullOrWhiteSpace(frame.Ground) || string.IsNullOrWhiteSpace(frame.Stroke) || string.IsNullOrWhiteSpace(frame.Text)))
+            {
+                throw new AuditConfigException($"brand '{brand.Output}' needs a 'frame' with a 'ground', a 'stroke' and a 'text'");
+            }
+        }
     }
+}
+
+/// <summary>
+/// One brand document <c>theme-audit brand</c> fills: a Markdown template whose placeholders take their colours and
+/// figures from a theme's palette, read in one of its variants. Paths are relative to the configuration file.
+/// </summary>
+public sealed class BrandConfig
+{
+    /// <summary>The template the document is filled from.</summary>
+    public required string Template { get; set; }
+
+    /// <summary>Where the filled document is written.</summary>
+    public required string Output { get; set; }
+
+    /// <summary>The theme, from the configuration's <c>themes</c>, whose palette the document describes.</summary>
+    public required string Theme { get; set; }
+
+    /// <summary>
+    /// The variant the palette is read in, by display name, as Avalonia serves a requested variant: the variant, else
+    /// its nearest ancestor, else <c>Default</c>. <c>Default</c> when omitted.
+    /// </summary>
+    public string Variant { get; set; } = ThemeInventory.DefaultVariant;
+
+    /// <summary>
+    /// The files whose keyed brushes and colours are the palette's tokens, each a file the theme reads; every file the
+    /// theme reads when omitted.
+    /// </summary>
+    public List<string>? Tokens { get; set; }
+
+    /// <summary>The folders a <c>{{near}}</c> path is looked for in, in order; the configuration's folder when omitted.</summary>
+    public List<string>? Near { get; set; }
+
+    /// <summary>The colours <c>{{swatches}}</c> draws its chart in; a template that draws no chart needs none.</summary>
+    public BrandFrame? Frame { get; set; }
+}
+
+/// <summary>
+/// The colours a brand document's chart is drawn in, resolved in the document's variant, so a chart of a light variant
+/// is framed in light colours. Each is a colour as the template's placeholders write one: a token's key, or a literal
+/// <c>#RRGGBB</c> or <c>#AARRGGBB</c>.
+/// </summary>
+public sealed class BrandFrame
+{
+    /// <summary>The ground every swatch is drawn over, which fills the chart; it must draw opaque.</summary>
+    public required string Ground { get; set; }
+
+    /// <summary>The outline of the chart and of every swatch, drawn over the ground.</summary>
+    public required string Stroke { get; set; }
+
+    /// <summary>The colour of the chart's titles, drawn over the ground.</summary>
+    public required string Text { get; set; }
 }
 
 /// <summary>

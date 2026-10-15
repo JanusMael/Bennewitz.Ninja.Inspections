@@ -77,7 +77,7 @@ internal static class ThemeGraphWalker
             XDocument document;
             try
             {
-                document = XDocument.Load(file);
+                document = XDocument.Load(file, LoadOptions.SetLineInfo);
             }
             catch (XmlException ex)
             {
@@ -130,7 +130,10 @@ internal static class ThemeGraphWalker
                 {
                     if (child.Attribute(XamlNamespace + "Key") is { } keyed)
                     {
-                        Record(context, keyed.Value, new ResourceDefinition(ThemeDefinitionScanner.ValueOf(child), file, new XElement(child)));
+                        Record(context, keyed.Value, new ResourceDefinition(ThemeDefinitionScanner.ValueOf(child), file, new XElement(child))
+                        {
+                            Line = ((IXmlLineInfo)child).HasLineInfo() ? ((IXmlLineInfo)child).LineNumber : 0,
+                        });
                     }
 
                     Process(child, file, context);
