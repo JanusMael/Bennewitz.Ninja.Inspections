@@ -32,6 +32,10 @@ using Xunit;
 /// raster's arithmetic, <see cref="Rastered"/>, rather than with the audit's composite, by the developer's
 /// decision of 2026-10-15.
 /// </para>
+/// <para>
+/// The brand output's stacks are held the same way: a brush painted by an element at an opacity of its own must be
+/// drawn at the alpha the brand output makes for that stack, its opacity times the element's, truncated once.
+/// </para>
 /// </summary>
 public sealed class DrawnColourTests : IDisposable
 {
@@ -132,6 +136,21 @@ public sealed class DrawnColourTests : IDisposable
                 "<x:Double x:Key=\"Fade\">0.5</x:Double><SolidColorBrush x:Key=\"B\" Color=\"#2E7D32\" Opacity=\"{StaticResource Fade}\" />"));
     }
 
+    /// <summary>
+    /// Plans/00004's measured cases with an element's own opacity, the brand output's stacks: the brush's opacity times
+    /// the element's, truncated once, drew 85, 30 and 126 over black where truncating each in turn gives 85, 29 and 125;
+    /// and one over a ground where Skia's raster and the exact blend part.
+    /// </summary>
+    [AvaloniaFact]
+    public void A_brush_inside_an_element_at_an_opacity_is_drawn_at_the_alpha_the_brand_output_makes()
+    {
+        AssertDrawnAtTheBrandOutputsAlpha(
+            new Cell("a brush at 0.6 inside an element at 0.56", Black, Brush("#FFFFFF", "0.6"), Opacity: "0.56"),
+            new Cell("a brush at 0.12 inside an element at 0.99", Black, Brush("#FFFFFF", "0.12"), Opacity: "0.99"),
+            new Cell("a brush at 0.5 inside an element at 0.99", Black, Brush("#FFFFFF", "0.5"), Opacity: "0.99"),
+            new Cell("#F9F9F9 at 0.6 inside an element at 0.56, over #5B5B5B", "#5B5B5B", Brush("#F9F9F9", "0.6"), Opacity: "0.56"));
+    }
+
     private static string Brush(string color, string opacity, string key = "B") =>
         "<SolidColorBrush x:Key=\"" + key + "\" Color=\"" + color + "\" Opacity=\"" + opacity + "\" />";
 
@@ -151,6 +170,51 @@ public sealed class DrawnColourTests : IDisposable
         }
 
         Assert.True(wrong.Count == 0, string.Join(Environment.NewLine, wrong));
+    }
+
+    /// <summary>
+    /// Each cell, its <c>B</c> drawn inside an element at its opacity, must be drawn as Skia's CPU raster draws <c>B</c>'s
+    /// colour at the alpha the brand output makes for the stack <c>B@opacity</c>, to the level.
+    /// </summary>
+    private void AssertDrawnAtTheBrandOutputsAlpha(params Cell[] cells)
+    {
+        List<string> wrong = [];
+        foreach (Cell cell in cells)
+        {
+            AuditColor drawn = Draw(cell);
+            AuditColor colour = Resolve(cell)!.Value with { A = BrandAlpha(cell) };
+            if (Rastered(colour, Ground(cell)) != drawn)
+            {
+                wrong.Add(cell.What + ": drawn " + drawn + ", where the brand output's alpha makes " + colour + ", rastered as " + Rastered(colour, Ground(cell)));
+            }
+        }
+
+        Assert.True(wrong.Count == 0, string.Join(Environment.NewLine, wrong));
+    }
+
+    /// <summary>
+    /// The alpha the brand output makes for the stack <c>B@opacity</c>, read through its public face: its exact blend of a
+    /// colour at an alpha <c>a</c> over white is, in every channel, <c>255 - a</c> above the same over black.
+    /// </summary>
+    private byte BrandAlpha(Cell cell)
+    {
+        string directory = Directory.CreateDirectory(Path.Combine(_root, Guid.NewGuid().ToString("N"))).FullName;
+        File.WriteAllText(Path.Combine(directory, "Cell.axaml"), "<ResourceDictionary " + Namespaces + ">" + cell.Resources + "</ResourceDictionary>");
+        File.WriteAllText(Path.Combine(directory, "Brand.template.md"), "{{mix B@" + cell.Opacity + "/#000000}}\n{{mix B@" + cell.Opacity + "/#FFFFFF}}\n");
+        AuditConfig config = AuditConfig.Parse(
+            """
+            {
+              "themes": [ { "name": "Cell", "entry": "Cell.axaml", "baseDirectory": "." } ],
+              "brand": [ { "template": "Brand.template.md", "output": "Brand.md", "theme": "Cell" } ]
+            }
+            """,
+            directory);
+        BrandResult result = BrandRunner.Fill(config, config.Brand[0]);
+        Assert.True(result.Problems.Count == 0, string.Join(Environment.NewLine, result.Problems));
+        string[] lines = result.Markdown.Split('\n');
+        Assert.True(AuditColor.TryParse(lines[1], out AuditColor overBlack), result.Markdown);
+        Assert.True(AuditColor.TryParse(lines[2], out AuditColor overWhite), result.Markdown);
+        return (byte)(255 - overWhite.R + overBlack.R);
     }
 
     private void AssertNotLoadedAndUnresolved(params Cell[] cells)
@@ -216,8 +280,9 @@ public sealed class DrawnColourTests : IDisposable
         }
 
         string use = cell.Dynamic ? "{DynamicResource B}" : "{StaticResource B}";
+        string opacity = cell.Opacity is { } own ? " Opacity=\"" + own + "\"" : string.Empty;
         string markup = "<Border " + Namespaces + " Background=\"" + cell.Ground + "\"><Border.Resources>" + cell.Resources
-                        + "</Border.Resources><Border Background=\"" + use + "\" /></Border>";
+                        + "</Border.Resources><Border" + opacity + " Background=\"" + use + "\" /></Border>";
         Control content = (Control)AvaloniaRuntimeXamlLoader.Load(markup, typeof(DrawnColourTests).Assembly);
         Window window = new() { Width = 40, Height = 40, Content = content };
         window.Show();
@@ -261,5 +326,6 @@ public sealed class DrawnColourTests : IDisposable
     /// <param name="Ground">The opaque colour under the cell.</param>
     /// <param name="Resources">The cell's resources, which the audit reads as a theme.</param>
     /// <param name="Dynamic">Whether the cell takes <c>B</c> as a dynamic resource rather than a static one.</param>
-    private sealed record Cell(string What, string Ground, string Resources, bool Dynamic = false);
+    /// <param name="Opacity">The opacity of the element <c>B</c> paints, which pushes it; none when <c>null</c>.</param>
+    private sealed record Cell(string What, string Ground, string Resources, bool Dynamic = false, string? Opacity = null);
 }
