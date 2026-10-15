@@ -255,16 +255,16 @@ public sealed class InventoryFidelityTests : IDisposable
               <Color x:Key="Grey9">#1C1F23</Color>
               <SolidColorBrush x:Key="Text0" Color="{StaticResource Grey9}" />
               <SolidColorBrush x:Key="Text2" Opacity="0.62" Color="{StaticResource Grey9}" />
-              <SolidColorBrush x:Key="Text2Again" Opacity="0.5" Color="{StaticResource Text2}" />
+              <StaticResource x:Key="Text2Alias" ResourceKey="Text2" />
               <SolidColorBrush x:Key="HalfLiteral" Opacity="0.5" Color="#FFFFFF" />
             </ResourceDictionary>
             """);
 
         VariantInventory only = Assert.Single(ThemeInventory.Build(Path.Combine(_root, "Theme.axaml"), _root).Variants);
         Assert.Equal(new AuditColor(0xFF, 0x1C, 0x1F, 0x23), only.Resolve("Text0"));
-        Assert.Equal(new AuditColor(158, 0x1C, 0x1F, 0x23), only.Resolve("Text2"));       // round(255 * 0.62)
-        Assert.Equal(new AuditColor(79, 0x1C, 0x1F, 0x23), only.Resolve("Text2Again"));   // round(255 * 0.31)
-        Assert.Equal(new AuditColor(128, 0xFF, 0xFF, 0xFF), only.Resolve("HalfLiteral"));
+        Assert.Equal(new AuditColor(158, 0x1C, 0x1F, 0x23), only.Resolve("Text2"));       // 255 * 0.62 = 158.1, truncated
+        Assert.Equal(new AuditColor(158, 0x1C, 0x1F, 0x23), only.Resolve("Text2Alias"));  // an alias carries no opacity of its own
+        Assert.Equal(new AuditColor(127, 0xFF, 0xFF, 0xFF), only.Resolve("HalfLiteral")); // 127.5, truncated
     }
 
     [Fact]

@@ -125,6 +125,21 @@ public static class ResourceReferenceScanner
         }
     }
 
+    /// <summary>
+    /// Reads <paramref name="value"/> as one <c>{DynamicResource ...}</c> or <c>{StaticResource ...}</c>
+    /// written as the whole value, so a resource nested in another extension, such as a binding's
+    /// converter, is not taken for the value itself.
+    /// </summary>
+    internal static bool TryReadWholeReference(string value, out string key)
+    {
+        key = string.Empty;
+        string trimmed = value.Trim();
+        return trimmed.Length > 1
+               && trimmed[0] == '{'
+               && MatchingBrace(trimmed, 0) == trimmed.Length - 1
+               && TryReadResourceExtension(trimmed[1..^1], out _, out key);
+    }
+
     private static bool TryReadResourceExtension(string inner, out ReferenceKind kind, out string key)
     {
         kind = default;

@@ -32,4 +32,7 @@ using System.Runtime.CompilerServices;
 // RuntimeAnswer, RuntimeCheckResult, RuntimeDifference and RuntimeDifferenceKind, the runtime theme
 // check's library half, which the source package Bennewitz.Ninja.XamlQuality.ThemeRuntime calls. A
 // member added to them later is an init property, never a new positional parameter: an adopting
-// project may compile an older source half against a newer library.
+// project may compile an older source half against a newer library. Plans/00004 adds three init
+// properties to the audit's ResourceValue records, as permanent: ColorLiteral.OpacityKey, and
+// Alias.OpacityKey and Alias.FromColor, which record a brush's Opacity written as a resource's key
+// and a brush's Color written as an alias.

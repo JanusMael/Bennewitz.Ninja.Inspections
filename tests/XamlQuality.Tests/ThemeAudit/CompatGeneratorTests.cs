@@ -50,9 +50,10 @@ public sealed class CompatGeneratorTests : IDisposable
         Assert.Equal("Thickness", Entry("Light", "Pad").Detail);
         Assert.Equal("using:Avalonia.Controls.Converters:MarginMultiplierConverter", Entry("Light", "Mult").Detail);
 
-        // Literal fallback: the brush aliases SysInk (fine) but its opacity references nothing; it resolves to a colour, so it is written out.
-        Assert.Equal(CompatHow.Literal, Entry("Light", "DanglingButColour").How);
-        Assert.Contains("NopeOpacity", Entry("Light", "DanglingButColour").Detail);
+        // The brush aliases SysInk (fine) but its opacity references nothing: it resolves to no colour,
+        // since an opacity the audit cannot read is not taken as 1, so it is skipped, not written out.
+        Assert.Contains("NopeOpacity", Skipped("Light", "DanglingButColour").Reason);
+        Assert.DoesNotContain(generation.Entries, e => e.Key == "DanglingButColour");
 
         // Restored: Vivid defines its own HighlightColor, which the Dark compat entry would shadow.
         Assert.Equal(CompatHow.Restored, Entry("Vivid", "HighlightColor").How);

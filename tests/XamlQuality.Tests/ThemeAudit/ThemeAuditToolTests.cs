@@ -29,7 +29,7 @@ public sealed class ThemeAuditToolTests : IDisposable
 {
     private const string AuditSummary = "2 themes, 2 consumers, 5 undefined-key findings, 2 low-contrast findings";
 
-    private const string CompatSummary = "4 mapped, 12 copied, 2 literal (review), 1 restored, 8 skipped";
+    private const string CompatSummary = "4 mapped, 12 copied, 0 literal (review), 1 restored, 10 skipped";
 
     private readonly string _root = Directory.CreateTempSubdirectory("theme-tool-").FullName;
 
@@ -189,7 +189,8 @@ public sealed class ThemeAuditToolTests : IDisposable
                 + "  skipped 1 key(s): ControlTheme is not copied by policy\n"
                 + "  skipped 1 key(s): mapped to NoSuchTarget, which the target theme does not define under this variant\n"
                 + "  skipped 1 key(s): mapped to ToInk, a brush, but the source defines a colour; map a colour key to a colour key\n"
-                + "  skipped 1 key(s): references Nope which nothing defines, and it is not a colour\n",
+                + "  skipped 1 key(s): references Nope which nothing defines, and it is not a colour\n"
+                + "  skipped 1 key(s): references NopeOpacity which nothing defines, and it is not a colour\n",
                 ""),
             Run("compat", "--config", CompatConfig));
         Assert.True(File.Exists(CompatOutput));

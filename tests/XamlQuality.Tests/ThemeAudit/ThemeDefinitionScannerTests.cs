@@ -43,8 +43,9 @@ public sealed class ThemeDefinitionScannerTests : IDisposable
         DefinedResource darkBackground = Single(defined, "Dark", "PageBackground");
         Assert.Equal(new ResourceValue.ColorLiteral(new AuditColor(0xFF, 0x1E, 0x1E, 0x1E)), darkBackground.Value);
 
+        // A brush's Color names a colour: the alias says so, since a brush there would not load.
         DefinedResource darkAccent = Single(defined, "Dark", "Accent");
-        Assert.Equal(new ResourceValue.Alias("AccentColor"), darkAccent.Value);
+        Assert.Equal(new ResourceValue.Alias("AccentColor") { FromColor = true }, darkAccent.Value);
 
         // A base resource (outside ThemeDictionaries) has no variant and is not colour-scored.
         DefinedResource padding = Single(defined, null, "StandardPadding");
@@ -89,6 +90,56 @@ public sealed class ThemeDefinitionScannerTests : IDisposable
         Assert.Equal(new ResourceValue.Alias("Accent"), Single(defined, null, "ButtonBackground").Value);
         DefinedResource controlTheme = Single(defined, null, "{x:Type Button}");
         Assert.IsType<ResourceValue.Opaque>(controlTheme.Value);
+    }
+
+    [Fact]
+    public void Reads_a_brushs_Color_and_Opacity_written_as_a_resource_or_as_a_property_element()
+    {
+        WriteFile("Brushes.axaml",
+            """
+            <ResourceDictionary xmlns="https://github.com/avaloniaui"
+                                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+              <SolidColorBrush x:Key="StaticOpacity" Color="#FFFFFF" Opacity="{StaticResource Faint}" />
+              <SolidColorBrush x:Key="DynamicOpacity" Color="{DynamicResource Ink}" Opacity="{DynamicResource Faint}" />
+              <SolidColorBrush x:Key="Elements">
+                <SolidColorBrush.Color>#FFFFFF</SolidColorBrush.Color>
+                <SolidColorBrush.Opacity>0.12</SolidColorBrush.Opacity>
+              </SolidColorBrush>
+              <SolidColorBrush x:Key="ElementResources">
+                <SolidColorBrush.Color><StaticResource ResourceKey="Ink" /></SolidColorBrush.Color>
+                <SolidColorBrush.Opacity><StaticResource ResourceKey="Faint" /></SolidColorBrush.Opacity>
+              </SolidColorBrush>
+            </ResourceDictionary>
+            """);
+
+        IReadOnlyList<DefinedResource> defined = ThemeDefinitionScanner.Scan(_root);
+
+        AuditColor white = new(0xFF, 0xFF, 0xFF, 0xFF);
+        Assert.Equal(new ResourceValue.ColorLiteral(white) { OpacityKey = "Faint" }, Single(defined, null, "StaticOpacity").Value);
+        Assert.Equal(new ResourceValue.Alias("Ink") { OpacityKey = "Faint", FromColor = true }, Single(defined, null, "DynamicOpacity").Value);
+        Assert.Equal(new ResourceValue.ColorLiteral(white, 0.12), Single(defined, null, "Elements").Value);
+        Assert.Equal(new ResourceValue.Alias("Ink") { OpacityKey = "Faint", FromColor = true }, Single(defined, null, "ElementResources").Value);
+    }
+
+    [Fact]
+    public void A_brush_whose_Color_or_Opacity_it_cannot_read_is_not_colour_scored()
+    {
+        // A binding, a resource inside another extension, and an opacity that is no number: each would
+        // be a guess, and an opacity read as 1 scores a translucent brush as opaque.
+        WriteFile("Brushes.axaml",
+            """
+            <ResourceDictionary xmlns="https://github.com/avaloniaui"
+                                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+              <SolidColorBrush x:Key="BoundOpacity" Color="#FFFFFF" Opacity="{Binding Fade}" />
+              <SolidColorBrush x:Key="ConvertedColor" Color="{Binding Ink, Converter={StaticResource ToColor}}" />
+              <SolidColorBrush x:Key="WordOpacity" Color="#FFFFFF" Opacity="faint" />
+            </ResourceDictionary>
+            """);
+
+        IReadOnlyList<DefinedResource> defined = ThemeDefinitionScanner.Scan(_root);
+
+        string[] unread = ["BoundOpacity", "ConvertedColor", "WordOpacity"];
+        Assert.All(unread, key => Assert.IsType<ResourceValue.Opaque>(Single(defined, null, key).Value));
     }
 
     private static DefinedResource Single(IReadOnlyList<DefinedResource> defined, string? variant, string key)

@@ -150,6 +150,104 @@ public sealed class ThemeInventoryTests : IDisposable
         Assert.False(light.Defines("NoSuchKey"));
     }
 
+    [Fact]
+    public void An_opacity_scales_the_alpha_truncated_once_as_Avalonia_draws_it()
+    {
+        // Headless on Avalonia 12.1.3 with Skia, white at 0.12 drew an alpha of 30 (30.6), at 0.5 of
+        // 127 and #80FFFFFF at 0.7 of 89 (89.6), where rounding gave 31, 128 and 90.
+        WriteFile("Index.axaml",
+            """
+            <ResourceDictionary xmlns="https://github.com/avaloniaui"
+                                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+              <SolidColorBrush x:Key="Faint" Color="#FFFFFF" Opacity="0.12" />
+              <SolidColorBrush x:Key="Half" Color="#FFFFFF" Opacity="0.5" />
+              <SolidColorBrush x:Key="HalfAgain" Color="#80FFFFFF" Opacity="0.7" />
+              <Color x:Key="Translucent">#1EFFFFFF</Color>
+              <SolidColorBrush x:Key="OfTranslucent" Color="{StaticResource Translucent}" />
+            </ResourceDictionary>
+            """);
+
+        VariantInventory only = Only();
+
+        Assert.Equal(new AuditColor(30, 0xFF, 0xFF, 0xFF), only.Resolve("Faint"));
+        Assert.Equal(new AuditColor(127, 0xFF, 0xFF, 0xFF), only.Resolve("Half"));
+        Assert.Equal(new AuditColor(89, 0xFF, 0xFF, 0xFF), only.Resolve("HalfAgain"));
+        Assert.Equal(new AuditColor(30, 0xFF, 0xFF, 0xFF), only.Resolve("OfTranslucent")); // the colour's own alpha
+    }
+
+    [Fact]
+    public void An_opacity_a_brush_takes_from_a_resource_is_the_number_that_resource_holds()
+    {
+        WriteFile("Index.axaml",
+            """
+            <ResourceDictionary xmlns="https://github.com/avaloniaui"
+                                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+              <x:Double x:Key="Faint">0.12</x:Double>
+              <Color x:Key="Ink">#FFFFFF</Color>
+              <SolidColorBrush x:Key="Static" Color="#FFFFFF" Opacity="{StaticResource Faint}" />
+              <SolidColorBrush x:Key="Dynamic" Color="{DynamicResource Ink}" Opacity="{DynamicResource Faint}" />
+              <SolidColorBrush x:Key="Element">
+                <SolidColorBrush.Color>#FFFFFF</SolidColorBrush.Color>
+                <SolidColorBrush.Opacity><StaticResource ResourceKey="Faint" /></SolidColorBrush.Opacity>
+              </SolidColorBrush>
+              <SolidColorBrush x:Key="Undefined" Color="#FFFFFF" Opacity="{StaticResource NoSuchKey}" />
+              <SolidColorBrush x:Key="NotANumber" Color="#FFFFFF" Opacity="{StaticResource Ink}" />
+              <x:Int32 x:Key="Whole">1</x:Int32>
+              <SolidColorBrush x:Key="NotADouble" Color="#FFFFFF" Opacity="{StaticResource Whole}" />
+            </ResourceDictionary>
+            """);
+
+        VariantInventory only = Only();
+
+        Assert.Equal(new AuditColor(30, 0xFF, 0xFF, 0xFF), only.Resolve("Static"));
+        Assert.Equal(new AuditColor(30, 0xFF, 0xFF, 0xFF), only.Resolve("Dynamic"));
+        Assert.Equal(new AuditColor(30, 0xFF, 0xFF, 0xFF), only.Resolve("Element"));
+        Assert.Null(only.Resolve("Undefined"));
+        Assert.Null(only.Resolve("NotANumber"));
+        Assert.Null(only.Resolve("NotADouble")); // only an x:Double is read as an opacity
+    }
+
+    [Fact]
+    public void A_brush_whose_Color_names_a_brush_has_no_colour_since_it_does_not_load()
+    {
+        // Avalonia 12.1.3 throws an InvalidCastException loading such a brush, whether it names the
+        // brush directly or through an alias.
+        WriteFile("Index.axaml",
+            """
+            <ResourceDictionary xmlns="https://github.com/avaloniaui"
+                                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+              <Color x:Key="Ink">#FFFFFF</Color>
+              <StaticResource x:Key="InkAlias" ResourceKey="Ink" />
+              <SolidColorBrush x:Key="InkBrush" Color="#FFFFFF" Opacity="0.5" />
+              <SolidColorBrush x:Key="NamedInkBrush" Color="{StaticResource Ink}" />
+              <StaticResource x:Key="InkBrushAlias" ResourceKey="InkBrush" />
+              <SolidColorBrush x:Key="OfBrush" Color="{StaticResource InkBrush}" Opacity="0.5" />
+              <SolidColorBrush x:Key="OfDynamicBrush" Color="{DynamicResource InkBrush}" />
+              <SolidColorBrush x:Key="OfNamingBrush" Color="{StaticResource NamedInkBrush}" />
+              <SolidColorBrush x:Key="OfBrushAlias" Color="{StaticResource InkBrushAlias}" />
+              <SolidColorBrush x:Key="OfBrushElement">
+                <SolidColorBrush.Color><StaticResource ResourceKey="InkBrush" /></SolidColorBrush.Color>
+              </SolidColorBrush>
+              <SolidColorBrush x:Key="OfColorAlias" Color="{StaticResource InkAlias}" />
+            </ResourceDictionary>
+            """);
+
+        VariantInventory only = Only();
+
+        string[] refused = ["OfBrush", "OfDynamicBrush", "OfNamingBrush", "OfBrushAlias", "OfBrushElement"];
+        Assert.All(refused, key => Assert.Null(only.Resolve(key)));
+
+        // A colour reached through an alias is still a colour, and an alias of a brush is that brush.
+        Assert.Equal(new AuditColor(0xFF, 0xFF, 0xFF, 0xFF), only.Resolve("OfColorAlias"));
+        Assert.Equal(new AuditColor(0xFF, 0xFF, 0xFF, 0xFF), only.Resolve("NamedInkBrush"));
+        Assert.Equal(new AuditColor(127, 0xFF, 0xFF, 0xFF), only.Resolve("InkBrushAlias"));
+    }
+
+    private VariantInventory Only()
+    {
+        return Assert.Single(ThemeInventory.Build(Path.Combine(_root, "Index.axaml"), _root).Variants);
+    }
+
     private void WriteFile(string relative, string content)
     {
         string path = Path.Combine(_root, relative);
