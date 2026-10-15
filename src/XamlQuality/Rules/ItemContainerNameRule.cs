@@ -37,19 +37,60 @@ namespace Bennewitz.Ninja.XamlQuality.Rules;
 /// <c>AutomationProperties.Name</c> or <c>LabeledBy</c>. A <c>TextBlock</c>'s own automation name does
 /// not count, because its peer reads only its text: measured, a named <c>TextBlock</c> with no text
 /// left the row to <c>ToString()</c>. When the root is a panel or a decorator that declares neither,
-/// or a <c>TextBlock</c> with no text, the name falls to <c>ToString()</c> on the type the template's
-/// <c>x:DataType</c> names, which is reported when it is <c>object</c>'s or <c>ValueType</c>'s, or
-/// the one the compiler writes for a record.
+/// or a <c>TextBlock</c> with no text, the name falls to <c>ToString()</c> on the items' type: the one
+/// the template's <c>x:DataType</c> names, else the one its <c>ItemsSource</c> binding reads, which is
+/// reported when it is <c>object</c>'s or <c>ValueType</c>'s, or the one the compiler writes for a
+/// record.
+/// </para>
+/// <para>
+/// ⭐ <b>With no item template, a data template chosen by the items' type presents each row, else their
+/// <c>ToString()</c>.</b> A row's presenter takes the first data template that matches its item: its own
+/// <c>ContentTemplate</c>, then each logical ancestor's <c>DataTemplates</c> in turn, nearest first and each in
+/// order, then the application's; with none it shows the item's <c>ToString()</c> in a <c>TextBlock</c>, by
+/// <c>ContentPresenter.CreateChild</c>, <c>DataTemplateExtensions.FindDataTemplate</c> and
+/// <c>FuncDataTemplate.Default</c> at 12.1.3. A <c>DataTemplate</c> matches an item that is an instance of its
+/// <c>DataType</c>, which an <c>x:DataType</c> gives it where none is written (<c>XDataTypeTransformer</c>); one with
+/// neither, which would match every item, is refused by the collection that holds it, so its markup throws as it
+/// loads. So the rule reads the items' type and asks the <c>DataTemplates</c> collections in that order: one that
+/// matches every item presents the rows, and its root is read as an item template's is; one that may match only
+/// some of them, or whose matching its own code decides, is named in <see cref="XamlRuleResult.Skipped"/>; and with
+/// none, the rows are named by the items' <c>ToString()</c>. A collection is searched where markup shows it reaching
+/// the list: the list's own, an ancestor's, and the application's. One in another view may reach it from where that
+/// view is placed at runtime, and one that may match is named in <see cref="XamlRuleResult.Skipped"/>; one beside the
+/// list in the same file does not reach it. Measured under Fluent, Simple and Semi, with no item template: list and
+/// tab rows of a type that writes no <c>ToString()</c> were named by its full name, a record's by its compiler's, and
+/// strings, an enum's members and a type's own <c>ToString()</c> by their text; a data template for the items' type,
+/// written with <c>DataType</c> or with <c>x:DataType</c>, in the list's <c>DataTemplates</c>, an ancestor's or the
+/// application's, named them by its <c>TextBlock</c> root's text; one whose <c>x:DataType</c> names another type was
+/// passed over; one whose root is a <c>StackPanel</c> left them to <c>ToString()</c>; and one with no data type
+/// stopped the markup loading.
+/// </para>
+/// <para>
+/// ⭐ <b>The items' type is what the <c>ItemsSource</c> binding's path reads, as the XAML compiler reads it.</b>
+/// Where no item template's <c>x:DataType</c> names it, the rule reads the binding's path against the data type
+/// in scope, as <c>AvaloniaXamlIlDataContextTypeTransformer</c> infers it at 12.1.3: the nearest
+/// <c>x:DataType</c>, a data template's <c>DataType</c>, or, for an item template that declares neither, the
+/// items of the control it templates. A cast in the path, as in <c>((vm:Model)DataContext).Items</c>, starts it
+/// again at the cast's type. Each step is the public instance property of that name, and the items are the
+/// <c>T</c> of the <c>IEnumerable&lt;T&gt;</c> the last one's type is, or a subclass of it. A plain
+/// <c>{Binding}</c> is read as compiled, as <c>AvaloniaUseCompiledBindingsByDefault</c> makes it at 12.1.3
+/// where a project leaves the property unset. Measured: an item template that declares no data type, whose root is a
+/// <c>StackPanel</c>, left the rows to the <c>ToString()</c> of the items the list's <c>ItemsSource</c> gave it.
 /// </para>
 /// <para>
 /// ⛔ <b>What markup cannot decide is named, not guessed.</b> A selector with a state, a class, a
 /// name or a context; a naming style in another file; a style that sets the host's template or the
-/// container's theme; an item template with no <c>x:DataType</c>, or none at all; an item type that
-/// is abstract, an interface, a control, or has a subclass that writes its own <c>ToString()</c>; a
-/// root that names itself through a peer of its own; and a container whose peer writes its own name
-/// are all named in <see cref="XamlRuleResult.Skipped"/>. So is every <c>ItemsSource</c> in a scan
-/// given no assemblies, because which container an items control generates, and how that container
-/// is named, are read from compiled types.
+/// container's theme; an item template, or a data template chosen by type, whose root names the rows
+/// through a peer of its own; with no item template, a content template the containers' theme or a style
+/// gives them, a data template that may match only some of the items, and one with no data type, which stops the
+/// markup loading; an items' type that neither an
+/// item template's <c>x:DataType</c> nor the <c>ItemsSource</c> binding reads, because the binding is a
+/// reflection one, takes a converter or a source of its own, follows a <c>DataContext</c> set on its way,
+/// or steps through an indexer, an attached property or an element; an item type that is abstract, an
+/// interface, a control, or has a subclass that writes its own <c>ToString()</c>; and a container whose
+/// peer writes its own name are all named in <see cref="XamlRuleResult.Skipped"/>. So is every
+/// <c>ItemsSource</c> in a scan given no assemblies, because which container an items control generates,
+/// and how that container is named, are read from compiled types.
 /// </para>
 /// <para>
 /// ⚠ <b>Only rows whose naming was measured are checked.</b> A container is a subject when the peer
@@ -191,6 +232,34 @@ public sealed class ItemContainerNameRule : IXamlRule
         Code,
     }
 
+    /// <summary>Whether a data template matches the items of a list whose items are declared as one type.</summary>
+    private enum Matching
+    {
+        /// <summary>It matches none of them.</summary>
+        None,
+
+        /// <summary>It may match some of them, or markup does not say.</summary>
+        Some,
+
+        /// <summary>It matches every one of them.</summary>
+        Every,
+    }
+
+    /// <summary>
+    /// The items an <c>ItemsSource</c> binding gives a control: the type they are declared as, the binding as it is
+    /// written, and what its path is read against; or, in <see cref="Unknown"/>, why they are not read.
+    /// </summary>
+    private sealed record Items(Type? Type, string? Shown, string? From, string? Unknown)
+    {
+        public static Items Unread(string why) => new(null, null, null, why);
+
+        /// <summary>The sentence that says where the items' type was read.</summary>
+        public string Source => $"Its items are {Type!.Name}, by its ItemsSource binding {Shown} and {From}.";
+
+        /// <summary>The clause that introduces the items' type in a reason.</summary>
+        public string TypedAs => $"and its items' type, by its ItemsSource binding {Shown} and {From}, is";
+    }
+
     /// <summary>One scan's worth of resolved types, resources and styles, shared by every control it decides.</summary>
     private sealed class Analysis
     {
@@ -206,12 +275,23 @@ public sealed class ItemContainerNameRule : IXamlRule
             "UniformGrid", "Viewbox", "VirtualizingStackPanel", "WrapPanel",
         };
 
+        /// <summary>
+        /// Elements a binding inside cannot take its data type through: templates and styles, whose content is placed
+        /// where they are applied, and resources, which are placed where they are used.
+        /// </summary>
+        private static readonly HashSet<string> Unplaced = new(StringComparer.Ordinal)
+        {
+            "ControlTemplate", "ItemsPanelTemplate", "FocusAdornerTemplate", "Template", "Style", "ControlTheme", "Setter",
+            "Styles", "ResourceDictionary",
+        };
+
         private readonly XamlScanContext _context;
         private readonly ElementTypes _types;
         private readonly ResourceScope _scope;
         private readonly ThemeReader _themes;
         private readonly Dictionary<Type, (RowKind Kind, string? Why)> _kinds = [];
         private List<Type>? _supplied;
+        private List<(XamlFile File, XElement Collection)>? _collections;
 
         public Analysis(XamlScanContext context)
         {
@@ -220,6 +300,15 @@ public sealed class ItemContainerNameRule : IXamlRule
             _scope = new ResourceScope(context);
             _themes = new ThemeReader(_scope, _types);
         }
+
+        /// <summary>Every <c>DataTemplates</c> collection in the scan, in file and document order.</summary>
+        private List<(XamlFile File, XElement Collection)> Collections =>
+            _collections ??=
+            [
+                .. _context.ParsedFiles.SelectMany(file => file.Document!.Descendants()
+                    .Where(IsDataTemplates)
+                    .Select(collection => (file, collection))),
+            ];
 
         public Verdict Decide(XamlFile file, XElement host)
         {
@@ -397,11 +486,11 @@ public sealed class ItemContainerNameRule : IXamlRule
                     + $"shows, in its ItemContainerTheme or in a Style for {styleKey}.");
             }
 
-            return ByContent(file, host, hostName, hostTheme, container);
+            return ByContent(file, host, hostName, type, hostTheme, container);
         }
 
         /// <summary>A list or tab row that nothing names itself: named by what it presents, else its item's <c>ToString()</c>.</summary>
-        private Verdict ByContent(XamlFile file, XElement host, string hostName, Definition? hostTheme, Type container)
+        private Verdict ByContent(XamlFile file, XElement host, string hostName, Type type, Definition? hostTheme, Type container)
         {
             string rows = $"its {container.Name} containers";
 
@@ -441,10 +530,7 @@ public sealed class ItemContainerNameRule : IXamlRule
 
             if (content.Count == 0)
             {
-                return Verdict.Undecided(
-                    $"No ItemTemplate is declared, so {rows} present what a data template chosen by each item's "
-                    + "type shows, or else its ToString(), and neither is decided from markup. Declare an "
-                    + "ItemTemplate with an x:DataType for it to be checked.");
+                return ByDataTemplates(file, host, hostName, type, hostTheme, container);
             }
 
             (XamlFile templateFile, XElement template) = content[0];
@@ -455,65 +541,188 @@ public sealed class ItemContainerNameRule : IXamlRule
                     + "this rule cannot follow.");
             }
 
-            XElement? root = template.Elements().FirstOrDefault(child => !child.Name.LocalName.Contains('.', StringComparison.Ordinal));
-            string because;
-            if (root is null)
+            (Verdict? decided, string? because) = ByRoot(templateFile, template, rows, "the item template");
+            if (decided is { } verdict)
             {
-                because = $"the item template at {Where(templateFile, template)} is empty";
-            }
-            else if (root.Name.LocalName is "TextBlock" or "SelectableTextBlock")
-            {
-                // A TextBlock's peer reads its text alone, so a name declared on it does not count.
-                switch (HasText(root, templateFile))
-                {
-                    case (true, _):
-                        return Verdict.Named;
-                    case (null, { } unknown):
-                        return Verdict.Undecided(unknown);
-                }
-
-                because = $"the root of the item template at {Where(templateFile, root)} is {A(root.Name.LocalName)} with no text";
-            }
-            else if (AutomationName.IsDeclaredOn(root) || DeclaresLabeledBy(root))
-            {
-                return Verdict.Named;
-            }
-            else if (Layout.Contains(root.Name.LocalName))
-            {
-                because = $"the root of the item template at {Where(templateFile, root)}, {A(root.Name.LocalName)}, declares no name";
-            }
-            else
-            {
-                return Verdict.Undecided(
-                    $"The root of the item template at {Where(templateFile, root)} is {A(root.Name.LocalName)}, "
-                    + $"whose own automation peer may name {rows} from what it holds, and that is not decided "
-                    + "from markup.");
+                return verdict;
             }
 
-            return ByToString(templateFile, template, hostName, container, because);
+            string falls = Falls(container, hostName, because!);
+            XAttribute? declared = template.Attribute(Xaml + "DataType") ?? template.Attribute("DataType");
+            if (declared is not null)
+            {
+                return TypeOf(declared.Value, template) is { } declaredType
+                    ? ByItemType(falls, declaredType, null, "and its x:DataType is", TemplateRemedy(declaredType))
+                    : Verdict.Undecided(
+                        $"{falls}, and its x:DataType, {declared.Value}, is not a type in the scanned assemblies or the "
+                        + "assemblies they reference.");
+            }
+
+            // An item template that declares no data type presents the items its control's ItemsSource gives it, as the
+            // XAML compiler infers the template's data type from them.
+            Items items = ItemsOf(host, file, type);
+            return items.Type is { } itemType
+                ? ByItemType(falls, itemType, items.Source, items.TypedAs, TemplateRemedy(itemType))
+                : Verdict.Undecided(
+                    $"{falls}, and the item template declares no x:DataType, nor is its items' type read from its "
+                    + $"ItemsSource binding: {items.Unknown}. Declare its x:DataType for it to be checked.");
         }
 
-        /// <summary>A row named by its item's <c>ToString()</c>, on the type the item template declares.</summary>
-        private Verdict ByToString(XamlFile file, XElement template, string hostName, Type container, string because)
+        /// <summary>
+        /// A list or tab row with no item template: presented by the first data template the search for one finds that
+        /// matches its item, else by a text block of the item's <c>ToString()</c>.
+        /// </summary>
+        private Verdict ByDataTemplates(XamlFile file, XElement host, string hostName, Type type, Definition? hostTheme, Type container)
         {
-            string falls = $"Nothing names the {container.Name} containers this {hostName} generates from ItemsSource "
-                           + $"but each item's ToString(), because {because}";
+            string rows = $"its {container.Name} containers";
+            string none = $"No ItemTemplate is declared, so {rows} present what a data template chosen by each item's type "
+                          + "shows, or else its ToString()";
 
-            XAttribute? declared = template.Attribute(Xaml + "DataType") ?? template.Attribute("DataType");
-            if (declared is null)
+            // A content template the containers' theme or a style gives them is what they present, and is not followed.
+            if (Styled(ElementTypes.NamesOf(container), $"the {container.Name} containers", "ContentTemplate") is { } styled)
             {
-                return Verdict.Undecided(
-                    $"{falls}, and the item template declares no x:DataType, so the item type is not in the markup. "
-                    + "Declare its x:DataType for it to be checked.");
+                return Verdict.Undecided(styled);
             }
 
-            if (ItemTypeOf(declared.Value, template) is not { } itemType)
+            (Definition? theme, string? themeUnknown) = _themes.ItemContainerThemeOf(host, file, hostTheme, container, "ContentTemplate");
+            if (themeUnknown is not null)
             {
-                return Verdict.Undecided(
-                    $"{falls}, and its x:DataType, {declared.Value}, is not a type in the scanned assemblies or the "
-                    + "assemblies they reference.");
+                return Verdict.Undecided(themeUnknown);
             }
 
+            if (theme is not null)
+            {
+                Found given = _themes.InTheme(theme, "ContentTemplate");
+                if (given.IsUnknown)
+                {
+                    return Verdict.Undecided(given.Unknown!);
+                }
+
+                if (given.IsSet && !(given.Setting!.Text is { } text && ThemeReader.IsNull(text.Trim())))
+                {
+                    return Verdict.Undecided(
+                        $"{none}, and the ControlTheme at {theme.Where} gives them a ContentTemplate at {given.Setting.Where}, "
+                        + "which this rule does not follow.");
+                }
+
+                // A data template the rows' own template declares is searched before any around the list.
+                foreach (Definition link in _themes.ChainOf(theme, "Template").Themes)
+                {
+                    if (link.Element.Descendants().FirstOrDefault(IsDataTemplates) is { } held)
+                    {
+                        return Verdict.Undecided(
+                            $"{none}, and the ControlTheme at {link.Where} declares data templates at {Where(link.File, held)}, "
+                            + "which the rows' presenters search first, and this rule does not follow.");
+                    }
+                }
+            }
+
+            Items items = ItemsOf(host, file, type);
+            if (items.Type is not { } itemType)
+            {
+                return Verdict.Undecided(
+                    $"{none}, and its items' type is not read from its ItemsSource binding: {items.Unknown}. Declare an "
+                    + "ItemTemplate with an x:DataType for it to be checked.");
+            }
+
+            if (ElementTypes.IsInputElement(itemType))
+            {
+                // A row presents a control item as it is, through no data template.
+                return ControlsAsItems(itemType);
+            }
+
+            (Definition? chosen, string? doubt) = Chosen(host, file, itemType, hostName);
+            if (doubt is not null)
+            {
+                return Verdict.Undecided($"{none}, and {doubt}.");
+            }
+
+            if (chosen is not null)
+            {
+                (Verdict? decided, string? because) = ByRoot(chosen.File, chosen.Element, rows, "the data template");
+                return decided ?? ByItemType(
+                    Falls(container, hostName,
+                        $"no ItemTemplate is declared, so the data template at {chosen.Where} is chosen for its items by "
+                        + $"their type, and {because}"),
+                    itemType, items.Source, items.TypedAs, TemplateRemedy(itemType));
+            }
+
+            return ByItemType(
+                Falls(container, hostName,
+                    "no ItemTemplate is declared and no data template in reach is chosen for its items, so each row shows "
+                    + "its item's ToString() in a TextBlock"),
+                itemType, items.Source, items.TypedAs,
+                $"Declare an ItemTemplate whose root is a TextBlock bound to what each item shows, set "
+                + $"AutomationProperties.Name in the ItemContainerTheme, or give {itemType.Name} a ToString() of its own.");
+        }
+
+        /// <summary>
+        /// What a template's root says of the rows it presents: a verdict, or, where they fall to their items'
+        /// <c>ToString()</c>, why.
+        /// </summary>
+        /// <param name="file">The file the template is in.</param>
+        /// <param name="template">The template.</param>
+        /// <param name="rows">The rows, as a reason names them.</param>
+        /// <param name="what">The template, as a reason names it: "the item template", "the data template".</param>
+        private (Verdict? Decided, string? Because) ByRoot(XamlFile file, XElement template, string rows, string what)
+        {
+            XElement? root = template.Elements().FirstOrDefault(child => !child.Name.LocalName.Contains('.', StringComparison.Ordinal));
+            if (root is null)
+            {
+                return (null, $"{what} at {Where(file, template)} is empty");
+            }
+
+            if (root.Name.LocalName is "TextBlock" or "SelectableTextBlock")
+            {
+                // A TextBlock's peer reads its text alone, so a name declared on it does not count.
+                switch (HasText(root, file))
+                {
+                    case (true, _):
+                        return (Verdict.Named, null);
+                    case (null, { } unknown):
+                        return (Verdict.Undecided(unknown), null);
+                }
+
+                return (null, $"the root of {what} at {Where(file, root)} is {A(root.Name.LocalName)} with no text");
+            }
+
+            if (AutomationName.IsDeclaredOn(root) || DeclaresLabeledBy(root))
+            {
+                return (Verdict.Named, null);
+            }
+
+            if (Layout.Contains(root.Name.LocalName))
+            {
+                return (null, $"the root of {what} at {Where(file, root)}, {A(root.Name.LocalName)}, declares no name");
+            }
+
+            return (Verdict.Undecided(
+                $"The root of {what} at {Where(file, root)} is {A(root.Name.LocalName)}, "
+                + $"whose own automation peer may name {rows} from what it holds, and that is not decided "
+                + "from markup."), null);
+        }
+
+        private static string Falls(Type container, string hostName, string because) =>
+            $"Nothing names the {container.Name} containers this {hostName} generates from ItemsSource "
+            + $"but each item's ToString(), because {because}";
+
+        private static Verdict ControlsAsItems(Type itemType) =>
+            Verdict.Undecided(
+                $"The items are controls, {itemType.Name}, which a container presents as they are, named by "
+                + "their own automation peers, and that is not decided from markup.");
+
+        private static string TemplateRemedy(Type itemType) =>
+            "Bind AutomationProperties.Name to what each item shows, on the template's root or in "
+            + $"the ItemContainerTheme, or give {itemType.Name} a ToString() of its own.";
+
+        /// <summary>A row named by its item's <c>ToString()</c>, on the type its items are declared as.</summary>
+        /// <param name="falls">Why the rows fall to their items' <c>ToString()</c>.</param>
+        /// <param name="itemType">The type the items are declared as.</param>
+        /// <param name="source">The sentence that says where that type was read, or <c>null</c> where it is an <c>x:DataType</c>.</param>
+        /// <param name="typedAs">The clause that introduces that type where it says nothing of the items.</param>
+        /// <param name="remedy">What would name the rows.</param>
+        private Verdict ByItemType(string falls, Type itemType, string? source, string typedAs, string remedy)
+        {
             string? unknowable = itemType == typeof(object) ? "object, which every item is"
                 : itemType.IsInterface ? $"{itemType.Name}, an interface"
                 : itemType.IsAbstract ? $"{itemType.Name}, which is abstract"
@@ -521,15 +730,13 @@ public sealed class ItemContainerNameRule : IXamlRule
             if (unknowable is not null)
             {
                 return Verdict.Undecided(
-                    $"{falls}, and its x:DataType is {unknowable}, so which ToString() the items have depends on "
+                    $"{falls}, {typedAs} {unknowable}, so which ToString() the items have depends on "
                     + "their concrete types, which markup does not show.");
             }
 
             if (ElementTypes.IsInputElement(itemType))
             {
-                return Verdict.Undecided(
-                    $"The items are controls, {itemType.Name}, which a container presents as they are, named by "
-                    + "their own automation peers, and that is not decided from markup.");
+                return ControlsAsItems(itemType);
             }
 
             Writer writer = WriterOf(itemType);
@@ -538,20 +745,536 @@ public sealed class ItemContainerNameRule : IXamlRule
                 return Verdict.Named;
             }
 
+            string said = source is null ? $"{falls}." : $"{falls}. {source}";
             if (!itemType.IsSealed && SubclassWriting(itemType) is { } subclass)
             {
                 return Verdict.Undecided(
-                    $"{falls}. {subclass.Name} derives from {itemType.Name} and writes its own ToString(), and "
+                    $"{said} {subclass.Name} derives from {itemType.Name} and writes its own ToString(), and "
                     + "which types the items are is not in the markup.");
             }
 
-            string remedy = "Bind AutomationProperties.Name to what each item shows, on the template's root or in "
-                            + $"the ItemContainerTheme, or give {itemType.Name} a ToString() of its own.";
             return Verdict.Unnamed(writer == Writer.Compiler
-                ? $"{falls}. {itemType.Name} is a record, and the ToString() the compiler writes for it lists its "
+                ? $"{said} {itemType.Name} is a record, and the ToString() the compiler writes for it lists its "
                   + $"type and every property, so each row is named \"{itemType.Name} {{ Property = value, … }}\". {remedy}"
-                : $"{falls}. {itemType.Name} writes no ToString(), so every row is named \"{itemType.FullName}\", "
+                : $"{said} {itemType.Name} writes no ToString(), so every row is named \"{itemType.FullName}\", "
                   + $"its type's full name. {remedy}");
+        }
+
+        /// <summary>
+        /// The items <paramref name="host"/>'s <c>ItemsSource</c> binding gives it, read as the XAML compiler reads a
+        /// compiled binding's path: against the data type in scope, or a cast in the path.
+        /// </summary>
+        /// <remarks>
+        /// ⚠ <b>Only a plain path is read.</b> A <c>ReflectionBinding</c>, and a <c>{Binding}</c> that
+        /// <c>x:CompileBindings="False"</c> makes one, read whatever their data context is at run time rather than the
+        /// type an <c>x:DataType</c> declares, and a binding that sets anything but its path and its mode, a converter,
+        /// a source or a fallback among them, gives a value its path does not show; each is named rather than read.
+        /// </remarks>
+        private Items ItemsOf(XElement host, XamlFile file, Type? type)
+        {
+            Found source = _themes.Local(host, file, "ItemsSource", type);
+            if (source.IsUnknown)
+            {
+                return Items.Unread($"the ItemsSource of the {host.Name.LocalName} at {Where(file, host)} is not decided");
+            }
+
+            if (source.Setting is not { } setting)
+            {
+                return Items.Unread($"the {host.Name.LocalName} at {Where(file, host)} sets no ItemsSource");
+            }
+
+            string shown = setting.Shown.Trim();
+            string? kind;
+            List<(string Name, string Value)> named;
+            List<string> positional = [];
+            if (setting.Element is { } element)
+            {
+                kind = BindingKind(element.Name.LocalName);
+                named =
+                [
+                    .. element.Attributes().Where(attribute => !attribute.IsNamespaceDeclaration)
+                        .Select(attribute => (attribute.Name.LocalName, attribute.Value)),
+                    .. element.Elements().Select(child => (ResourceScope.PropertyName(child.Name.LocalName), child.Value)),
+                ];
+            }
+            else if (MarkupExtension.Parse(setting.Text!) is { } extension)
+            {
+                kind = BindingKind(extension.Name);
+                named = [.. extension.Named()];
+                for (int index = 0; index < extension.Arguments.Count; index++)
+                {
+                    if (extension.Positional(index) is { } argument)
+                    {
+                        positional.Add(argument);
+                    }
+                }
+            }
+            else
+            {
+                return Items.Unread($"its ItemsSource is {shown}, not a binding");
+            }
+
+            if (kind is null)
+            {
+                return Items.Unread($"its ItemsSource is {shown}, which is not a binding this rule reads");
+            }
+
+            if (kind == "ReflectionBinding")
+            {
+                return Items.Unread(
+                    $"its ItemsSource is {shown}, a ReflectionBinding, which reads whatever its data context is at run time, "
+                    + "not the type an x:DataType declares");
+            }
+
+            if (kind == "Binding" && CompileBindingsOff(host) is { } off)
+            {
+                return Items.Unread(
+                    $"x:CompileBindings is False at {Where(file, off)}, so its ItemsSource binding {shown} reads whatever its "
+                    + "data context is at run time, not the type an x:DataType declares");
+            }
+
+            string? path = null;
+            foreach ((string name, string value) in named)
+            {
+                if (name == "Path")
+                {
+                    path = value;
+                }
+                else if (name != "Mode")
+                {
+                    return Items.Unread($"its ItemsSource binding {shown} sets {name}, which this rule does not evaluate");
+                }
+            }
+
+            if (positional.Count > 1 || (positional.Count == 1 && path is not null))
+            {
+                return Items.Unread($"its ItemsSource binding {shown} gives its path more than once");
+            }
+
+            string written = Unquoted(positional.Count == 1 ? positional[0] : path ?? string.Empty);
+            (Type? cast, string[] steps, string? pathUnknown) = PathOf(written, host);
+            if (pathUnknown is not null)
+            {
+                return Items.Unread(pathUnknown);
+            }
+
+            Type current;
+            string from;
+            if (cast is not null)
+            {
+                (current, from) = (cast, $"the cast to {cast.Name} in its path");
+            }
+            else
+            {
+                (Type? scoped, string? where, string? scopeUnknown) = DataTypeAt(host, file);
+                if (scoped is null)
+                {
+                    return Items.Unread(scopeUnknown!);
+                }
+
+                (current, from) = (scoped, where!);
+            }
+
+            foreach (string step in steps)
+            {
+                if (PropertyOf(current, step) is not { } property)
+                {
+                    return Items.Unread(
+                        $"its ItemsSource binding {shown} reads {step} on {current.Name}, by {from}, which has no public "
+                        + "property of that name");
+                }
+
+                current = property.PropertyType;
+            }
+
+            Type[] enumerables =
+            [
+                .. (current.IsInterface ? [current, .. current.GetInterfaces()] : current.GetInterfaces())
+                    .Where(candidate => candidate.IsGenericType && candidate.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+                    .Distinct(),
+            ];
+
+            return enumerables switch
+            {
+                [var only] => new Items(only.GetGenericArguments()[0], shown, from, null),
+                [] => Items.Unread(
+                    $"its ItemsSource binding {shown} reads {current.Name}, by {from}, which is no IEnumerable<T>, so the "
+                    + "type of its items is not declared"),
+                _ => Items.Unread(
+                    $"its ItemsSource binding {shown} reads {current.Name}, by {from}, which enumerates "
+                    + $"{enumerables.Length} types of item"),
+            };
+        }
+
+        /// <summary>
+        /// The data type a compiled binding on <paramref name="start"/> reads against, as the XAML compiler infers it at
+        /// 12.1.3: the nearest <c>x:DataType</c>, a data template's <c>DataType</c>, or, for an item template that
+        /// declares neither, the items of the control it templates; and what gave it.
+        /// </summary>
+        /// <remarks>
+        /// ⚠ <b>A <c>DataContext</c> set on the way changes what the binding reads</b>, to what that value is, which the
+        /// compiler infers from a compiled binding and the rule does not follow; and a template, a style or a resource
+        /// is placed where it is applied or used, which markup around it does not show. Each stops the reading.
+        /// </remarks>
+        private (Type? Type, string? From, string? Unknown) DataTypeAt(XElement start, XamlFile file)
+        {
+            for (XElement? element = start; element is not null; element = element.Parent)
+            {
+                if (element.Attribute(Xaml + "DataType") is { } directive)
+                {
+                    return Typed(directive.Value, element, $"the x:DataType at {Where(file, element)}");
+                }
+
+                bool dataTemplate = element.Name.LocalName is "DataTemplate" or "TreeDataTemplate";
+                if (dataTemplate && element.Attribute("DataType") is { } dataType)
+                {
+                    return Typed(dataType.Value, element, $"the DataType of the data template at {Where(file, element)}");
+                }
+
+                if (dataTemplate)
+                {
+                    if (element.Parent is { } slot
+                        && slot.Name.LocalName.EndsWith(".ItemTemplate", StringComparison.Ordinal)
+                        && slot.Parent is { } owner
+                        && _types.Resolve(owner.Name.LocalName).Type is { } ownerType
+                        && ElementTypes.IsItemsControl(ownerType))
+                    {
+                        Items outer = ItemsOf(owner, file, ownerType);
+                        return outer.Type is { } presented
+                            ? (presented, $"the items of the {owner.Name.LocalName} at {Where(file, owner)}", null)
+                            : (null, null,
+                                $"the data template at {Where(file, element)} declares no data type, and the items of the "
+                                + $"{owner.Name.LocalName} at {Where(file, owner)} it templates are not read either, since {outer.Unknown}");
+                    }
+
+                    return (null, null, $"the data template at {Where(file, element)} declares no data type");
+                }
+
+                if (ThemeReader.MaySet(element, "DataContext"))
+                {
+                    return (null, null, $"the {element.Name.LocalName} at {Where(file, element)} sets its DataContext, which is not followed");
+                }
+
+                string name = element.Name.LocalName;
+                if (Unplaced.Contains(name)
+                    || name.EndsWith(".Resources", StringComparison.Ordinal)
+                    || name.EndsWith(".Styles", StringComparison.Ordinal))
+                {
+                    return (null, null, $"it is inside {A(name)} at {Where(file, element)}, whose data context markup does not show");
+                }
+            }
+
+            return (null, null, "no x:DataType is in scope");
+
+            (Type? Type, string? From, string? Unknown) Typed(string written, XElement element, string from) =>
+                TypeOf(written, element) is { } type
+                    ? (type, from, null)
+                    : (null, null, $"{from}, {written}, is not a type in the scanned assemblies or the assemblies they reference");
+        }
+
+        /// <summary>
+        /// The search a row's presenter makes for a data template, as markup shows it: the first that matches every item
+        /// presents the rows, and one that may match only some, or whose matching is not decided, is why not.
+        /// </summary>
+        /// <remarks>
+        /// ⚠ <b>The search walks the logical tree, which markup shows only part of.</b> From the list it climbs the
+        /// list's ancestors in its file, then searches the application's <c>DataTemplates</c>. Between the two, the view
+        /// is wherever it is placed at runtime, so a collection in another view that may match is named; and a template
+        /// in a <c>DataTemplates</c> collection may be presented by any control its owner holds, so the collections that
+        /// owner holds may be searched first. Where the climb leaves the tree, out of a template held anywhere but as an
+        /// item, content or header template or in a <c>DataTemplates</c> collection, or out of resources or styles, any
+        /// other collection in the file may be searched first too.
+        /// </remarks>
+        private (Definition? Template, string? Unknown) Chosen(XElement host, XamlFile file, Type itemType, string hostName)
+        {
+            HashSet<XElement> searched = [];
+            List<XElement> owners = [];
+            bool lost = false;
+            XElement? previous = null;
+            for (XElement? scope = host; scope is not null; previous = scope, scope = scope.Parent)
+            {
+                if (previous is not null)
+                {
+                    if (LeavesTheTree(previous, scope))
+                    {
+                        lost = true;
+                        break;
+                    }
+
+                    if (IsDataTemplates(scope) && scope.Parent is { } owner)
+                    {
+                        owners.Add(owner);
+                    }
+                }
+
+                foreach (XElement collection in scope.Elements().Where(IsDataTemplates))
+                {
+                    searched.Add(collection);
+                    foreach (XElement entry in collection.Elements())
+                    {
+                        (Matching matching, string? why) = Matches(entry, itemType, file);
+                        switch (matching)
+                        {
+                            case Matching.Every:
+                                return (new Definition(file, entry), null);
+                            case Matching.Some:
+                                return (null, why);
+                        }
+                    }
+                }
+            }
+
+            foreach ((XamlFile otherFile, XElement collection) in Collections)
+            {
+                bool global = _scope.Applications.Contains(otherFile) && collection.Parent == otherFile.Document!.Root;
+                if (searched.Contains(collection)
+                    || global
+                    || (otherFile == file && !lost && !owners.Any(owner => collection.Ancestors().Contains(owner))))
+                {
+                    continue;
+                }
+
+                foreach (XElement entry in collection.Elements())
+                {
+                    (Matching matching, string? why) = Matches(entry, itemType, otherFile);
+                    if (matching != Matching.None)
+                    {
+                        return (null,
+                            (matching == Matching.Every ? $"the data template at {Where(otherFile, entry)} matches them" : why)
+                            + $", and it is in no scope this markup shows reaching this {hostName}: whether the search for a "
+                            + "data template reaches it depends on where the view is placed at runtime");
+                    }
+                }
+            }
+
+            foreach (XamlFile application in _scope.Applications)
+            {
+                foreach (XElement collection in application.Document!.Root!.Elements().Where(IsDataTemplates))
+                {
+                    if (!searched.Add(collection))
+                    {
+                        continue;
+                    }
+
+                    foreach (XElement entry in collection.Elements())
+                    {
+                        (Matching matching, string? why) = Matches(entry, itemType, application);
+                        switch (matching)
+                        {
+                            case Matching.Every:
+                                return (new Definition(application, entry), null);
+                            case Matching.Some:
+                                return (null, why);
+                        }
+                    }
+                }
+            }
+
+            return (null, null);
+        }
+
+        /// <summary>
+        /// Whether a data template matches every item declared as <paramref name="itemType"/>, may match some, or none,
+        /// as <c>DataTemplate.Match</c> decides at 12.1.3: an item that is an instance of its <c>DataType</c>, which an
+        /// <c>x:DataType</c> gives it where none is written. One with neither is refused by the collection that holds it,
+        /// so its markup does not load, which is named.
+        /// </summary>
+        private (Matching Matching, string? Why) Matches(XElement entry, Type itemType, XamlFile file)
+        {
+            string name = entry.Name.LocalName;
+            if (name is not ("DataTemplate" or "TreeDataTemplate"))
+            {
+                return (Matching.Some, $"the {name} at {Where(file, entry)} is a data template whose own code decides which items it presents");
+            }
+
+            if (entry.Elements().Any(child => child.Name.LocalName.EndsWith(".DataType", StringComparison.Ordinal)))
+            {
+                return (Matching.Some, $"the data template at {Where(file, entry)} gives its DataType as a property element, which is not read");
+            }
+
+            XAttribute? written = entry.Attribute("DataType") ?? entry.Attribute(Xaml + "DataType");
+            if (written is null)
+            {
+                return (Matching.Some,
+                    $"the data template at {Where(file, entry)} has no DataType, which a DataTemplates collection refuses at "
+                    + "12.1.3, so this markup throws as it loads");
+            }
+
+            if (TypeOf(written.Value, entry) is not { } dataType)
+            {
+                // Items of a sealed type are instances only of it, its bases and its interfaces, all of which resolve.
+                string local = written.Value.Trim().Trim('{', '}');
+                local = local[(local.LastIndexOf(':') + 1)..].Trim();
+                return itemType.IsSealed && !Above(itemType).Any(link => link.Name == local)
+                    ? (Matching.None, null)
+                    : (Matching.Some,
+                        $"the data template at {Where(file, entry)} is for {written.Value}, which is not a type in the scanned "
+                        + "assemblies or the assemblies they reference, and some of the items may be one");
+            }
+
+            if (ElementTypes.IsAssignable(dataType, itemType))
+            {
+                return (Matching.Every, null);
+            }
+
+            return MayBe(dataType, itemType)
+                ? (Matching.Some, $"the data template at {Where(file, entry)} is for {dataType.Name}, which some of the items may be")
+                : (Matching.None, null);
+        }
+
+        /// <summary>
+        /// Whether an item declared as <paramref name="itemType"/> may be a <paramref name="dataType"/> that not every
+        /// one is: an instance of a type derived from both.
+        /// </summary>
+        private static bool MayBe(Type dataType, Type itemType) =>
+            ElementTypes.IsAssignable(itemType, dataType)
+            || (dataType.IsInterface && !itemType.IsSealed)
+            || (itemType.IsInterface && !dataType.IsSealed);
+
+        /// <summary>A type's bases and the interfaces it implements.</summary>
+        private static IEnumerable<Type> Above(Type type)
+        {
+            for (Type? link = type.BaseType; link is not null; link = link.BaseType)
+            {
+                yield return link;
+            }
+
+            foreach (Type implemented in type.GetInterfaces())
+            {
+                yield return implemented;
+            }
+        }
+
+        /// <summary>
+        /// Whether stepping from <paramref name="child"/> to its markup parent leaves the logical tree a row's presenter
+        /// searches: out of a template held anywhere but as an item, content or header template or in a
+        /// <c>DataTemplates</c> collection, or out of resources or styles.
+        /// </summary>
+        private static bool LeavesTheTree(XElement child, XElement parent)
+        {
+            string name = parent.Name.LocalName;
+            string childName = child.Name.LocalName;
+            if (!childName.Contains('.', StringComparison.Ordinal) && childName.EndsWith("Template", StringComparison.Ordinal))
+            {
+                return !(name.EndsWith(".ItemTemplate", StringComparison.Ordinal)
+                         || name.EndsWith(".ContentTemplate", StringComparison.Ordinal)
+                         || name.EndsWith(".HeaderTemplate", StringComparison.Ordinal)
+                         || IsDataTemplates(parent));
+            }
+
+            return Unplaced.Contains(name)
+                   || name.EndsWith(".Resources", StringComparison.Ordinal)
+                   || name.EndsWith(".Styles", StringComparison.Ordinal)
+                   || name.EndsWith(".Value", StringComparison.Ordinal)
+                   || name.EndsWith(".MergedDictionaries", StringComparison.Ordinal)
+                   || name.EndsWith(".ThemeDictionaries", StringComparison.Ordinal);
+        }
+
+        private static bool IsDataTemplates(XElement element) =>
+            element.Name.LocalName.EndsWith(".DataTemplates", StringComparison.Ordinal);
+
+        /// <summary>
+        /// The binding an extension or an element is, by its name without a prefix or an <c>Extension</c> suffix:
+        /// <c>Binding</c>, <c>CompiledBinding</c> or <c>ReflectionBinding</c>; <c>null</c> for any other.
+        /// </summary>
+        private static string? BindingKind(string written)
+        {
+            string name = written[(written.LastIndexOf(':') + 1)..];
+            name = name.EndsWith("Extension", StringComparison.Ordinal) ? name[..^"Extension".Length] : name;
+            return name is "Binding" or "CompiledBinding" or "ReflectionBinding" ? name : null;
+        }
+
+        /// <summary>The nearest element on the way up from <paramref name="element"/> that sets <c>x:CompileBindings</c> to <c>False</c>, where none nearer sets it to <c>True</c>.</summary>
+        private static XElement? CompileBindingsOff(XElement element) =>
+            element.AncestorsAndSelf().FirstOrDefault(scope => scope.Attribute(Xaml + "CompileBindings") is not null) is { } nearest
+            && string.Equals(nearest.Attribute(Xaml + "CompileBindings")!.Value.Trim(), "False", StringComparison.OrdinalIgnoreCase)
+                ? nearest
+                : null;
+
+        private static string Unquoted(string text)
+        {
+            string trimmed = text.Trim();
+            return trimmed.Length >= 2 && trimmed[0] == '\'' && trimmed[^1] == '\'' ? trimmed[1..^1].Trim() : trimmed;
+        }
+
+        /// <summary>
+        /// A compiled path's steps: dotted property names, after a cast group <c>((vm:T)Property)</c> where the path has
+        /// one, whose type the steps after it start from; or why the path is not one the rule reads.
+        /// </summary>
+        private (Type? Cast, string[] Steps, string? Unknown) PathOf(string path, XElement context)
+        {
+            string unread = $"its ItemsSource binding's path, {path}, is not one this rule reads";
+            string rest = path;
+            Type? cast = null;
+            int group = path.LastIndexOf("((", StringComparison.Ordinal);
+            if (group >= 0)
+            {
+                int close = path.IndexOf(')', group + 2);
+                int end = close < 0 ? -1 : path.IndexOf(')', close + 1);
+                if ((group > 0 && path[group - 1] != '.') || close < 0 || end < 0 || !IsIdentifier(path[(close + 1)..end]))
+                {
+                    return (null, [], unread);
+                }
+
+                string typeName = path[(group + 2)..close].Trim();
+                if (TypeOf(typeName, context) is not { } type)
+                {
+                    return (null, [],
+                        $"the cast in its ItemsSource binding's path, to {typeName}, is not a type in the scanned assemblies or "
+                        + "the assemblies they reference");
+                }
+
+                cast = type;
+                rest = path[(end + 1)..];
+                if (rest.Length > 0)
+                {
+                    if (rest[0] != '.')
+                    {
+                        return (null, [], unread);
+                    }
+
+                    rest = rest[1..];
+                }
+            }
+
+            if (rest.Length == 0 || (cast is null && rest == "."))
+            {
+                return (cast, [], null);
+            }
+
+            string[] steps = rest.Split('.');
+            return steps.All(IsIdentifier) ? (cast, steps, null) : (null, [], unread);
+        }
+
+        private static bool IsIdentifier(string text) =>
+            text.Length > 0
+            && (char.IsLetter(text[0]) || text[0] == '_')
+            && text.All(character => char.IsLetterOrDigit(character) || character == '_');
+
+        /// <summary>
+        /// The public instance property a compiled path's step names on <paramref name="type"/>: the most derived one of
+        /// that name, an interface's inherited ones included, but an indexer; <c>null</c> where there is none.
+        /// </summary>
+        private static PropertyInfo? PropertyOf(Type type, string name)
+        {
+            IEnumerable<Type> searched = type.IsInterface ? [type, .. type.GetInterfaces()] : [type];
+            foreach (Type link in searched)
+            {
+                PropertyInfo[] candidates =
+                [
+                    .. link.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                        .Where(property => property.Name == name && property.GetIndexParameters().Length == 0),
+                ];
+                if (candidates.Length > 0)
+                {
+                    // A property a subclass hides with new is listed beside its base's.
+                    return candidates.FirstOrDefault(candidate => candidates.All(other =>
+                               other.DeclaringType!.IsAssignableFrom(candidate.DeclaringType)))
+                           ?? candidates[0];
+                }
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -574,10 +1297,11 @@ public sealed class ItemContainerNameRule : IXamlRule
         }
 
         /// <summary>
-        /// The type an <c>x:DataType</c> or <c>DataType</c> names, through the <c>xmlns</c> its prefix is
-        /// declared with: <c>using:</c>, <c>clr-namespace:</c>, or the XAML language's own types.
+        /// The type an <c>x:DataType</c>, a <c>DataType</c> or a cast names, through the <c>xmlns</c> its prefix is
+        /// declared with where <paramref name="context"/> is: <c>using:</c>, <c>clr-namespace:</c>, or the XAML
+        /// language's own types.
         /// </summary>
-        private Type? ItemTypeOf(string written, XElement template)
+        private Type? TypeOf(string written, XElement context)
         {
             string name = written.Trim();
             if (name.StartsWith('{') && name.EndsWith('}'))
@@ -604,7 +1328,7 @@ public sealed class ItemContainerNameRule : IXamlRule
                 return null;
             }
 
-            XNamespace? xmlns = prefix.Length == 0 ? template.GetDefaultNamespace() : template.GetNamespaceOfPrefix(prefix);
+            XNamespace? xmlns = prefix.Length == 0 ? context.GetDefaultNamespace() : context.GetNamespaceOfPrefix(prefix);
             if (xmlns is null)
             {
                 return null;

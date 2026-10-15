@@ -132,11 +132,123 @@ namespace XamlQuality.Tests.Rules.ItemFakes
         public override string ToString() => nameof(DerivedItem);
     }
 
-    /// <summary>An unsealed type that writes no <c>ToString()</c>, and nothing derives from it.</summary>
+    /// <summary>An unsealed type that writes no <c>ToString()</c>, with a subclass that writes none either.</summary>
     public class OpenItem;
+
+    /// <summary>A subclass of <see cref="OpenItem"/> that writes no <c>ToString()</c>.</summary>
+    public sealed class SubOpenItem : OpenItem;
 
     /// <summary>A control used as an item.</summary>
     public class ControlItem : Control;
+
+    /// <summary>
+    /// A view model whose lists the tests' <c>ItemsSource</c> bindings read through an <c>x:DataType</c>; nothing constructs
+    /// it, since the rule reads its properties' types.
+    /// </summary>
+    public sealed class ListsModel
+    {
+        /// <summary>Items whose type writes no <c>ToString()</c>.</summary>
+        public PlainItem[] Plain { get; } = [];
+
+        /// <summary>Items whose type writes its own.</summary>
+        public IReadOnlyList<NamedItem> Named { get; } = [];
+
+        /// <summary>Records, whose <c>ToString()</c> the compiler writes.</summary>
+        public List<RecordItem> Records { get; } = [];
+
+        /// <summary>An enum's members.</summary>
+        public ModeItem[] Modes { get; } = [];
+
+        /// <summary>Strings.</summary>
+        public IReadOnlyList<string> Texts { get; } = [];
+
+        /// <summary>Items of an unsealed type that writes no <c>ToString()</c>, and nothing derives from.</summary>
+        public OpenItem[] Opens { get; } = [];
+
+        /// <summary>Items of a type with a subclass that writes one.</summary>
+        public BaseItem[] Bases { get; } = [];
+
+        /// <summary>Items an interface types.</summary>
+        public IItem[] Interfaces { get; } = [];
+
+        /// <summary>Items of any type.</summary>
+        public object[] Objects { get; } = [];
+
+        /// <summary>Controls.</summary>
+        public ControlItem[] Controls { get; } = [];
+
+        /// <summary>Items no generic interface types.</summary>
+        public System.Collections.IEnumerable Untyped { get; } = Array.Empty<object>();
+
+        /// <summary>Items of two types at once.</summary>
+        public TwoKinds Both { get; } = new();
+
+        /// <summary>A collection type of its own.</summary>
+        public PlainItems Typed { get; } = [];
+
+        /// <summary>Items typed by the generic interface itself.</summary>
+        public IEnumerable<PlainItem> Sequence { get; } = [];
+
+        /// <summary>A model a path steps through.</summary>
+        public InnerModel Inner { get; } = new();
+    }
+
+    /// <summary>A model a binding's path steps through to reach a list.</summary>
+    public sealed class InnerModel
+    {
+        /// <summary>Items whose type writes no <c>ToString()</c>.</summary>
+        public PlainItem[] Plain { get; } = [];
+    }
+
+    /// <summary>A model whose list holds models, for a list in the item template of another.</summary>
+    public sealed class HolderModel
+    {
+        /// <summary>The models.</summary>
+        public ListsModel[] Models { get; } = [];
+    }
+
+    /// <summary>A collection type of a consumer's own, which enumerates items whose type writes no <c>ToString()</c>.</summary>
+    public sealed class PlainItems : List<PlainItem>;
+
+    /// <summary>A collection that enumerates two types of item.</summary>
+    public sealed class TwoKinds : IEnumerable<PlainItem>, IEnumerable<NamedItem>
+    {
+        /// <inheritdoc />
+        IEnumerator<PlainItem> IEnumerable<PlainItem>.GetEnumerator() => Enumerable.Empty<PlainItem>().GetEnumerator();
+
+        /// <inheritdoc />
+        IEnumerator<NamedItem> IEnumerable<NamedItem>.GetEnumerator() => Enumerable.Empty<NamedItem>().GetEnumerator();
+
+        /// <inheritdoc />
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => Enumerable.Empty<object>().GetEnumerator();
+    }
+
+    /// <summary>A model with a list of items whose type writes its own <c>ToString()</c>.</summary>
+    public class BaseModel
+    {
+        /// <summary>Items whose type writes its own.</summary>
+        public NamedItem[] Shadowed { get; } = [];
+    }
+
+    /// <summary>A model that hides its base's list with one of items whose type writes no <c>ToString()</c>.</summary>
+    public sealed class ShadowModel : BaseModel
+    {
+        /// <summary>Items whose type writes no <c>ToString()</c>.</summary>
+        public new PlainItem[] Shadowed { get; } = [];
+    }
+
+    /// <summary>A source of items an interface declares, inherited by another.</summary>
+    public interface IPlainSource
+    {
+        /// <summary>Items whose type writes no <c>ToString()</c>.</summary>
+        PlainItem[] Plain { get; }
+    }
+
+    /// <summary>An interface that declares nothing of its own, whose base declares the list.</summary>
+    public interface IDerivedSource : IPlainSource;
+
+    /// <summary>A data template of a consumer's own, which chooses its items in code, as a view locator does.</summary>
+    public sealed class Locator;
 
     /// <summary>A consumer's row peer that computes its own name.</summary>
     /// <param name="owner">The row.</param>

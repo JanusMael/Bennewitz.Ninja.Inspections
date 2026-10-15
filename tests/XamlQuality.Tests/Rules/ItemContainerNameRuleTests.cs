@@ -74,6 +74,17 @@ public sealed class ItemContainerNameRuleTests : IDisposable
     private static string NamingStyle(string selector) =>
         $"<Style Selector=\"{selector}\"><Setter Property=\"AutomationProperties.Name\" Value=\"{{Binding Label}}\" /></Style>";
 
+    /// <summary>A view whose root declares <paramref name="dataType"/> its data type, as a compiled view's does.</summary>
+    private static string TypedView(string body, string resources = "", string dataType = "m:ListsModel") =>
+        $"<UserControl {Header} x:DataType=\"{dataType}\">{resources}{body}</UserControl>";
+
+    /// <summary>An items control bound to <paramref name="source"/>, with <paramref name="inner"/> inside it.</summary>
+    private static string Bound(string source, string inner = "", string attributes = "", string host = "ListBox") =>
+        $"<{host} ItemsSource=\"{source}\" {attributes}>{inner}</{host}>";
+
+    /// <summary>A data template, typed by <paramref name="typed"/>, an attribute or nothing, with <paramref name="root"/> at its root.</summary>
+    private static string DataTemplate(string typed, string root = TextRoot) => $"<DataTemplate {typed}>{root}</DataTemplate>";
+
     private static void AssertNamed(XamlRuleResult result)
     {
         Assert.Empty(result.Findings);
@@ -321,6 +332,7 @@ public sealed class ItemContainerNameRuleTests : IDisposable
         Assert.Contains("The items are controls", skip.Reason, StringComparison.Ordinal);
     }
 
+    /// <summary>With no data type in scope, its items' type is read from nothing.</summary>
     [Fact]
     public void AnItemTemplateWithNoDataType_IsSkipped()
     {
@@ -330,6 +342,7 @@ public sealed class ItemContainerNameRuleTests : IDisposable
         XamlSkip skip = AssertSkipped(Run());
 
         Assert.Contains("declares no x:DataType", skip.Reason, StringComparison.Ordinal);
+        Assert.Contains("nor is its items' type read from its ItemsSource binding: no x:DataType is in scope.", skip.Reason, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -342,7 +355,7 @@ public sealed class ItemContainerNameRuleTests : IDisposable
         Assert.Contains("m:Nowhere", skip.Reason, StringComparison.Ordinal);
     }
 
-    /// <summary>With no item template, a data template chosen by type presents each item, and the type is not in the markup.</summary>
+    /// <summary>With no item template, a data template chosen by type presents each item, and with no data type in scope the type is not in the markup.</summary>
     [Fact]
     public void NoItemTemplate_IsSkipped()
     {
@@ -351,6 +364,7 @@ public sealed class ItemContainerNameRuleTests : IDisposable
         XamlSkip skip = AssertSkipped(Run());
 
         Assert.Contains("No ItemTemplate is declared", skip.Reason, StringComparison.Ordinal);
+        Assert.Contains("its items' type is not read from its ItemsSource binding: no x:DataType is in scope.", skip.Reason, StringComparison.Ordinal);
     }
 
     /// <summary>An empty template presents nothing, so the item's <c>ToString()</c> names the row. Measured.</summary>
@@ -881,6 +895,451 @@ public sealed class ItemContainerNameRuleTests : IDisposable
         XamlSkip skip = AssertSkipped(Run());
 
         Assert.Contains("depends on where the view is placed", skip.Reason, StringComparison.Ordinal);
+    }
+
+    // ── The items' type, read from the ItemsSource binding ─────────────────────
+
+    /// <summary>
+    /// With no item template, each row shows its item's <c>ToString()</c> in a text block, and the items' type is the one the
+    /// binding's path reads through the view's <c>x:DataType</c>. Measured under Fluent, Simple and Semi.
+    /// </summary>
+    [Theory]
+    [InlineData("ListBox", "ListBoxItem")]
+    [InlineData("ComboBox", "ComboBoxItem")]
+    [InlineData("TabControl", "TabItem")]
+    public void WithNoItemTemplate_ItemsWhoseTypeWritesNoToString_AreReported(string host, string row)
+    {
+        Write("View.axaml", TypedView(Bound("{Binding Plain}", host: host)));
+
+        string message = AssertUnnamed(Run()).Message;
+
+        Assert.Contains(
+            $"Nothing names the {row} containers this {host} generates from ItemsSource but each item's ToString(), because no "
+            + "ItemTemplate is declared and no data template in reach is chosen for its items", message, StringComparison.Ordinal);
+        Assert.Contains("Its items are PlainItem, by its ItemsSource binding {Binding Plain} and the x:DataType at View.axaml:1.", message, StringComparison.Ordinal);
+        Assert.Contains("\"XamlQuality.Tests.Rules.ItemFakes.PlainItem\"", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void WithNoItemTemplate_ARecordsItems_AreReported()
+    {
+        Write("View.axaml", TypedView(Bound("{Binding Records}")));
+
+        Assert.Contains("RecordItem is a record", AssertUnnamed(Run()).Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>A type's own <c>ToString()</c>, an enum's member and a string are what each row shows. Measured.</summary>
+    [Theory]
+    [InlineData("Named")]
+    [InlineData("Modes")]
+    [InlineData("Texts")]
+    public void WithNoItemTemplate_ItemsWhoseToStringNamesThem_AreClean(string property)
+    {
+        Write("View.axaml", TypedView(Bound($"{{Binding {property}}}")));
+
+        AssertNamed(Run());
+    }
+
+    /// <summary>What the items' concrete types are is not in the markup, wherever their declared type is read from.</summary>
+    [Theory]
+    [InlineData("Interfaces", "and its items' type, by its ItemsSource binding {Binding Interfaces} and the x:DataType at View.axaml:1, is IItem, an interface")]
+    [InlineData("Objects", "is object, which every item is")]
+    [InlineData("Bases", "DerivedItem derives from BaseItem")]
+    [InlineData("Controls", "The items are controls")]
+    public void WithNoItemTemplate_ItemsWhoseTypeSaysNothingOfThem_AreSkipped(string property, string why)
+    {
+        Write("View.axaml", TypedView(Bound($"{{Binding {property}}}")));
+
+        Assert.Contains(why, AssertSkipped(Run()).Reason, StringComparison.Ordinal);
+    }
+
+    /// <summary>An item template that declares no data type presents the items its control is given, as the XAML compiler infers.</summary>
+    [Theory]
+    [InlineData("Plain", false)]
+    [InlineData("Named", true)]
+    public void AnItemTemplateWithNoDataType_TakesTheItemsSourcesType(string property, bool named)
+    {
+        Write("View.axaml", TypedView(Bound($"{{Binding {property}}}",
+            $"<ListBox.ItemTemplate><DataTemplate>{PanelRoot}</DataTemplate></ListBox.ItemTemplate>")));
+
+        XamlRuleResult result = Run();
+
+        if (named)
+        {
+            AssertNamed(result);
+        }
+        else
+        {
+            string message = AssertUnnamed(result).Message;
+            Assert.Contains(
+                "because the root of the item template at View.axaml:1, a StackPanel, declares no name. Its items are PlainItem, by "
+                + "its ItemsSource binding {Binding Plain} and the x:DataType at View.axaml:1.", message, StringComparison.Ordinal);
+            Assert.Contains("Bind AutomationProperties.Name to what each item shows, on the template's root", message, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>Every spelling of a compiled binding, and every path the rule reads, reaches the same items.</summary>
+    [Theory]
+    [InlineData("{Binding Path=Plain}")]
+    [InlineData("{CompiledBinding Plain}")]
+    [InlineData("{Binding Plain, Mode=OneWay}")]
+    [InlineData("{Binding Path='Plain'}")]
+    [InlineData("{Binding Inner.Plain}")]
+    [InlineData("{Binding Typed}")]
+    [InlineData("{Binding Sequence}")]
+    public void TheBindingsSpellingsAndPaths_ReadTheItems(string source)
+    {
+        Write("View.axaml", TypedView(Bound(source)));
+
+        AssertUnnamed(Run());
+    }
+
+    [Fact]
+    public void ABindingWrittenAsAnElement_ReadsTheItems()
+    {
+        Write("View.axaml", TypedView("<ListBox><ListBox.ItemsSource><Binding Path=\"Plain\" /></ListBox.ItemsSource></ListBox>"));
+
+        AssertUnnamed(Run());
+    }
+
+    /// <summary>A cast in the path starts it again at the cast's type, whatever comes before it.</summary>
+    [Fact]
+    public void ACastInThePath_StartsItAtTheCastsType()
+    {
+        Write("View.axaml", TypedView(Bound("{Binding $parent[ItemsControl].((m:ListsModel)DataContext).Plain}"), dataType: "m:HolderModel"));
+
+        Assert.Contains("and the cast to ListsModel in its path.", AssertUnnamed(Run()).Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>A step is the most derived property of its name, an interface's include those it inherits, and no step reads the data type itself.</summary>
+    [Theory]
+    [InlineData("m:ShadowModel", "{Binding Shadowed}")]
+    [InlineData("m:IDerivedSource", "{Binding Plain}")]
+    [InlineData("m:PlainItems", "{Binding}")]
+    public void APathsStep_IsThePropertyTheCompilerTakes(string dataType, string source)
+    {
+        Write("View.axaml", TypedView(Bound(source), dataType: dataType));
+
+        AssertUnnamed(Run());
+    }
+
+    /// <summary>The data type a binding reads against is the nearest: on the list, an ancestor, or a data template's.</summary>
+    [Theory]
+    [InlineData("<ListBox x:DataType=\"m:ListsModel\" ItemsSource=\"{Binding Plain}\" />", "the x:DataType at View.axaml:1")]
+    [InlineData("<Border x:DataType=\"m:ListsModel\"><ListBox ItemsSource=\"{Binding Plain}\" /></Border>", "the x:DataType at View.axaml:1")]
+    [InlineData(
+        "<ContentControl><ContentControl.ContentTemplate><DataTemplate DataType=\"m:ListsModel\"><ListBox ItemsSource=\"{Binding Plain}\" />"
+        + "</DataTemplate></ContentControl.ContentTemplate></ContentControl>",
+        "the DataType of the data template at View.axaml:1")]
+    public void TheNearestDataType_IsRead(string body, string from)
+    {
+        Write("View.axaml", TypedView(body, dataType: "m:HolderModel"));
+
+        Assert.Contains(from, AssertUnnamed(Run()).Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>An item template that declares no data type takes the items of the control it templates, as the compiler infers them.</summary>
+    [Fact]
+    public void AListInTheItemTemplateOfAnother_ReadsThatOnesItems()
+    {
+        Write("View.axaml", TypedView(
+            "<ItemsControl ItemsSource=\"{Binding Models}\"><ItemsControl.ItemTemplate><DataTemplate>"
+            + Bound("{Binding Plain}")
+            + "</DataTemplate></ItemsControl.ItemTemplate></ItemsControl>", dataType: "m:HolderModel"));
+
+        Assert.Contains("and the items of the ItemsControl at View.axaml:1.", AssertUnnamed(Run()).Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>What the rule cannot read the items' type through is named, never guessed.</summary>
+    [Theory]
+    [InlineData("{ReflectionBinding Plain}", "a ReflectionBinding, which reads whatever its data context is at run time")]
+    [InlineData("{Binding Plain, Converter={StaticResource Pick}}", "sets Converter, which this rule does not evaluate")]
+    [InlineData("{Binding Plain, FallbackValue={x:Null}}", "sets FallbackValue, which this rule does not evaluate")]
+    [InlineData("{Binding Plain[0]}", "its ItemsSource binding's path, Plain[0], is not one this rule reads")]
+    [InlineData("{Binding #Other.ItemsSource}", "is not one this rule reads")]
+    [InlineData("{Binding Missing}", "reads Missing on ListsModel, by the x:DataType at View.axaml:1, which has no public property of that name")]
+    [InlineData("{Binding Untyped}", "which is no IEnumerable<T>")]
+    [InlineData("{Binding Both}", "which enumerates 2 types of item")]
+    [InlineData("{StaticResource Rows}", "its ItemsSource is {StaticResource Rows}, which is not a binding this rule reads")]
+    [InlineData("{Binding ((m:Nowhere)DataContext).Plain}", "the cast in its ItemsSource binding's path, to m:Nowhere,")]
+    public void AnItemsSourceTheRuleCannotRead_IsSkipped(string source, string why)
+    {
+        Write("View.axaml", TypedView(Bound(source)));
+
+        XamlSkip skip = AssertSkipped(Run());
+
+        Assert.Contains("No ItemTemplate is declared", skip.Reason, StringComparison.Ordinal);
+        Assert.Contains(why, skip.Reason, StringComparison.Ordinal);
+    }
+
+    /// <summary>A plain binding where compiled bindings are off is a reflection one; a compiled one is still compiled.</summary>
+    [Theory]
+    [InlineData("{Binding Plain}", false)]
+    [InlineData("{CompiledBinding Plain}", true)]
+    public void CompileBindingsOff_MakesAPlainBindingAReflectionOne(string source, bool read)
+    {
+        Write("View.axaml", TypedView($"<Border x:CompileBindings=\"False\">{Bound(source)}</Border>"));
+
+        XamlRuleResult result = Run();
+
+        if (read)
+        {
+            AssertUnnamed(result);
+        }
+        else
+        {
+            Assert.Contains("x:CompileBindings is False at View.axaml:1", AssertSkipped(result).Reason, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>A DataContext set on the way changes what the binding reads, and a template or a data template with no type hides it.</summary>
+    [Theory]
+    [InlineData("<ListBox DataContext=\"{Binding Inner}\" ItemsSource=\"{Binding Plain}\" />", "the ListBox at View.axaml:1 sets its DataContext")]
+    [InlineData("<Border DataContext=\"{Binding Inner}\"><ListBox ItemsSource=\"{Binding Plain}\" /></Border>", "the Border at View.axaml:1 sets its DataContext")]
+    [InlineData(
+        "<ContentControl><ContentControl.Template><ControlTemplate><ListBox ItemsSource=\"{Binding Plain}\" /></ControlTemplate>"
+        + "</ContentControl.Template></ContentControl>",
+        "it is inside a ControlTemplate at View.axaml:1")]
+    [InlineData(
+        "<ContentControl><ContentControl.ContentTemplate><DataTemplate><ListBox ItemsSource=\"{Binding Plain}\" /></DataTemplate>"
+        + "</ContentControl.ContentTemplate></ContentControl>",
+        "the data template at View.axaml:1 declares no data type")]
+    public void WhereTheDataTypeIsNotRead_TheRowsAreSkipped(string body, string why)
+    {
+        Write("View.axaml", TypedView(body));
+
+        Assert.Contains(why, AssertSkipped(Run()).Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnXDataTypeNoScannedAssemblyDefines_LeavesTheItemsUnread()
+    {
+        Write("View.axaml", TypedView(Bound("{Binding Plain}"), dataType: "m:Nowhere"));
+
+        Assert.Contains("the x:DataType at View.axaml:1, m:Nowhere, is not a type", AssertSkipped(Run()).Reason, StringComparison.Ordinal);
+    }
+
+    // ── With no item template, a data template chosen by the items' type ───────
+
+    /// <summary>
+    /// A data template in the list's own DataTemplates that matches every item presents the rows: by its DataType, by the
+    /// x:DataType that gives it one, or by a base of the items' type. Measured.
+    /// </summary>
+    [Theory]
+    [InlineData("DataType=\"m:PlainItem\"")]
+    [InlineData("x:DataType=\"m:PlainItem\"")]
+    [InlineData("DataType=\"{x:Type m:PlainItem}\"")]
+    [InlineData("DataType=\"x:Object\"")]
+    public void ADataTemplateThatMatchesEveryItem_PresentsTheRows(string typed)
+    {
+        Write("View.axaml", TypedView(Bound("{Binding Plain}", $"<ListBox.DataTemplates>{DataTemplate(typed)}</ListBox.DataTemplates>")));
+
+        AssertNamed(Run());
+    }
+
+    /// <summary>A DataTemplates collection refuses a data template with no DataType, so the markup throws as it loads. Measured.</summary>
+    [Fact]
+    public void ADataTemplateWithNoDataType_IsSkipped_AsMarkupThatDoesNotLoad()
+    {
+        Write("View.axaml", TypedView(Bound("{Binding Plain}", $"<ListBox.DataTemplates>{DataTemplate(string.Empty)}</ListBox.DataTemplates>")));
+
+        Assert.Contains("has no DataType, which a DataTemplates collection refuses at 12.1.3", AssertSkipped(Run()).Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ADataTemplateWhoseRootDeclaresNoName_LeavesTheRowsToToString()
+    {
+        Write("View.axaml", TypedView(Bound("{Binding Plain}",
+            $"<ListBox.DataTemplates>{DataTemplate("DataType=\"m:PlainItem\"", PanelRoot)}</ListBox.DataTemplates>")));
+
+        Assert.Contains(
+            "because no ItemTemplate is declared, so the data template at View.axaml:1 is chosen for its items by their type, and "
+            + "the root of the data template at View.axaml:1, a StackPanel, declares no name.",
+            AssertUnnamed(Run()).Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>A data template for another type is passed over, whether its DataType is written or an x:DataType gives it one.</summary>
+    [Theory]
+    [InlineData("DataType=\"m:NamedItem\"")]
+    [InlineData("x:DataType=\"m:NamedItem\"")]
+    public void ADataTemplateForAnotherType_IsPassedOver(string typed)
+    {
+        Write("View.axaml", TypedView(Bound("{Binding Plain}", $"<ListBox.DataTemplates>{DataTemplate(typed)}</ListBox.DataTemplates>")));
+
+        Assert.Contains("no data template in reach is chosen for its items", AssertUnnamed(Run()).Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>A row presents a control item as it is, whatever data template would match it.</summary>
+    [Fact]
+    public void ControlsAsItems_ArePresentedAsTheyAre_WhateverDataTemplateMatches()
+    {
+        Write("View.axaml", TypedView(Bound("{Binding Controls}", $"<ListBox.DataTemplates>{DataTemplate("DataType=\"x:Object\"")}</ListBox.DataTemplates>")));
+
+        Assert.Contains("The items are controls", AssertSkipped(Run()).Reason, StringComparison.Ordinal);
+    }
+
+    /// <summary>The first data template that matches presents the rows, and none after it is asked.</summary>
+    [Fact]
+    public void TheFirstDataTemplateThatMatches_PresentsTheRows()
+    {
+        Write("View.axaml", TypedView(Bound("{Binding Plain}",
+            "<ListBox.DataTemplates>" + DataTemplate("DataType=\"m:NamedItem\"") + DataTemplate("DataType=\"m:PlainItem\"", PanelRoot)
+            + DataTemplate("DataType=\"x:Object\"") + "</ListBox.DataTemplates>")));
+
+        AssertUnnamed(Run());
+    }
+
+    /// <summary>A data template that may match only some of the items, or whose matching is not read, leaves the rows undecided.</summary>
+    [Theory]
+    [InlineData("Opens", "<DataTemplate DataType=\"m:IItem\"><TextBlock Text=\"x\" /></DataTemplate>", "is for IItem, which some of the items may be")]
+    [InlineData("Opens", "<DataTemplate DataType=\"m:Nowhere\"><TextBlock Text=\"x\" /></DataTemplate>", "is for m:Nowhere, which is not a type")]
+    [InlineData("Opens", "<DataTemplate DataType=\"m:SubOpenItem\"><TextBlock Text=\"x\" /></DataTemplate>", "is for SubOpenItem, which some of the items may be")]
+    [InlineData("Interfaces", "<DataTemplate DataType=\"m:OpenItem\"><TextBlock Text=\"x\" /></DataTemplate>", "is for OpenItem, which some of the items may be")]
+    [InlineData("Plain", "<m:Locator />", "the Locator at View.axaml:1 is a data template whose own code decides which items it presents")]
+    [InlineData("Plain", "<DataTemplate><DataTemplate.DataType>m:PlainItem</DataTemplate.DataType><TextBlock Text=\"x\" /></DataTemplate>",
+        "gives its DataType as a property element, which is not read")]
+    public void ADataTemplateThatMayMatchSomeItems_IsSkipped(string property, string template, string why)
+    {
+        Write("View.axaml", TypedView(Bound($"{{Binding {property}}}", $"<ListBox.DataTemplates>{template}</ListBox.DataTemplates>")));
+
+        Assert.Contains(why, AssertSkipped(Run()).Reason, StringComparison.Ordinal);
+    }
+
+    /// <summary>Items of a sealed type are instances of no type the scan cannot resolve, so such a template matches none of them.</summary>
+    [Fact]
+    public void ADataTemplateForATypeTheScanDoesNotHold_MatchesNoItemOfASealedType()
+    {
+        Write("View.axaml", TypedView(Bound("{Binding Plain}",
+            "<ListBox.DataTemplates><DataTemplate DataType=\"m:Nowhere\"><TextBlock Text=\"x\" /></DataTemplate></ListBox.DataTemplates>")));
+
+        AssertUnnamed(Run());
+    }
+
+    /// <summary>The search climbs from the list: its own data templates first, then each ancestor's, then the application's.</summary>
+    [Fact]
+    public void TheNearestDataTemplates_AreSearchedFirst()
+    {
+        Write("App.axaml", $"<Application {Header}><Application.DataTemplates>{DataTemplate("DataType=\"m:PlainItem\"")}</Application.DataTemplates></Application>");
+        Write("View.axaml", TypedView(
+            $"<Border><Border.DataTemplates>{DataTemplate("DataType=\"m:PlainItem\"")}</Border.DataTemplates>"
+            + Bound("{Binding Plain}", $"<ListBox.DataTemplates>{DataTemplate("DataType=\"m:PlainItem\"", PanelRoot)}</ListBox.DataTemplates>")
+            + "</Border>"));
+
+        AssertUnnamed(Run());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AnAncestorsOrTheApplicationsDataTemplate_PresentsTheRows(bool inTheApplication)
+    {
+        if (inTheApplication)
+        {
+            Write("App.axaml", $"<Application {Header}><Application.DataTemplates>{DataTemplate("DataType=\"m:PlainItem\"")}</Application.DataTemplates></Application>");
+            Write("View.axaml", TypedView(Bound("{Binding Plain}")));
+        }
+        else
+        {
+            Write("View.axaml", TypedView(
+                $"<Border><Border.DataTemplates>{DataTemplate("DataType=\"m:PlainItem\"")}</Border.DataTemplates>{Bound("{Binding Plain}")}</Border>"));
+        }
+
+        AssertNamed(Run());
+    }
+
+    /// <summary>A data template in another view may reach the list from where that view is placed, which markup does not show.</summary>
+    [Theory]
+    [InlineData("DataType=\"m:PlainItem\"", true)]
+    [InlineData("DataType=\"m:NamedItem\"", false)]
+    public void ADataTemplateInAnotherView_MattersWhereItMayMatch(string typed, bool skipped)
+    {
+        Write("Shell.axaml", View("<ContentControl />", $"<UserControl.DataTemplates>{DataTemplate(typed)}</UserControl.DataTemplates>"));
+        Write("View.axaml", TypedView(Bound("{Binding Plain}")));
+
+        XamlRuleResult result = Run();
+
+        if (skipped)
+        {
+            XamlSkip skip = AssertSkipped(result);
+            Assert.Contains("the data template at Shell.axaml:1 matches them", skip.Reason, StringComparison.Ordinal);
+            Assert.Contains("depends on where the view is placed at runtime", skip.Reason, StringComparison.Ordinal);
+        }
+        else
+        {
+            AssertUnnamed(result);
+        }
+    }
+
+    /// <summary>In one file, containment is visible: a data template beside the list does not reach it.</summary>
+    [Fact]
+    public void ADataTemplateBesideTheListInTheSameFile_DoesNotReachIt()
+    {
+        Write("View.axaml", TypedView(
+            $"<StackPanel><Border><Border.DataTemplates>{DataTemplate("DataType=\"m:PlainItem\"")}</Border.DataTemplates></Border>{Bound("{Binding Plain}")}</StackPanel>"));
+
+        AssertUnnamed(Run());
+    }
+
+    /// <summary>A list in a template its owner's DataTemplates hold is searched for from that owner on, in order.</summary>
+    [Fact]
+    public void ADataTemplateBesideTheListsOwnTemplate_PresentsTheRows()
+    {
+        Write("View.axaml", TypedView("<ContentControl />",
+            $"<UserControl.DataTemplates><DataTemplate DataType=\"m:ListsModel\">{Bound("{Binding Plain}")}</DataTemplate>"
+            + $"{DataTemplate("DataType=\"m:PlainItem\"")}</UserControl.DataTemplates>"));
+
+        AssertNamed(Run());
+    }
+
+    /// <summary>A list in another's item template is held by that one's rows, so the search climbs on through it.</summary>
+    [Fact]
+    public void AListInAnItemTemplate_IsReachedByItsHostsDataTemplates()
+    {
+        Write("View.axaml", TypedView(
+            $"<Border><Border.DataTemplates>{DataTemplate("DataType=\"m:PlainItem\"")}</Border.DataTemplates>"
+            + "<ItemsControl ItemsSource=\"{Binding Models}\"><ItemsControl.ItemTemplate><DataTemplate>"
+            + Bound("{Binding Plain}")
+            + "</DataTemplate></ItemsControl.ItemTemplate></ItemsControl></Border>", dataType: "m:HolderModel"));
+
+        AssertNamed(Run());
+    }
+
+    /// <summary>A template in a DataTemplates collection may be presented by any control its owner holds, whose data templates are then searched first.</summary>
+    [Fact]
+    public void ADataTemplateWhereTheListsTemplateMayBePresented_MayBeSearchedFirst()
+    {
+        Write("View.axaml", TypedView(
+            $"<StackPanel><Border><Border.DataTemplates>{DataTemplate("DataType=\"m:PlainItem\"")}</Border.DataTemplates></Border></StackPanel>",
+            $"<UserControl.DataTemplates><DataTemplate DataType=\"m:ListsModel\">{Bound("{Binding Plain}")}</DataTemplate></UserControl.DataTemplates>"));
+
+        Assert.Contains("the data template at View.axaml:1 matches them", AssertSkipped(Run()).Reason, StringComparison.Ordinal);
+    }
+
+    /// <summary>A content template the rows' theme gives them, or data templates their own template declares, are not followed.</summary>
+    [Theory]
+    [InlineData(
+        "<ControlTheme x:Key=\"Row\" TargetType=\"ListBoxItem\"><Setter Property=\"ContentTemplate\"><DataTemplate><TextBlock Text=\"{Binding Label}\" />"
+        + "</DataTemplate></Setter></ControlTheme>",
+        "gives them a ContentTemplate at View.axaml:1")]
+    [InlineData(
+        "<ControlTheme x:Key=\"Row\" TargetType=\"ListBoxItem\"><Setter Property=\"Template\"><ControlTemplate><Border><Border.DataTemplates>"
+        + "<DataTemplate><TextBlock Text=\"x\" /></DataTemplate></Border.DataTemplates><ContentPresenter /></Border></ControlTemplate></Setter></ControlTheme>",
+        "declares data templates at View.axaml:1")]
+    public void WhatTheRowsThemeGivesThemToPresent_IsSkipped(string theme, string why)
+    {
+        Write("View.axaml", TypedView(Bound("{Binding Plain}", attributes: "ItemContainerTheme=\"{StaticResource Row}\""),
+            $"<UserControl.Resources>{theme}</UserControl.Resources>"));
+
+        Assert.Contains(why, AssertSkipped(Run()).Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AStyleThatGivesTheRowsAContentTemplate_IsSkipped()
+    {
+        Write("View.axaml", TypedView(Bound("{Binding Plain}"),
+            "<UserControl.Styles><Style Selector=\"ListBoxItem\"><Setter Property=\"ContentTemplate\" Value=\"{StaticResource Other}\" /></Style></UserControl.Styles>"));
+
+        Assert.Contains("sets ContentTemplate on a selector naming the ListBoxItem containers", AssertSkipped(Run()).Reason, StringComparison.Ordinal);
     }
 
     // ── Trees and tabs ─────────────────────────────────────────────────────────

@@ -153,9 +153,13 @@ template, else a name that root declares, else `ToString()` on its item: a view 
 none names every row with its type's full name, and a record with its type and every property. A
 `TextBlock`'s own `AutomationProperties.Name` does not count, because its peer reads its text alone.
 A `TreeViewItem` has no fallback, so whatever its template shows, it stays unnamed until a `Style`
-for it or its `ItemContainerTheme` sets `AutomationProperties.Name`. The rule reads the item type
-from the item template's `x:DataType`, and which container a control generates, and which peer
-names it, from compiled types: pass the application's assembly to `WithAssemblies`. It checks
+for it or its `ItemContainerTheme` sets `AutomationProperties.Name`. With no item template, a row
+shows what the data template chosen by its item's type presents, from the list's `DataTemplates`,
+an ancestor's or the application's, else its item's `ToString()` in a `TextBlock`. The rule reads
+the items' type from the item template's `x:DataType`, else from the `ItemsSource` binding's path,
+as the XAML compiler types it through the `x:DataType` in scope, and which container a control
+generates, and which peer names it, from compiled types: pass the application's assembly to
+`WithAssemblies`. It checks
 Avalonia's list, tab and tree rows, whose naming was measured on 12.1.3, and leaves another
 framework's alone.
 
@@ -239,8 +243,12 @@ whose peer method could not be read, a name more than one scanned type carries, 
 `OnCreateAutomationPeer` at all, and, when the scan was given no assemblies, every themed control.
 For `BNXQ1008` it is a control that nothing hides, in slots whose size depends on a value markup
 cannot evaluate, such as the bound width of a collapsing pane. For `BNXQ1009` it is a list whose
-rows markup does not name: one with no item template, or one whose template's `x:DataType` is
-missing or names a type the scan does not hold; an item type that is abstract, an interface or a
+rows markup does not name: one whose items' type neither its item template's `x:DataType` nor its
+`ItemsSource` binding reads, because the binding is a reflection one, takes a converter or a source
+of its own, or follows a `DataContext` set on its way, or no data type is in scope, or the one that
+is names a type the scan does not hold; one with no
+item template that a data template may present only some rows of, from this view or another; an
+item type that is abstract, an interface or a
 control, or has a subclass that writes its own `ToString()`; a template root that names the row
 through a peer of its own, and a row whose own peer names it; a style that names the rows only in
 some state or some places, or from another view, and one that sets the list's template or the rows'
