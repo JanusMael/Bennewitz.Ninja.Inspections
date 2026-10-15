@@ -8,9 +8,9 @@ released, who depends on what, and the rule backlog with any questions open for 
 | | |
 |---|---|
 | Published | `2026.4.1014`: `Bennewitz.Ninja.XamlQuality`, `Bennewitz.Ninja.XamlQuality.ThemeAudit` and, for the first time, `Bennewitz.Ninja.XamlQuality.ThemeRuntime`, released 2026-10-14. What it changed for a consumer is in its [release notes](https://github.com/JanusMael/Bennewitz.Ninja.XamlQuality/releases/tag/v2026.4.1014) |
-| `main` | carries one unreleased change, `BNXQ1003`'s from its assessment, and a docs change, both listed below |
+| `main` | carries two unreleased changes, `BNXQ1003`'s from its assessment and `BNXQ1009`'s `ItemsSource` reading, and a docs change, all listed below |
 | Next release | Not scheduled; the developer decides. One release per calendar day |
-| Order of work | `BNXQ1009`'s `ItemsSource` reading, by the developer's order of 2026-10-13, now that `BNXQ1003`'s assessment is decided |
+| Order of work | None set. The developer's order of 2026-10-13 is done: `BNXQ1009`'s `ItemsSource` reading, its last, is PR #81 |
 | Agent skill | `drivable-ui`, served from `main` as a Claude Code plugin since PR #47, by the developer's decision of 2026-09-29: `claude plugin marketplace add JanusMael/Bennewitz.Ninja.XamlQuality`, then `claude plugin install drivable-ui@xamlquality`. It is in neither package, so it ships on merge, not on a tag |
 | Verification tooling | Under `tools/`, by [`plans/00001`](plans/00001-verification-tooling.md), complete: the real-code comparison, `tools/real-code.cs`, since PR #53; the mutation runner, `tools/mutate.cs`, since PR #54; and the headless probe, `tools/probe.cs` over `tools/probe/`, since PR #56. CI's required `Verification tools` job runs the first two and builds the third. Where they depart from the plan is listed below |
 
@@ -50,6 +50,7 @@ merges only, and both give a branch's commits new hashes, so a row cites its pul
 |---|---|---|
 | PR #79 | `BNXQ1003`, by the developer's assessment of 2026-10-14, now that its reading is public. A name that more than one top-level type the scan was given carries is no control's: the rule reads a theme's target by its name alone, so each theme of such a name is named in `Skipped`, as `BNXQ1006` names one, rather than checked against both classes' parts, and so is the name where parts were found in its types' code and nothing themes it. The reading has no entry for it and names it in its own `Skipped`, where before it merged both classes' parts into one entry, as plan 00002's decision 5 had it. A template is still followed through direct calls only, as the developer decided, and the two skips that leaves, a themed control with no part found and parts with no theme, now name a call through an interface or a virtual method, and a lambda, among their causes. A `PART_` constant nothing looks up is still checked against its control's theme, as plan 00002's decision 9 left it, by the developer's decision too | Where two scanned types carry one name, its themes are skipped rather than checked, so the findings they gave go. Some were false: they compared one class's theme with both classes' parts. Some were true: where only one of the two has parts, as a control that shares its name with a model, PR #79's review measured a true finding lost, and the developer kept the skip. A themed name that partless types share is skipped as such, where it was a control with no part found. The parts report loses that name's merged entry and names it among what was not read, so `theme-audit parts` counts one more not read. Two skips read differently. On real code nothing else moves: over DiffView's `bf6b734`, AvaloniaEdit's assembly included, the parts report is as before byte for byte, and the real-code record changes only in the wording of DiffView's two skips |
 | PR #80 | `docs/avalonia-gotchas.md` gains a section on logging, with three entries from the WPF-to-Avalonia port, landed as the port measured or read them and not measured again here, by the developer's decision of 2026-10-14, each saying it was not reproduced here: `LogToTrace()`, the project template's default, writes Avalonia's warnings nowhere on Linux, where with no debugger attached the only trace listener has no file; and `LogToTrace`, `LogToTextWriter` and `LogToDelegate` all drop the level, since all three go through `StringLogSink`, so the fix is an `ILogSink` of the application's own; and a compiled binding through a null intermediate logs `Value is null` for every binding on every container where it is null, which a null-conditional step, `?.`, stops, a value-type target with no converter then needing a `TargetNullValue`. The port's sink is described as the case measured: 13 headless tests held it, and in the port's running application its first run logged 352 warnings no run had seen. The first entry carries a candidate rule, the one the trim analyser's entry already names, and the third a candidate of its own | Docs only |
+| PR #81 | `BNXQ1009` reads the items' type where no item template's `x:DataType` names it: the `ItemsSource` binding's path, read as the XAML compiler reads a compiled binding's, against the nearest `x:DataType`, a data template's `DataType`, or the items of the control that an item template declaring neither templates, a cast in the path starting it again at the cast's type. With no item template, the rows are taken as presented by the first data template that matches every item, searched as the framework searches, through the list's own `DataTemplates`, its ancestors' and the application's, else by a `TextBlock` of the item's `ToString()`, as measured under Fluent, Simple and Semi. A reflection binding, a binding with a converter or a source of its own, a `DataContext` set on the way, a data template that may match only some of the items, one in another view that may match, a content template the rows' theme or a style gives them, and a data template with no data type, which stops the markup loading, are named in `Skipped` | Stricter. A list with no item template, or one whose template declares no `x:DataType`, bound through an `x:DataType` to items whose type writes no `ToString()`, or to records, was skipped and is now reported; one whose items name themselves, as strings, an enum's members and a type's own `ToString()` do, is inspected and clean where it was skipped. Where the type is still not read, the skip says why, in words a test asserting on the old reason will not find. On real code, ClaudeForge's six skips, each a `ComboBox` with no item template bound to an enum's members or to strings, are inspected and clean: `BNXQ1009` inspects 20 controls there, where it inspected 14, and skips none. DiffView and ScopedEditors are as before |
 
 ## Consumers inside the family
 
@@ -264,12 +265,26 @@ None open.
   restore graph, transitive ones included, carries `IsTrimmable` metadata, read from
   `project.assets.json` without loading anything. Templates lands it in a plan of its own after its
   `00006`, which also decides whether `"trimming": "required"` stays.
-- **`BNXQ1009` reads an item type only from an item template's `x:DataType`.** A list with no item
-  template, or a template that declares none, is named in `Skipped`, as all 6 of ClaudeForge's skips
-  are. Reading the type from the `ItemsSource` binding's path, through the view's own `x:DataType`,
-  would decide most of them. It can add findings, so it is a change of its own. By the developer's
-  decision of 2026-09-28 it follows the row-background rule, and by the developer's order of
-  2026-10-10, the verification tooling and `BNXQ1003`'s public reading come before it.
+- **Under Semi, a tab is named by its item's `ToString()` whatever its header shows.** Semi's
+  `TabItem` template names its header presenter `PART_HeaderPresenter`, where Fluent's and Simple's
+  name it `PART_ContentPresenter`, and a tab's peer reads the presenter registered under the second
+  name, so under Semi it finds none and falls to `Content.ToString()`. Measured with the probe's tab
+  cases: `TB01` to `TB03`, whose item template's root is a `TextBlock` with the label, were named
+  `Alpha` under Fluent and Simple and `FpProbe6.Row`, the type's full name, under Semi; `TB04` and
+  `TB05`, whose tab theme's template names a `PART_ContentPresenter`, were named `Alpha` under all
+  three. `BNXQ1009` takes such tabs as named, so it misses them under Semi, and the probe flags
+  nothing, since it judges a clean verdict missed only where every theme shows the defect. Deciding
+  it means reading which theme the application loads; a change of its own.
+- **`BNXQ1009` does not follow a `DataContext` set on the way to an `ItemsSource` binding.** The XAML
+  compiler types a compiled `DataContext` binding by what its path reads, by
+  `AvaloniaXamlIlDataContextTypeTransformer` at 12.1.3, and the bindings beneath it read against that
+  type; the rule names such a list in `Skipped`. Following it would decide more lists, and can add
+  findings, so it is a change of its own.
+- **The probe's bound pass realises no combo row.** It does not open a `ComboBox`'s drop-down, so
+  under every theme a combo case's rows are not realised, and `BNXQ1009`'s verdict on one agrees for
+  want of a measurement: measured over `CB01` to `CB05`. Opening the drop-down, as the facts pass
+  does, would measure them; a change of its own, since it moves what the pass measures for every combo
+  case.
 - **`BNXQ1009` checks Avalonia's rows only.** WPF's `ListBoxItem` is named through a different peer,
   whose fallback was not measured. Measuring it is what would let the rule check WPF markup.
 - **`BNXQ1010` reads `:disabled` as a state rows may start in wherever markup in the scan disables
