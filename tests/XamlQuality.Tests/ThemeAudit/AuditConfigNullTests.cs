@@ -4,7 +4,7 @@ namespace XamlQuality.Tests.ThemeAudit;
 
 /// <summary>
 /// A <c>null</c> in place of a value the audit needs is a configuration error that names the field, as a malformed file
-/// is. Before, each of these escaped <c>theme-audit</c> as an exception it did not expect, and the tool exited 1, which a
+/// is. Before, most of these escaped <c>theme-audit</c> as an exception it did not expect, and the tool exited 1, which a
 /// consumer's CI reads as drift, where a configuration error exits 2.
 /// </summary>
 public sealed class AuditConfigNullTests
@@ -67,22 +67,35 @@ public sealed class AuditConfigNullTests
                 Theme(""" "providers": { "Swatch": null } """)));
     }
 
-    /// <summary>A theme takes what it leaves empty from the one it extends, so a null it inherits is found too.</summary>
+    /// <summary>A theme that extends another is checked for nulls as any other is, and so is the theme it extends.</summary>
     [Fact]
-    public void A_null_a_theme_inherits_through_extends_is_a_configuration_error()
+    public void A_theme_that_extends_another_and_the_theme_it_extends_are_both_checked()
     {
-        AuditConfigException error = Assert.Throws<AuditConfigException>(() => AuditConfig.Parse(
-            """
-            {
-              "themes": [
-                { "name": "Base", "entry": "t.axaml", "baseDirectory": ".", "links": { "Lines.axaml": null } },
-                { "name": "T", "extends": "Base" }
-              ]
-            }
-            """,
-            Path.GetTempPath()));
+        string[] expected =
+        [
+            "theme 'T' names an empty path in 'merge' or 'links'",
+            "theme 'Base' names an empty path in 'merge' or 'links'",
+        ];
 
-        Assert.Equal("theme 'Base' names an empty path in 'merge' or 'links'", error.Message);
+        Assert.Equal(
+            expected,
+            Thrown(
+                """
+                {
+                  "themes": [
+                    { "name": "Base", "entry": "t.axaml", "baseDirectory": "." },
+                    { "name": "T", "extends": "Base", "links": { "Lines.axaml": null } }
+                  ]
+                }
+                """,
+                """
+                {
+                  "themes": [
+                    { "name": "Base", "entry": "t.axaml", "baseDirectory": ".", "links": { "Lines.axaml": null } },
+                    { "name": "T", "extends": "Base" }
+                  ]
+                }
+                """));
     }
 
     [Fact]
@@ -134,6 +147,8 @@ public sealed class AuditConfigNullTests
             "compat 'C' needs a 'mapping' and an 'output'",
             "compat 'C' needs a 'mapping' and an 'output'",
             "compat 'C' needs 'variantKeys' with a 'prefix', a 'namespace' and a 'type'",
+            "compat 'C' needs 'variantKeys' with a 'prefix', a 'namespace' and a 'type'",
+            "compat 'C' needs 'variantKeys' with a 'prefix', a 'namespace' and a 'type'",
         ];
 
         Assert.Equal(
@@ -144,7 +159,9 @@ public sealed class AuditConfigNullTests
                 Compat(""" "name": null, "mapping": "m.json", "output": "o.axaml" """),
                 Compat(""" "name": "C", "mapping": null, "output": "o.axaml" """),
                 Compat(""" "name": "C", "mapping": "m.json", "output": null """),
-                Compat(""" "name": "C", "mapping": "m.json", "output": "o.axaml", "variantKeys": { "prefix": null, "namespace": "using:V", "type": "Variants" } """)));
+                Compat(""" "name": "C", "mapping": "m.json", "output": "o.axaml", "variantKeys": { "prefix": null, "namespace": "using:V", "type": "Variants" } """),
+                Compat(""" "name": "C", "mapping": "m.json", "output": "o.axaml", "variantKeys": { "prefix": "v", "namespace": null, "type": "Variants" } """),
+                Compat(""" "name": "C", "mapping": "m.json", "output": "o.axaml", "variantKeys": { "prefix": "v", "namespace": "using:V", "type": null } """)));
     }
 
     [Fact]
