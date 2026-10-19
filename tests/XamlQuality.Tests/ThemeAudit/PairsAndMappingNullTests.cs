@@ -35,16 +35,17 @@ public sealed class PairsAndMappingNullTests : IDisposable
             Thrown(
                 path => ContrastPairsFile.Load(path),
                 """{ "pairs": null }""",
-                """{ "pairs": [null] }""",
-                """{ "pairs": [ { "foreground": null, "background": "Page" } ] }""",
-                """{ "pairs": [ { "foreground": "Ink", "background": null } ] }"""));
+                """{ "pairs": [ { "foreground": "Ink", "background": "Page" }, null ] }""",
+                """{ "pairs": [ { "foreground": "Ink", "background": "Page" }, { "foreground": null, "background": "Page" } ] }""",
+                """{ "pairs": [ { "foreground": "Ink", "background": "Page" }, { "foreground": "Ink", "background": null } ] }"""));
     }
 
     [Fact]
-    public void A_mapping_file_with_null_variants_or_a_variant_mapped_to_null_is_a_configuration_error()
+    public void A_mapping_file_with_null_or_empty_variants_or_a_variant_mapped_to_null_is_a_configuration_error()
     {
         string[] expected =
         [
+            "'variants' must map at least one target variant to a source variant",
             "'variants' must map at least one target variant to a source variant",
             "'variants' maps 'Dark' to no source variant",
         ];
@@ -54,6 +55,7 @@ public sealed class PairsAndMappingNullTests : IDisposable
             Thrown(
                 path => CompatMapping.Load(path),
                 """{ "variants": null }""",
+                """{ "variants": {} }""",
                 """{ "variants": { "Light": "Light", "Dark": null } }"""));
     }
 
