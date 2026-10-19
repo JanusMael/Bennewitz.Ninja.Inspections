@@ -200,7 +200,7 @@ documents, by the developer's decision of 2026-10-12.
 | 2026-10-14 | The WPF-to-Avalonia port | Its brand catalogue tools, sent at the developer's request for a home where other repositories can use them: a generator that fills a brand document from a theme's palette, compositing opacities, computing WCAG 2.2 contrast, drawing mermaid swatch charts, and stopping the build where a claim a placeholder carries fails; an exporter that splits a document's mermaid blocks into files and renders them; and, the same day, ten fixes for them | Received, and a receipt sent on 2026-10-14 for the tools and for the fixes. Placed by the developer on 2026-10-15. The generator's general half becomes a `theme-audit` output, for XAML palettes only, by a plan of its own, `plans/00004`, which is to ask too whether it can read a brush based on or read from another resource, where the port's generator stops; the fixes that concern the generator go to that plan. The exporter goes to the `tools/` of the mermaid-charts skill in bb-skills, and that skill covers swatch charts, gaining the port's lessons on drawing them. What is wired to the port stays there. Plan 00004, approved on 2026-10-15, took the generator in two pull requests: the audit's colours in PR #84, measured headless, and the brand output in PR #85, which fills the port's own template, its search colours passed as blocks, into the port's `Brand.md` but for its first line and the order of three style lines. The exporter has not moved yet, and the port hears where each piece lands, in text the developer approves, which says too that the seven placeholders of its template naming a search colour become blocks of its own |
 | 2026-10-15 | The WPF-to-Avalonia port | Two findings, headless on Linux on Avalonia 12.1.3 with Semi.Avalonia 12.1.0.1, dark variant. Redefining Semi's palette keys, the colour `SemiBlue5Color` or the brush `SemiColorPrimary`, in the application's resources or in a merged dictionary's dark theme dictionary does not recolour Semi's controls, though `Application.TryGetResource` returns the redefinition, and redefining the component tokens the controls read does: measured, with the tokens' aliases read in Semi's source and the scope they resolve in inferred. And a `TemplateBinding` holds a part's value at `Template` priority, so an unconditional style aimed at the part does not beat it and a conditional one does: measured, with the order read in `BindingPriority`, and which priority a style takes in `StyleInstance`, which corrects the precedence the entry on local values gave | Received, and a receipt sent on 2026-10-15. Both landed in PR #87 as the port measured or read them, its inference marked, not reproduced here, by the developer's decision of 2026-10-14, and the entry on local values gives the precedence as read. Of their static parts, the developer put the first's on the rule backlog on 2026-10-19, a style aimed into a template that a `TemplateBinding` outranks, and held the second's, an audit check, among the follow-ups. The outcome went to the port's live session on 2026-10-19 |
 | 2026-10-16 | Issue #86, from the WPF-to-Avalonia port | Avalonia 12.1.3 never asks `IDataErrorInfo`, so a WPF `ValidatesOnDataErrors` binding ports to nothing: measured headless on Linux against `INotifyDataErrorInfo`, and read in the `Avalonia` package, none of whose assemblies names it. With what the leftover cost the port: a deadlock in Rx, set off by a re-raise of `PropertyChanged` kept only to make WPF ask again, which hid there since under Avalonia the re-raise drew nothing | Landed in PR #87 as the port measured or read it, the deadlock with it as Rx's and not Avalonia's, not reproduced here, by the developer's decision of 2026-10-14. Its static part, a view model that implements `IDataErrorInfo`, went on the rule backlog by the developer's decision of 2026-10-19. The outcome went to the port's live session on 2026-10-19, with that of the findings of 2026-10-15 |
-| 2026-10-19 | The WPF-to-Avalonia port | A focus ring is built once, when keyboard focus arrives, so a `FocusAdorner` a style varies by state goes stale, headless on Linux on Avalonia 12.1.3 with Semi.Avalonia 12.1.0.1, dark variant: measured in a row's theme and in Semi's own `ToggleButton`, stale after Space both ways, with the cause read in `Control.cs`; the fix, one ring bound to a property of the control it adorns, measured; and a pair of application styles that replaces Semi's ring, measured, with a plain style alone below Semi's inferred, as a correction the same day marked it | Received, and a receipt sent on 2026-10-19. Landed in PR #90 as the port measured or read it, its inference marked, not reproduced here, by the developer's decision of 2026-10-14. Its static part, a `FocusAdorner` setter in a style with an activator, is a question for the developer below. The outcome has not gone yet |
+| 2026-10-19 | The WPF-to-Avalonia port | A focus ring is built once, when keyboard focus arrives, so a `FocusAdorner` a style varies by state goes stale, headless on Linux on Avalonia 12.1.3 with Semi.Avalonia 12.1.0.1, dark variant: measured in a row's theme and in Semi's own `ToggleButton`, stale after Space both ways, with the cause read in `Control.cs`; the fix, one ring bound to a property of the control it adorns, measured; and a pair of application styles that replaces Semi's ring, measured, with a plain style alone below Semi's inferred, as a correction the same day marked it | Received, and a receipt sent on 2026-10-19. Landed in PR #90 as the port measured or read it, its inference marked, not reproduced here, by the developer's decision of 2026-10-14. Its static part, a `FocusAdorner` setter in a style with an activator, went on the rule backlog by the developer's decision of 2026-10-19. The outcome has not gone yet |
 
 ## Rule backlog
 
@@ -211,7 +211,7 @@ The rules were written in the order decided on 2026-09-23, and all of them are n
 `BNXQ1006`, the peer check, `BNXQ1007`, the explicit `AutomationId`, `BNXQ1008`, the zero-size slot,
 and `BNXQ1009`, the `ToString()` containers. One candidate came in since, the row that takes no
 click where it draws nothing, from the gotchas entry on a row whose `Background` is null, and it is
-written as `BNXQ1010`, by the developer's decision of 2026-09-28. Four candidates are open:
+written as `BNXQ1010`, by the developer's decision of 2026-09-28. Five candidates are open:
 
 - **A binding the XAML compiler does not check:** `{ReflectionBinding …}`, or a `{Binding}` that
   `x:CompileBindings="False"` makes one, put on the backlog by the developer on 2026-10-14, when the logging
@@ -251,6 +251,14 @@ written as `BNXQ1010`, by the developer's decision of 2026-09-28. Four candidate
   `docs/avalonia-gotchas.md`. A model shared with a front end that does ask, as WPF does, would be
   reported too. On the real code the comparison pins, no type implements `IDataErrorInfo` or
   `INotifyDataErrorInfo`, so the rule would report nothing there today. No id until it is written.
+- **A `FocusAdorner` setter in a style with an activator:** a style whose selector has an activator, in
+  it or in a style it is nested in, as `StyleSelectors.IsConditional` reads one, setting `FocusAdorner`.
+  Put on the backlog by the developer on 2026-10-19, from the entry on focus rings in
+  `docs/avalonia-gotchas.md`: Avalonia builds the ring once, when keyboard focus arrives, so such a
+  setter takes effect only the next time focus arrives, never while the control keeps it. A ring that a
+  theme outside the scan varies, as Semi's `ToggleButton`'s, it cannot see. On the real code the
+  comparison pins, no markup sets `FocusAdorner`, so the rule would report nothing there today. No id
+  until it is written.
 
 **Not a fit:** the guide's rule 10, keeping popups in the window's tree. Avalonia's `OverlayPopups` is
 set in C# at startup, where no markup scan can see it. That check belongs in the application, as a
@@ -260,12 +268,7 @@ template already leaves it out.
 
 ## Questions for the developer
 
-- **A rule candidate from the entry on focus rings in `docs/avalonia-gotchas.md` (2026-10-19).** A
-  `FocusAdorner` setter in a style whose selector has an activator, or in a style nested in one, takes
-  effect only the next time keyboard focus arrives, since the ring on screen is built once. A rule would
-  read the selector as `StyleSelectors.IsConditional` does; a ring that a theme outside the scan varies,
-  as Semi's `ToggleButton`'s, it cannot see. On the real code the comparison pins, no markup sets
-  `FocusAdorner`, so it would report nothing there today. On the rule backlog, or not?
+None open.
 
 ## Follow-ups
 
