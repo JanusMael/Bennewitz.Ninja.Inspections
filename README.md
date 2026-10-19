@@ -274,7 +274,8 @@ None is a violation, and some are correct; all are places where a clean result i
 ## The theme audit
 
 `theme-audit`, the `Bennewitz.Ninja.XamlQuality.ThemeAudit` dotnet tool, runs the library's analysis from a
-`theme-audit.json`, whose every path is relative to the file.
+`theme-audit.json`, whose every path is relative to the file. A `null` in place of a value the audit needs is a
+configuration error that names the field; a field that may be left out with nothing in its place may also be `null`.
 
 | Command | What it does |
 |---|---|

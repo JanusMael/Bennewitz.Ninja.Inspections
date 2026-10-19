@@ -203,6 +203,17 @@ public sealed class ThemeAuditToolTests : IDisposable
             Run("report", "--check", "--config", missing));
     }
 
+    /// <summary>A null where the configuration expects a value is a configuration error, not an exception that exits 1.</summary>
+    [Fact]
+    public void A_configuration_that_sets_a_section_to_null_exits_2_and_names_it()
+    {
+        File.WriteAllText(AuditConfig, """{ "themes": null }""");
+
+        Assert.Equal(
+            (2, "", "theme-audit: 'themes' must be a list of themes\n"),
+            Run("report", "--check", "--config", AuditConfig));
+    }
+
     // ── compat --check ──────────────────────────────────────────────────────────
 
     [Fact]

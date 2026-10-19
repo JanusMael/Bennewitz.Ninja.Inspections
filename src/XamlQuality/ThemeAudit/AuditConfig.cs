@@ -10,7 +10,9 @@ public sealed class AuditConfigException(string message) : Exception(message);
 /// The audit's inputs, read from a JSON file: the themes to inventory, the consumers to scan,
 /// and the compat dictionaries to generate. Every path in the file is relative to the file's
 /// directory, so the same configuration runs from any working directory and on any machine
-/// that has the checkouts.
+/// that has the checkouts. A <c>null</c> in place of a value the audit needs is a configuration
+/// error that names the field, as a malformed file is; where a field may be left out with nothing
+/// in its place, a <c>null</c> leaves it out.
 /// </summary>
 public sealed class AuditConfig
 {
@@ -120,9 +122,24 @@ public sealed class AuditConfig
 
     private void Validate()
     {
-        HashSet<string> names = new(StringComparer.Ordinal);
-        foreach (ThemeConfig theme in Themes)
+        if (Title is null || Report is null)
         {
+            throw new AuditConfigException("'title' and 'report' may be left out, but not set to null");
+        }
+
+        HashSet<string> names = new(StringComparer.Ordinal);
+        foreach (ThemeConfig? theme in Themes ?? throw new AuditConfigException("'themes' must be a list of themes"))
+        {
+            if (theme is null)
+            {
+                throw new AuditConfigException("a 'themes' entry is empty");
+            }
+
+            if (theme.Name is null)
+            {
+                throw new AuditConfigException("a 'themes' entry needs a 'name'");
+            }
+
             if (!names.Add(theme.Name))
             {
                 throw new AuditConfigException($"theme '{theme.Name}' is declared twice");
@@ -162,19 +179,61 @@ public sealed class AuditConfig
             {
                 throw new AuditConfigException($"theme '{theme.Name}' needs 'entry' and 'baseDirectory'");
             }
+
+            if (theme.Variants?.Any(variant => variant is null) == true
+                || theme.Inheritance?.Values.Any(variant => variant is null) == true)
+            {
+                throw new AuditConfigException($"theme '{theme.Name}' names an empty variant in 'variants' or 'inheritance'");
+            }
+
+            if (theme.Merge?.Any(path => path is null) == true || theme.Links?.Values.Any(path => path is null) == true)
+            {
+                throw new AuditConfigException($"theme '{theme.Name}' names an empty path in 'merge' or 'links'");
+            }
+
+            if (theme.Surfaces?.Values.Any(key => key is null) == true
+                || theme.VariantSurfaces?.Values.Any(surfaces => surfaces is null || surfaces.Values.Any(key => key is null)) == true)
+            {
+                throw new AuditConfigException($"theme '{theme.Name}' names an empty key in 'surfaces' or 'variantSurfaces'");
+            }
+
+            if (theme.Providers?.Values.Any(keys => keys is null) == true)
+            {
+                throw new AuditConfigException($"theme '{theme.Name}' names an empty entry in 'providers'");
+            }
         }
 
         HashSet<string> consumerNames = new(StringComparer.Ordinal);
-        foreach (ConsumerConfig consumer in Consumers)
+        foreach (ConsumerConfig? consumer in Consumers ?? throw new AuditConfigException("'consumers' must be a list of consumers"))
         {
+            if (consumer is null)
+            {
+                throw new AuditConfigException("a 'consumers' entry is empty");
+            }
+
+            if (consumer.Name is null)
+            {
+                throw new AuditConfigException("a 'consumers' entry needs a 'name'");
+            }
+
             if (!consumerNames.Add(consumer.Name))
             {
                 throw new AuditConfigException($"consumer '{consumer.Name}' is declared twice");
             }
 
-            if (consumer.Paths.Count == 0)
+            if (consumer.Paths is not { Count: > 0 })
             {
                 throw new AuditConfigException($"consumer '{consumer.Name}' names no 'paths'");
+            }
+
+            if (consumer.Paths.Any(path => path is null) || consumer.Exclude?.Any(path => path is null) == true)
+            {
+                throw new AuditConfigException($"consumer '{consumer.Name}' names an empty path in 'paths' or 'exclude'");
+            }
+
+            if (consumer.Tokens is { Entry: null })
+            {
+                throw new AuditConfigException($"consumer '{consumer.Name}' needs a 'tokens' with an 'entry'");
             }
 
             foreach (string themeName in consumer.Themes ?? [])
@@ -186,18 +245,45 @@ public sealed class AuditConfig
             }
         }
 
-        foreach (CompatConfig compat in Compat)
+        foreach (CompatConfig? compat in Compat ?? throw new AuditConfigException("'compat' must be a list of compat dictionaries"))
         {
+            if (compat is null)
+            {
+                throw new AuditConfigException("a 'compat' entry is empty");
+            }
+
+            if (compat.Name is null)
+            {
+                throw new AuditConfigException("a 'compat' entry needs a 'name'");
+            }
+
             if (!names.Contains(compat.From) || !names.Contains(compat.To))
             {
                 throw new AuditConfigException($"compat '{compat.Name}' names an unknown theme ('{compat.From}' → '{compat.To}')");
             }
+
+            if (compat.Mapping is null || compat.Output is null)
+            {
+                throw new AuditConfigException($"compat '{compat.Name}' needs a 'mapping' and an 'output'");
+            }
+
+            if (compat.VariantKeys is { } keys && (keys.Prefix is null || keys.Namespace is null || keys.Type is null))
+            {
+                throw new AuditConfigException($"compat '{compat.Name}' needs 'variantKeys' with a 'prefix', a 'namespace' and a 'type'");
+            }
         }
 
-        if (Parts is { } parts
-            && (string.IsNullOrWhiteSpace(parts.Report) || parts.Markup.Count == 0 || parts.Assemblies.Count == 0))
+        if (Parts is { } parts)
         {
-            throw new AuditConfigException("'parts' needs 'report', 'markup' and 'assemblies'");
+            if (string.IsNullOrWhiteSpace(parts.Report) || parts.Markup is not { Count: > 0 } || parts.Assemblies is not { Count: > 0 })
+            {
+                throw new AuditConfigException("'parts' needs 'report', 'markup' and 'assemblies'");
+            }
+
+            if (parts.Markup.Concat(parts.Assemblies).Any(path => path is null))
+            {
+                throw new AuditConfigException("'parts' names an empty path in 'markup' or 'assemblies'");
+            }
         }
 
         foreach (BrandConfig? brand in Brand ?? throw new AuditConfigException("'brand' must be a list of documents"))
