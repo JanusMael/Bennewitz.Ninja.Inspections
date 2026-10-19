@@ -613,7 +613,10 @@ public sealed class ContrastPairsFile
     public List<ContrastPairConfig> Pairs { get; set; } = [];
 
     /// <summary>Reads a pairs file.</summary>
-    /// <exception cref="AuditConfigException">The file is missing or malformed.</exception>
+    /// <exception cref="AuditConfigException">
+    /// The file is missing or malformed, or sets to <c>null</c> a value the audit needs: <c>pairs</c>, a pair, or a pair's
+    /// <c>foreground</c> or <c>background</c>.
+    /// </exception>
     public static IReadOnlyList<ContrastPair> Load(string path)
     {
         if (!File.Exists(path))
@@ -625,6 +628,19 @@ public sealed class ContrastPairsFile
         {
             ContrastPairsFile file = JsonSerializer.Deserialize<ContrastPairsFile>(File.ReadAllText(path), JsonOptions)
                                      ?? throw new AuditConfigException($"{path}: the pairs file is empty");
+            foreach (ContrastPairConfig? pair in file.Pairs ?? throw new AuditConfigException($"{path}: 'pairs' must be a list of pairs"))
+            {
+                if (pair is null)
+                {
+                    throw new AuditConfigException($"{path}: a 'pairs' entry is empty");
+                }
+
+                if (pair.Foreground is null || pair.Background is null)
+                {
+                    throw new AuditConfigException($"{path}: a pair needs a 'foreground' and a 'background'");
+                }
+            }
+
             return file.Pairs.Select(p => p.ToPair()).ToList();
         }
         catch (JsonException ex)

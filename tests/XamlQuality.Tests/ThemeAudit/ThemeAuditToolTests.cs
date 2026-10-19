@@ -214,6 +214,23 @@ public sealed class ThemeAuditToolTests : IDisposable
             Run("report", "--check", "--config", AuditConfig));
     }
 
+    /// <summary>A file the configuration names holds to the same rule, and the message names the file.</summary>
+    [Fact]
+    public void A_pairs_or_mapping_file_that_sets_a_value_to_null_exits_2_and_names_the_file()
+    {
+        string pairs = Path.Combine(_root, "audit", "app", "Themes", "contrast-pairs.json");
+        string mapping = Path.Combine(_root, "compat", "mapping.json");
+        File.WriteAllText(pairs, """{ "pairs": null }""");
+        File.WriteAllText(mapping, """{ "variants": { "Light": "Light", "Dark": null } }""");
+
+        Assert.Equal(
+            (2, "", $"theme-audit: {pairs}: 'pairs' must be a list of pairs\n"),
+            Run("report", "--check", "--config", AuditConfig));
+        Assert.Equal(
+            (2, "", $"theme-audit: {mapping}: 'variants' maps 'Dark' to no source variant\n"),
+            Run("compat", "--check", "--config", CompatConfig));
+    }
+
     // ── compat --check ──────────────────────────────────────────────────────────
 
     [Fact]

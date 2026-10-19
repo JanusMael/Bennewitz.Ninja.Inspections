@@ -38,7 +38,11 @@ public sealed class CompatMapping
     public string Name { get; private set; } = string.Empty;
 
     /// <summary>Reads a mapping file.</summary>
-    /// <exception cref="AuditConfigException">The file is missing or malformed.</exception>
+    /// <exception cref="AuditConfigException">
+    /// The file is missing or malformed, or sets to <c>null</c> a value the generator needs: <c>variants</c>, <c>keys</c>,
+    /// <c>skip</c>, <c>copy</c> or a list of its, or an entry or a value of one of them; only <c>description</c> and a
+    /// target's <c>why</c> may be <c>null</c>.
+    /// </exception>
     public static CompatMapping Load(string path)
     {
         if (!File.Exists(path))
@@ -57,9 +61,41 @@ public sealed class CompatMapping
             throw new AuditConfigException($"{path}: {ex.Message}");
         }
 
-        if (mapping.Variants.Count == 0)
+        if (mapping.Variants is not { Count: > 0 })
         {
             throw new AuditConfigException($"{path}: 'variants' must map at least one target variant to a source variant");
+        }
+
+        foreach ((string target, string source) in mapping.Variants)
+        {
+            if (source is null)
+            {
+                throw new AuditConfigException($"{path}: 'variants' maps '{target}' to no source variant");
+            }
+        }
+
+        foreach ((string key, MappingTarget target) in mapping.Keys ?? throw new AuditConfigException($"{path}: 'keys' must map source keys to targets"))
+        {
+            if (target is null)
+            {
+                throw new AuditConfigException($"{path}: 'keys' maps '{key}' to no target");
+            }
+        }
+
+        if ((mapping.Skip ?? throw new AuditConfigException($"{path}: 'skip' must be a list of keys")).Any(key => key is null))
+        {
+            throw new AuditConfigException($"{path}: 'skip' names an empty key");
+        }
+
+        CopyPolicy copy = mapping.Copy ?? throw new AuditConfigException($"{path}: 'copy' may be left out, but not set to null");
+        if (copy.Namespaces is null || copy.SkipElements is null)
+        {
+            throw new AuditConfigException($"{path}: 'copy' may leave out 'namespaces' or 'skipElements', but not set them to null");
+        }
+
+        if (copy.Namespaces.Concat(copy.SkipElements).Any(entry => entry is null))
+        {
+            throw new AuditConfigException($"{path}: 'copy' names an empty entry in 'namespaces' or 'skipElements'");
         }
 
         mapping.Name = Path.GetFileName(path);
