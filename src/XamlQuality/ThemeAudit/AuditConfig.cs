@@ -10,10 +10,14 @@ public sealed class AuditConfigException(string message) : Exception(message);
 /// The audit's inputs, read from a JSON file: the themes to inventory, the consumers to scan,
 /// and the compat dictionaries to generate. Every path in the file is relative to the file's
 /// directory, so the same configuration runs from any working directory and on any machine
-/// that has the checkouts. A <c>null</c> in place of a value the audit needs is a configuration
-/// error that names the field, as a malformed file is; where a field may be left out with nothing
-/// in its place, a <c>null</c> leaves it out.
+/// that has the checkouts.
 /// </summary>
+/// <remarks>
+/// A <c>null</c> where the audit needs a value is a configuration error that names the field, as a
+/// malformed file is. A field with a default, such as <see cref="Title"/>, <see cref="Report"/> or
+/// <see cref="Themes"/>, may be left out but not set to <c>null</c>; one that leaves nothing in its
+/// place, such as <see cref="Parts"/>, may also be <c>null</c>, and so may a key a provider supplies.
+/// </remarks>
 public sealed class AuditConfig
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
