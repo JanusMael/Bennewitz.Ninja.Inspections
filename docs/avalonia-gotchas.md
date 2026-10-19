@@ -180,13 +180,13 @@ Measured by mutation on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and Semi.A
 
 ## Styling / theming
 
-> The two entries below are the *mechanical* traps that make a correct-looking style silently do nothing.
+> The first two entries below are the *value-precedence* traps that make a correct-looking style silently do nothing.
 
 ### A local value OUTRANKS every Style setter — a styled property must not also be set as an attribute
 
 **Symptom:** A conditional class (`Classes.foo="{Binding Bool}"`) is applied correctly and the selector matches, but the visual never changes. Selector specificity, `!important`-style tricks, and reordering all fail to help.
 
-**Cause:** Avalonia's value precedence is **Animation > LocalValue > Style > Inherited > Default**. Writing `BorderBrush="Transparent"` as an *attribute* sets a **LocalValue**, which beats **every** Style setter regardless of selector. The style isn't losing on specificity — it's outranked by category, so it can never win.
+**Cause:** Avalonia's value precedence, as `BindingPriority` orders it at 12.1.3, is **Animation > LocalValue > StyleTrigger > Template > Style > Inherited**, then the property's default: a style whose selector has an activator, such as a class or a pseudo-class, sets at `StyleTrigger`, and one without at `Style`, as the next entry shows. Writing `BorderBrush="Transparent"` as an *attribute* sets a **LocalValue**, which beats **every** Style setter regardless of selector. The style isn't losing on specificity — it's outranked by category, so it can never win.
 
 This is the same priority rule that forces `MarkdownBodyView` to re-colour Markdown.Avalonia's output with a tree-walk: the package writes `Foreground` inline at LocalValue priority, so no Style setter can override it.
 
@@ -222,6 +222,16 @@ Note `BorderThickness` may stay an attribute — nothing styles it, so there's n
 
 Working reference: `Button.hint-segment` / `.active` in `GuidedRuleBuilderView.axaml` — its default `Background="Transparent"` is a *Style setter*, which is exactly why its conditional `.active` override works.
 
+### A `TemplateBinding` is held at `Template` priority: a conditional style aimed at the part beats it, an unconditional one does not
+
+**Symptom:** A style aimed into a control's template at a named part, such as `MyControl /template/ Border#Part` setting the part's `Background`, changes nothing where the template gives the part that property by `TemplateBinding`. The same style with a class or a pseudo-class in its selector, `MyControl.marked /template/ Border#Part` or `MyControl:focus /template/ Border#Part`, applies.
+
+**Cause:** Read in Avalonia's source: `BindingPriority` orders Animation, LocalValue, StyleTrigger, Template, Style and Inherited, `StyleTrigger`'s own remark being a `:pointerover` that overrides a template's background, and `StyleInstance` gives a style `StyleTrigger` priority when it has an activator and `Style` otherwise. The template's binding holds the part's value at `Template`, so an unconditional style, at `Style`, sits below it, and a conditional one, at `StyleTrigger`, above it.
+
+**Fix:** Make a style that must beat the template's binding conditional, with a class or a pseudo-class; that is how WPF's trigger that paints a part by name ports. Semi's own `TextBox` does so: its `^:focus /template/ Border#PART_ContentPresenterBorder` setter beats the template's `BorderBrush="{TemplateBinding BorderBrush}"`.
+
+Measured on Avalonia 12.1.3 with Avalonia.Headless and Skia, and Semi.Avalonia 12.1.0.1, dark variant, headless on Linux, not reproduced here: in a templated control whose compiled `ControlTheme` gives it a template of one `Border#Part` with `Background="{TemplateBinding Background}"`, its own `Background` set by its theme, `MyControl /template/ Border#Part` setting magenta left the part the template's green, all 4,800 px, and the part's `GetDiagnostic(Border.BackgroundProperty)` reported `Template` priority, the style's frame attached and active at `Style`, below the template's. With the class set, or `IsFocused` asserted, the part was magenta, all 4,800 px, at `StyleTrigger`. 12 processes in three passes read the same. Semi's own `TextBox`, focused, with its `BorderBrush` `Transparent`, drew its part `#54A9FF`, 448 px. Not measured: the unconditional form nested in a `ControlTheme`, `^ /template/ …`, and a template built in code.
+
 ### A control's `Styles` apply to the control itself, as well as to its descendants
 
 **Symptom:** A style meant for the controls inside another, such as `<Style Selector="Border">` in a
@@ -237,8 +247,8 @@ styled from its own `Border.Styles`.
 **Fix:** Give a style meant only for what a control holds a selector the control itself does not
 match, such as a class only those controls carry. A style for the control itself reaches it from its
 own `Styles` as well as from an ancestor's. If a class-driven style does nothing, look for a local
-value first: an attribute that sets the same property outranks every style, as the entry above
-explains.
+value first: an attribute that sets the same property outranks every style, as the first entry of
+this section explains.
 
 ```xml
 <!-- Restyles the outer Border as well as the inner one -->
@@ -414,6 +424,16 @@ Measured on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and Semi.Avalonia 12.1
 **Fix:** Set `MinHeight="0"` on a button meant to be smaller.
 
 Measured on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and Semi.Avalonia 12.1.0.1, headless on Linux with Skia, not reproduced here: `Height="24"` laid out at 32, and a `Height="22"` button as a `TextBox`'s `InnerLeftContent` made the box 34 tall, not 32.
+
+### Redefining Semi's palette keys does not recolour Semi's controls; redefining their component tokens does
+
+**Symptom:** An application redefines a key of Semi's palette in its own resources, such as the colour `SemiBlue5Color` or the brush `SemiColorPrimary`, and Semi's controls keep Semi's colour, though `Application.TryGetResource` returns the redefinition.
+
+**Cause:** Read in Semi's source at `v12.1.0.1`: its control themes reference component tokens, such as `ButtonDefaultPrimaryForeground`, by `DynamicResource`, and each is a `StaticResource` alias, in Semi's own `Themes/Dark/*.axaml`, of a palette key, as `<StaticResource x:Key="ButtonDefaultPrimaryForeground" ResourceKey="SemiColorPrimary" />`. `SemiTheme.axaml` merges both the palette, `Tokens/_index.axaml`, and the dark tokens, and no Semi control template references the blue family directly. 92 dark component tokens derive from `SemiBlue*`, all aliasing the `SemiColorPrimary` family: Primary, Pointerover, Active, Disabled, Light, LightPointerover and LightActive. Inferred, not read: the aliases resolve inside Semi's own dictionary scope, where Semi's palette is found before `Application.Resources`.
+
+**Fix:** Redefine the component tokens the controls read, such as `ButtonDefaultPrimaryForeground`, `CheckBoxCheckedDefaultBackground` and `TextBoxFocusBorderBrush`, not the palette keys behind them. Rewriting Semi's own palette dictionary at startup was not tried.
+
+Measured on Avalonia 12.1.3 with Avalonia.Headless and Skia, and Semi.Avalonia 12.1.0.1, dark variant, headless on Linux, not reproduced here: magenta redefinitions of `SemiBlue5Color` or `SemiColorPrimary`, put directly in `Application.Current.Resources` or in a `ResourceDictionary` added to `Application.Resources.MergedDictionaries` whose `ThemeDictionaries` held the key under `ThemeVariant.Dark`, before any window existed, changed nothing: a default `Button`'s `Foreground`, a checked `CheckBox`'s `Border#NormalRectangle` background and a focused `TextBox`'s `Border#PART_ContentPresenterBorder` border all stayed `#54A9FF`, 0 magenta pixels against 111, 205 and 448 blue ones. Redefining the three component tokens instead turned all three magenta, 100, 156 and 452 px, with 0, 40 and 0 blue left, the 40 being the checked box's border, a fourth token left alone, alike in both places. Each case ran in a process of its own, and one process running all seven in turn read the same, so it is not a once-per-process cache. At baseline the `Button`'s `Foreground` is the very brush the application resolves for `SemiColorPrimary`.
 
 ---
 
@@ -1023,6 +1043,18 @@ Notes: `[ObservableProperty]`'s setter only raises `PropertyChanged` when the va
 **Cause:** TwoWay bindings need `INotifyPropertyChanged` for the source to be notified-aware. Without it, the binding writes back successfully but doesn't re-fetch on subsequent reads.
 
 **Fix:** Either inherit `ObservableObject` and use `[ObservableProperty]`, or implement the interface manually. For one-shot dialogs where the property is read once after the dialog closes, plain `{ get; set; }` is fine — but be aware that compiled binding behaviour differs.
+
+### Avalonia never asks `IDataErrorInfo`, so a WPF `ValidatesOnDataErrors` binding ports to nothing
+
+**Symptom:** A view model that implements `IDataErrorInfo` and reports an error for a bound property shows nothing on the control, and nothing says why: no binding error, no log entry. Under WPF the same binding with `ValidatesOnDataErrors=True` drew the error template.
+
+**Cause:** Avalonia never asks `IDataErrorInfo`. Read in the `Avalonia` 12.1.3 package: no assembly in it, under `lib/net10.0` or `lib/net8.0`, contains the string `IDataErrorInfo`, and `Avalonia.Base` contains `INotifyDataErrorInfo`.
+
+**Fix:** Port the error to `INotifyDataErrorInfo` where it should show on the control. Where the view shows the message some other way, delete `IDataErrorInfo`, and with it whatever existed only to make WPF ask again, such as a `PropertyChanged` raised again when validity changes.
+
+Measured on Avalonia 12.1.3 and Avalonia.Headless 12.1.3 with Skia, Semi.Avalonia 12.1.0.1 and .NET 10, headless on Linux, not reproduced here: a probe bound a `TextBox`'s `Text`, two-way, to a source that always reports an error for `Text`, and read `DataValidationErrors` after the binding's first read, after the source raised `PropertyChanged` for `Text`, which is what WPF asked again on, and after the box wrote a value back. A source implementing `IDataErrorInfo` gave `HasErrors` false and no errors at all three. One implementing `INotifyDataErrorInfo`, the control, gave true and its message at all three, so data validation is on for `TextBox.Text` in that set-up, and the first source's false means `IDataErrorInfo` is never asked.
+
+⚠ **A leftover can cost more than nothing.** In the case measured, a search box's view model kept the `IDataErrorInfo` of the WPF code it was ported from, and a subscription that raised `PropertyChanged` for the box's text again whenever validity changed, so that WPF would ask for the error again. Under Avalonia the re-raise drew nothing. It also ran inside Rx's `Throttle` delivery, which holds the throttle's lock on its timer's thread, and fed back into the `CombineLatest` above the throttle. A key typed at that moment took the `CombineLatest`'s lock and waited for the throttle's, while the delivery held the throttle's and waited for the `CombineLatest`'s. In the application that freezes the window; in its test suite it was a test host hanging with no message, which a stack dump from `dotnet-stack`, run through `dnx`, named. A fixture that forces the interleaving failed 3 runs of 3 before the re-raise and the interface were removed and passed 3 of 3 after, and the whole suite then ran 8 times without a stall, where it had stalled in 2 of 3 runs that morning. The deadlock is Rx's and the application's, not Avalonia's; it hid in a WPF idiom that silently does nothing. Measured on the same versions, not reproduced here.
 
 ---
 
