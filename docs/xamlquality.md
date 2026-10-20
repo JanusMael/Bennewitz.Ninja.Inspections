@@ -306,6 +306,17 @@ a contrast pair that names it reads `n/a`. A contrast figure composites a transl
 exactly. Skia's CPU renderer, as headless tests run it, blends a translucent colour in integers of its own, the same
 on every CPU, from two levels below the exact blend to one above it.
 
+**An alias resolves where Avalonia resolves it.** The audit holds a theme as an application does: the theme in its
+styles, and in its resources a consumer's `tokens` and the files the theme's `merge` names, which its lookup searches
+first, the last merged file first. A key a consumer references, or a contrast pair names, is looked up there. A
+`StaticResource` alias searches its own dictionaries first, from the one holding it out to the file it was loaded from,
+each its own entries before its theme dictionaries, in the variant of the theme dictionary around it, or in `Default`
+alone outside any, and then the application in that variant. A `DynamicResource` searches the application in the
+variant asked. So a theme's alias keeps the theme's own colour where a merged file or a token redefines its target, and
+a token that aliases a theme key takes the theme's colour. A dictionary a theme holds by its class, as Semi holds its
+palettes, resolves its aliases when it is constructed, in itself alone. An alias Avalonia cannot resolve has no colour,
+though its key counts as defined.
+
 **The parts report is the template parts reference a control library commits.** For each control it lists the
 `PART_` constants the code declares, each part some code looks up on the control's template and whose code that is,
 and the parts each of its themes declares, with the element and the automation id. A part a theme lacks that the code

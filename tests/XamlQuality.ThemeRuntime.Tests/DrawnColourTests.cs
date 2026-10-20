@@ -12,10 +12,12 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Avalonia.Styling;
 using Avalonia.Themes.Simple;
 using Avalonia.Threading;
 using Bennewitz.Ninja.XamlQuality.ThemeAudit;
 using Xunit;
+using ThemeVariant = Avalonia.Styling.ThemeVariant;
 
 /// <summary>
 /// <para>
@@ -36,6 +38,12 @@ using Xunit;
 /// The brand output's stacks are held the same way: a brush painted by an element at an opacity of its own must be
 /// drawn at the alpha the brand output makes for that stack, its opacity times the element's, truncated once.
 /// </para>
+/// <para>
+/// Where an alias resolves is held the same way, by plans/00006's decision 6. Those cases are drawn where an
+/// application holds a theme: the theme in its styles, the files a configuration merges and a consumer's tokens in its
+/// resources, each a dictionary of its own, and a control painted with <c>{DynamicResource B}</c> under a variant.
+/// Where Avalonia draws nothing, the lookup having thrown, the audit must give no colour.
+/// </para>
 /// </summary>
 public sealed class DrawnColourTests : IDisposable
 {
@@ -44,6 +52,10 @@ public sealed class DrawnColourTests : IDisposable
     private const string Ink = "<Color x:Key=\"Ink\">#FFFFFF</Color>";
     private const string Faint = "<x:Double x:Key=\"Faint\">0.12</x:Double>";
     private const string Half = "<SolidColorBrush x:Key=\"Half\" Color=\"#FFFFFF\" Opacity=\"0.5\" />";
+    private const string Local = " xmlns:local=\"using:XamlQuality.ThemeRuntime.Tests\"";
+    private const string Dim = "#404040";
+    private const string Pale = "#B0B0B0";
+    private static readonly AuditColor BlackGround = new(255, 0, 0, 0);
 
     private readonly string _root = Directory.CreateTempSubdirectory("drawn-colour-").FullName;
 
@@ -151,8 +163,113 @@ public sealed class DrawnColourTests : IDisposable
             new Cell("#F9F9F9 at 0.6 inside an element at 0.56, over #5B5B5B", "#5B5B5B", Brush("#F9F9F9", "0.6"), Opacity: "0.56"));
     }
 
+    [AvaloniaFact]
+    public void An_alias_reads_its_own_dictionaries_first_then_the_applications_resources_then_its_styles()
+    {
+        AssertHeldAsResolved(
+            new Held("a theme alias whose target a merged file redefines", "Light",
+                Colour("Target", Dim) + Alias("B", "Target"), [Colour("Target", Pale)]),
+            new Held("a theme brush whose Color is a static resource a merged file redefines", "Light",
+                Colour("Target", Dim) + "<SolidColorBrush x:Key=\"B\" Color=\"{StaticResource Target}\" />", [Colour("Target", Pale)]),
+            new Held("a merged file's alias whose target only the theme holds", "Light",
+                Colour("Target", Dim), [Alias("B", "Target")]),
+            new Held("a merged file's alias whose target another merged file and the theme hold", "Light",
+                Colour("Target", Dim), [Colour("Target", Pale), Alias("B", "Target")]),
+            new Held("a consumer token aliasing a theme key", "Light",
+                Colour("Target", Dim), [], Tokens: Alias("B", "Target")),
+            new Held("a consumer token aliasing a key a merged file and the theme hold", "Light",
+                Colour("Target", Dim), [Colour("Target", Pale)], Tokens: Alias("B", "Target")));
+    }
+
+    [AvaloniaFact]
+    public void An_alias_resolves_in_the_variant_of_the_theme_dictionary_around_it_or_in_Default_alone()
+    {
+        AssertHeldAsResolved(
+            new Held("an alias outside every theme dictionary, under Dark, whose target Default and Dark hold", "Dark",
+                Variants(Colour("Target", Dim), Colour("Target", Pale)) + Alias("B", "Target"), []),
+            new Held("an alias in Dark's dictionary, under Dark, whose target Default and Dark hold", "Dark",
+                Variants(Colour("Target", Dim), Colour("Target", Pale) + Alias("B", "Target")), []),
+            new Held("an alias outside every theme dictionary, under Dark, whose target only Dark holds", "Dark",
+                Variants(string.Empty, Colour("Target", Pale)) + Alias("B", "Target"), []),
+            new Held("a merged file's alias in its Dark dictionary whose target the theme's Default and Dark hold", "Dark",
+                Variants(Colour("Target", Dim), Colour("Target", Pale)), [Variants(string.Empty, Alias("B", "Target"))]),
+            new Held("a dictionary's own entry and its Dark dictionary's, under Dark", "Dark",
+                Colour("B", Dim) + Variants(string.Empty, Colour("B", Pale)), []));
+    }
+
+    [AvaloniaFact]
+    public void An_alias_in_a_dictionary_a_theme_holds_by_its_class_resolves_in_that_dictionary_when_it_is_built()
+    {
+        const string Palette = "<ResourceDictionary.MergedDictionaries><local:XClassPalette /></ResourceDictionary.MergedDictionaries>";
+        AssertHeldAsResolved(
+            new Held("its target in the theme and in a merged file", "Light", Palette + Colour("Outside", Dim), [Colour("Outside", Pale)]),
+            new Held("its target in the theme alone", "Light", Palette + Colour("Outside", Dim), []));
+    }
+
+    [AvaloniaFact]
+    public void An_alias_of_its_own_key_is_not_found_in_its_own_dictionary_while_it_builds()
+    {
+        AssertHeldAsResolved(
+            new Held("an alias of its own key over a merged dictionary that holds it", "Light",
+                "<ResourceDictionary.MergedDictionaries><ResourceDictionary>" + Colour("B", Dim)
+                + "</ResourceDictionary></ResourceDictionary.MergedDictionaries>" + Alias("B", "B"), []));
+    }
+
+    [AvaloniaFact]
+    public void A_dynamic_alias_in_a_theme_is_looked_up_from_the_application()
+    {
+        AssertHeldAsResolved(
+            new Held("a theme brush whose Color is a dynamic resource a merged file redefines", "Light",
+                Colour("Target", Dim) + "<SolidColorBrush x:Key=\"B\" Color=\"{DynamicResource Target}\" />", [Colour("Target", Pale)]),
+            new Held("a theme brush outside every theme dictionary, under Dark, whose Color is a dynamic resource Default and Dark hold", "Dark",
+                Variants(Colour("Target", Dim), Colour("Target", Pale)) + "<SolidColorBrush x:Key=\"B\" Color=\"{DynamicResource Target}\" />", []));
+    }
+
     private static string Brush(string color, string opacity, string key = "B") =>
         "<SolidColorBrush x:Key=\"" + key + "\" Color=\"" + color + "\" Opacity=\"" + opacity + "\" />";
+
+    private static string Colour(string key, string colour) => "<Color x:Key=\"" + key + "\">" + colour + "</Color>";
+
+    private static string Alias(string key, string target) => "<StaticResource x:Key=\"" + key + "\" ResourceKey=\"" + target + "\" />";
+
+    /// <summary>A dictionary's theme dictionaries, holding <paramref name="byDefault"/> in Default's and <paramref name="dark"/> in Dark's.</summary>
+    private static string Variants(string byDefault, string dark) =>
+        "<ResourceDictionary.ThemeDictionaries><ResourceDictionary x:Key=\"Default\">" + byDefault
+        + "</ResourceDictionary><ResourceDictionary x:Key=\"Dark\">" + dark + "</ResourceDictionary></ResourceDictionary.ThemeDictionaries>";
+
+    private static string ThemeMarkup(string resources) =>
+        "<Styles " + Namespaces + Local + "><Styles.Resources><ResourceDictionary>" + resources + "</ResourceDictionary></Styles.Resources></Styles>";
+
+    private static string DictionaryMarkup(string resources) => "<ResourceDictionary " + Namespaces + Local + ">" + resources + "</ResourceDictionary>";
+
+    /// <summary>
+    /// Each case, held where an application holds it, must be drawn as Skia's CPU raster draws the colour the audit
+    /// resolves, to the level; and where Avalonia draws nothing, its lookup having thrown or found nothing, the audit must
+    /// give no colour.
+    /// </summary>
+    private void AssertHeldAsResolved(params Held[] cases)
+    {
+        List<string> wrong = [];
+        foreach (Held held in cases)
+        {
+            AuditColor? resolved = Resolve(held);
+            AuditColor drawn = BlackGround;
+            Exception? thrown = Record.Exception(() => drawn = Draw(held));
+            if (thrown is not null)
+            {
+                if (resolved is not null)
+                {
+                    wrong.Add(held.What + ": Avalonia threw " + thrown.GetType().Name + ": " + thrown.Message + ", where the audit resolves " + resolved);
+                }
+            }
+            else if (resolved is { } colour ? Rastered(colour, BlackGround) != drawn : drawn != BlackGround)
+            {
+                wrong.Add(held.What + ": drawn " + drawn + ", where the audit " + (resolved is null ? "gives no colour" : "resolves " + resolved));
+            }
+        }
+
+        Assert.True(wrong.Count == 0, string.Join(Environment.NewLine, wrong));
+    }
 
     /// <summary>Each cell must be drawn as Skia's CPU raster draws the colour the audit resolves, to the level.</summary>
     private void AssertDrawnAsRastered(params Cell[] cells)
@@ -283,8 +400,67 @@ public sealed class DrawnColourTests : IDisposable
         string opacity = cell.Opacity is { } own ? " Opacity=\"" + own + "\"" : string.Empty;
         string markup = "<Border " + Namespaces + " Background=\"" + cell.Ground + "\"><Border.Resources>" + cell.Resources
                         + "</Border.Resources><Border" + opacity + " Background=\"" + use + "\" /></Border>";
-        Control content = (Control)AvaloniaRuntimeXamlLoader.Load(markup, typeof(DrawnColourTests).Assembly);
+        return Paint((Control)AvaloniaRuntimeXamlLoader.Load(markup, typeof(DrawnColourTests).Assembly), variant: null);
+    }
+
+    /// <summary>
+    /// The colour the case's control is drawn in, its theme in the application's styles after Simple, and its merged files
+    /// and then its tokens in the application's resources, each loaded as a dictionary of its own. The application's own
+    /// styles and resources are put back afterwards.
+    /// </summary>
+    private static AuditColor Draw(Held held)
+    {
+        Application application = Application.Current!;
+        List<IStyle> styles = [.. application.Styles];
+        IResourceDictionary stylesResources = application.Styles.Resources;
+        IResourceDictionary resources = application.Resources;
+        ThemeVariant? requested = application.RequestedThemeVariant;
+        try
+        {
+            Styles theme =(Styles)AvaloniaRuntimeXamlLoader.Load(ThemeMarkup(held.Theme), typeof(DrawnColourTests).Assembly);
+            ResourceDictionary merged = new();
+            foreach (string merge in held.Merges)
+            {
+                merged.MergedDictionaries.Add((ResourceDictionary)AvaloniaRuntimeXamlLoader.Load(DictionaryMarkup(merge), typeof(DrawnColourTests).Assembly));
+            }
+
+            if (held.Tokens is { } tokens)
+            {
+                merged.MergedDictionaries.Add((ResourceDictionary)AvaloniaRuntimeXamlLoader.Load(DictionaryMarkup(tokens), typeof(DrawnColourTests).Assembly));
+            }
+
+            application.Styles.Clear();
+            application.Styles.Resources = new ResourceDictionary();
+            application.Styles.Add(new SimpleTheme());
+            application.Styles.Add(theme);
+            application.Resources = merged;
+            application.RequestedThemeVariant = held.Variant == "Dark" ? ThemeVariant.Dark : ThemeVariant.Light;
+            string markup = "<Border " + Namespaces + " Background=\"" + Black + "\"><Border Background=\"{DynamicResource B}\" /></Border>";
+            return Paint((Control)AvaloniaRuntimeXamlLoader.Load(markup, typeof(DrawnColourTests).Assembly), variant: null);
+        }
+        finally
+        {
+            application.RequestedThemeVariant = requested;
+            application.Styles.Clear();
+            foreach (IStyle style in styles)
+            {
+                application.Styles.Add(style);
+            }
+
+            application.Styles.Resources = stylesResources;
+            application.Resources = resources;
+        }
+    }
+
+    /// <summary>The colour the centre of a window holding <paramref name="content"/> is drawn in, read from the frame Skia renders.</summary>
+    private static AuditColor Paint(Control content, ThemeVariant? variant)
+    {
         Window window = new() { Width = 40, Height = 40, Content = content };
+        if (variant is not null)
+        {
+            window.RequestedThemeVariant = variant;
+        }
+
         window.Show();
         try
         {
@@ -315,6 +491,49 @@ public sealed class DrawnColourTests : IDisposable
         return ThemeInventory.Build(file, directory).ForVariant(ThemeInventory.DefaultVariant).Resolve("B");
     }
 
+    /// <summary>
+    /// What the audit resolves the case's <c>B</c> to under its variant, as it resolves a contrast pair's key: the theme
+    /// with its merged files, and the tokens as a consumer's. The class-backed palette is written beside them, where the
+    /// audit finds a dictionary a theme holds by its element.
+    /// </summary>
+    private AuditColor? Resolve(Held held)
+    {
+        string directory = Directory.CreateDirectory(Path.Combine(_root, Guid.NewGuid().ToString("N"))).FullName;
+        File.Copy(Path.Combine(ProjectDirectory(), "Fixtures", "Drawn", "XClassPalette.axaml"), Path.Combine(directory, "XClassPalette.axaml"));
+        string theme = Path.Combine(directory, "Theme.axaml");
+        File.WriteAllText(theme, ThemeMarkup(held.Theme));
+        List<string> merges = [];
+        foreach (string merge in held.Merges)
+        {
+            string file = Path.Combine(directory, "Merge" + merges.Count + ".axaml");
+            File.WriteAllText(file, DictionaryMarkup(merge));
+            merges.Add(file);
+        }
+
+        ThemeInventory? tokens = null;
+        if (held.Tokens is { } body)
+        {
+            string file = Path.Combine(directory, "Tokens.axaml");
+            File.WriteAllText(file, DictionaryMarkup(body));
+            tokens = ThemeInventory.Build(new ThemeSource(file, directory));
+        }
+
+        ThemeInventory inventory = ThemeInventory.Build(new ThemeSource(theme, directory) { Merge = merges });
+        return ContrastAudit.Score([new ContrastPair("B", "B", 1)], inventory, [held.Variant], tokens)[0].Foreground;
+    }
+
+    private static string ProjectDirectory()
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "XamlQuality.ThemeRuntime.Tests.csproj")))
+        {
+            directory = directory.Parent;
+        }
+
+        Assert.NotNull(directory);
+        return directory.FullName;
+    }
+
     private static AuditColor Ground(Cell cell)
     {
         Assert.True(AuditColor.TryParse(cell.Ground, out AuditColor ground), cell.Ground);
@@ -328,4 +547,12 @@ public sealed class DrawnColourTests : IDisposable
     /// <param name="Dynamic">Whether the cell takes <c>B</c> as a dynamic resource rather than a static one.</param>
     /// <param name="Opacity">The opacity of the element <c>B</c> paints, which pushes it; none when <c>null</c>.</param>
     private sealed record Cell(string What, string Ground, string Resources, bool Dynamic = false, string? Opacity = null);
+
+    /// <summary>A case drawn where an application holds it: a control over black painted with <c>{DynamicResource B}</c>.</summary>
+    /// <param name="What">The case, as a failure names it.</param>
+    /// <param name="Variant">The variant the control is drawn in, <c>Light</c> or <c>Dark</c>, and the one the audit resolves <c>B</c> under.</param>
+    /// <param name="Theme">The resources of the theme in the application's styles, which the audit reads as a theme's entry.</param>
+    /// <param name="Merges">The dictionaries a configuration merges after the theme, in the application's resources, the last searched first.</param>
+    /// <param name="Tokens">A consumer's tokens, in the application's resources and searched before the merged files; none when <c>null</c>.</param>
+    private sealed record Held(string What, string Variant, string Theme, string[] Merges, string? Tokens = null);
 }

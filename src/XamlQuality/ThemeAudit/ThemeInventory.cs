@@ -46,30 +46,34 @@ public sealed record ThemeSource(string EntryFile, string BaseDirectory)
     public IReadOnlyDictionary<string, IReadOnlyDictionary<string, string?>>? Providers { get; init; }
 
     /// <summary>
-    /// Further dictionaries walked after the entry, layered over it the way an application that
-    /// includes them after the theme sees them — a compat dictionary, a host's own overrides.
+    /// Further dictionaries an application holds in its resources while the theme is in its styles — a
+    /// compat dictionary, a host's own overrides. Each is a root of its own, and the application's lookup
+    /// searches them before the theme, the last listed first.
     /// </summary>
     public IReadOnlyList<string>? Merge { get; init; }
 }
 
 /// <summary>
-/// One theme variant's effective resources: every key it defines after merging its shared base,
-/// the <c>Default</c> dictionary Avalonia falls back to per key, its variant-specific keys, and
-/// the keys it inherits from a parent variant. A key resolves to a colour when it is a literal or
-/// an alias chain that ends in one, with brush opacities folded into the alpha; a thickness, a
-/// gradient or an unresolved alias is defined but not colour-scored.
+/// One theme variant's resources as an application holding the theme finds them under that variant: every
+/// key its lookup reaches, in the files the configuration merges and then the theme, each dictionary searched
+/// for its own entries, its theme dictionary for the variant, those the variant inherits and <c>Default</c>'s,
+/// then its merged dictionaries. A key resolves to a colour when it is a literal or an alias chain that ends
+/// in one, each alias followed where Avalonia follows it, with brush opacities folded into the alpha; a
+/// thickness, a gradient or an alias Avalonia cannot resolve is defined but not colour-scored.
 /// </summary>
 public sealed class VariantInventory
 {
-    private readonly IReadOnlyDictionary<string, ResourceDefinition> _effective;
+    private readonly ResourceApplication _application;
+    private readonly IReadOnlyDictionary<string, Found> _effective;
 
     internal VariantInventory(string key, string displayName, IReadOnlyDictionary<string, string> keyNamespaces,
-                              IReadOnlyDictionary<string, ResourceDefinition> effective)
+                              ResourceApplication application)
     {
         Key = key;
         DisplayName = displayName;
         KeyNamespaces = keyNamespaces;
-        _effective = effective;
+        _application = application;
+        _effective = application.Flatten(displayName);
     }
 
     /// <summary>The raw variant key (e.g. <c>Dark</c> or <c>{x:Static semi:SemiTheme.NightSky}</c>).</summary>
@@ -81,29 +85,42 @@ public sealed class VariantInventory
     /// <summary>The XML namespace declarations (prefix → namespace) the raw <see cref="Key"/> depends on.</summary>
     public IReadOnlyDictionary<string, string> KeyNamespaces { get; }
 
-    /// <summary>Every key this variant defines, after base merge, Default fallback and inheritance.</summary>
+    /// <summary>Every key the application's lookup finds under this variant.</summary>
     public IReadOnlyCollection<string> Keys => (IReadOnlyCollection<string>)_effective.Keys;
 
     /// <summary>Whether this variant defines <paramref name="key"/> at all.</summary>
     public bool Defines(string key) => _effective.ContainsKey(key);
 
-    /// <summary>The definition of <paramref name="key"/> under this variant, or <c>null</c> when undefined.</summary>
+    /// <summary>The definition the application's lookup finds first for <paramref name="key"/> under this variant, or <c>null</c> when undefined.</summary>
     public ResourceDefinition? Lookup(string key)
     {
-        return _effective.TryGetValue(key, out ResourceDefinition? definition) ? definition : null;
+        return _effective.TryGetValue(key, out Found found) ? found.Definition : null;
     }
 
     /// <summary>
-    /// The colour <paramref name="key"/> resolves to under this variant, as Avalonia draws it: an
-    /// alias chain followed to its literal, and the alpha scaled by every brush opacity on the way,
-    /// an opacity a brush takes from a resource being the number that resource holds. <c>null</c>
-    /// when the key is undefined or opaque, when an alias dangles or cycles, when an opacity's
-    /// resource holds no number, and when a brush's <c>Color</c> names a brush, directly or through
-    /// an alias, which Avalonia 12.1.3 does not load.
+    /// The colour <paramref name="key"/> resolves to under this variant, as Avalonia draws it: an alias chain
+    /// followed to its literal where Avalonia 12.1.3 follows it, and the alpha scaled by every brush opacity on
+    /// the way, an opacity a brush takes from a resource being the number that resource holds.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The key is looked up as the application looks it up, by plans/00006. A <c>StaticResource</c> alias then
+    /// searches its own dictionaries, from the one holding it out to the root it was loaded in, then the
+    /// application, in the variant of the nearest theme dictionary around it, or in <c>Default</c> alone where
+    /// there is none. A <c>DynamicResource</c> one, whose dictionary's owner is the application, searches the
+    /// application under this variant. An alias does not find itself, nor one it is being resolved for, so one
+    /// that names its own key searches past its own entry.
+    /// </para>
+    /// <para>
+    /// <c>null</c> when the key is undefined or opaque; when an alias's target is found nowhere it searches; when
+    /// an alias in a dictionary with a class of its own, entered by its element, is not found in that dictionary,
+    /// since it resolves while the dictionary is constructed; when an opacity's resource holds no number; and when a
+    /// brush's <c>Color</c> names a brush, directly or through an alias, which Avalonia 12.1.3 does not load.
+    /// </para>
+    /// </remarks>
     public AuditColor? Resolve(string key)
     {
-        return Resolve(key, [], 1.0, asColor: false);
+        return Resolve(key, 1.0);
     }
 
     /// <summary>
@@ -114,59 +131,7 @@ public sealed class VariantInventory
     /// </summary>
     internal AuditColor? Resolve(string key, double opacity)
     {
-        return Resolve(key, [], opacity, asColor: false);
-    }
-
-    /// <summary>
-    /// Follows <paramref name="key"/>, <paramref name="opacity"/> being the product of the opacities
-    /// met on the way, and <paramref name="asColor"/> whether a brush's <c>Color</c> named it, so that
-    /// it must be a colour.
-    /// </summary>
-    private AuditColor? Resolve(string key, HashSet<string> visiting, double opacity, bool asColor)
-    {
-        if (!_effective.TryGetValue(key, out ResourceDefinition? definition) || !visiting.Add(key))
-        {
-            return null;
-        }
-
-        switch (definition.Value)
-        {
-            case ResourceValue.ColorLiteral literal when !(asColor && IsBrush(definition)):
-                return OpacityOf(literal.Opacity, literal.OpacityKey) is { } own
-                    ? WithOpacity(literal.Color, opacity * own)
-                    : null;
-            case ResourceValue.Alias alias when !(asColor && alias.FromColor):
-                return OpacityOf(alias.Opacity, alias.OpacityKey) is { } aliasing
-                    ? Resolve(alias.TargetKey, visiting, opacity * aliasing, asColor || alias.FromColor)
-                    : null;
-            default:
-                return null;
-        }
-    }
-
-    /// <summary>
-    /// A brush's own opacity: <paramref name="literal"/>, or where the brush names a resource for it,
-    /// the number an <c>x:Double</c> under that key holds, clamped as a literal is; <c>null</c> when
-    /// the key holds no number.
-    /// </summary>
-    private double? OpacityOf(double literal, string? key)
-    {
-        if (key is null)
-        {
-            return literal;
-        }
-
-        return _effective.TryGetValue(key, out ResourceDefinition? definition)
-               && definition.Element is { Name.LocalName: "Double" } number
-               && double.TryParse(number.Value.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double value)
-            ? Math.Clamp(value, 0, 1)
-            : null;
-    }
-
-    /// <summary>Whether a definition is a brush, which a brush's <c>Color</c> cannot name.</summary>
-    private static bool IsBrush(ResourceDefinition definition)
-    {
-        return definition.Element?.Name.LocalName.EndsWith("SolidColorBrush", StringComparison.Ordinal) == true;
+        return _effective.TryGetValue(key, out Found found) ? _application.Colour(found, DisplayName, opacity) : null;
     }
 
     /// <summary>
@@ -182,9 +147,9 @@ public sealed class VariantInventory
 
 /// <summary>
 /// The per-variant inventory of a theme: which keys each variant defines and what colour each
-/// resolves to, built by <see cref="ThemeGraphWalker"/> walking the resource graph with a variant
-/// context, then layering shared base keys, the <c>Default</c> dictionary, inherited keys and the
-/// variant's own keys in Avalonia's lookup order.
+/// resolves to, built by <see cref="ThemeGraphWalker"/> walking the resource graph into the
+/// dictionaries Avalonia builds from it, and looked up as an application holding the theme in its
+/// styles, and the files the configuration merges in its resources, looks a key up.
 /// </summary>
 public sealed class ThemeInventory
 {
@@ -197,11 +162,12 @@ public sealed class ThemeInventory
 
     private ThemeInventory(IReadOnlyList<VariantInventory> variants, VariantInventory? baseOnly,
                            IReadOnlyList<UnresolvedInclude> unresolved, IReadOnlyList<string> files,
-                           IReadOnlyDictionary<string, string>? inheritance)
+                           IReadOnlyDictionary<string, string>? inheritance, ResourceApplication application)
     {
         Variants = variants;
         Unresolved = unresolved;
         Files = files;
+        Application = application;
         _inheritance = inheritance;
         _baseOnly = baseOnly;
         _byDisplayName = variants
@@ -220,6 +186,9 @@ public sealed class ThemeInventory
 
     /// <summary>Every file the walker read, in walk order — the material a digest is taken over.</summary>
     public IReadOnlyList<string> Files { get; }
+
+    /// <summary>The application holding the theme, and the files merged into it, as its lookup searches them.</summary>
+    internal ResourceApplication Application { get; }
 
     /// <summary>
     /// The variant that applies when an application requests <paramref name="displayName"/>:
@@ -273,12 +242,9 @@ public sealed class ThemeInventory
         WalkResult walk = ThemeGraphWalker.Walk(source);
         IReadOnlyDictionary<string, string>? inheritance = source.Inheritance;
 
-        // Default's own keys sit under every other variant: Avalonia looks a key up in the
-        // requested variant, then its inherit chain, then Default.
-        IReadOnlyDictionary<string, ResourceDefinition> defaultOwn =
-            walk.Own.TryGetValue(DefaultVariant, out IReadOnlyDictionary<string, ResourceDefinition>? declaredDefault)
-                ? declaredDefault
-                : new Dictionary<string, ResourceDefinition>(StringComparer.Ordinal);
+        // The application searches its resources, the merged files, the last listed first, before its styles,
+        // the theme.
+        ResourceApplication application = new([.. Enumerable.Reverse(walk.Merges), walk.Entry], inheritance);
 
         // A dictionary with no ThemeDictionaries still has its keys: they become its one variant,
         // Default. A theme that declares variants but no Default keeps its base keys reachable
@@ -290,68 +256,268 @@ public sealed class ThemeInventory
             variants.Add(baseOnly);
         }
 
-        IReadOnlyDictionary<string, ResourceDefinition> OwnOf(VariantId variant)
-        {
-            return walk.Own.TryGetValue(variant.Key, out IReadOnlyDictionary<string, ResourceDefinition>? own)
-                ? own
-                : new Dictionary<string, ResourceDefinition>(StringComparer.Ordinal);
-        }
-
-        // Lookup order, lowest first: shared base, Default, the inherit chain, the variant's own
-        // keys. A root variant sits on base + Default; a child sits on its parent's effective set,
-        // which already carries both. Inheritance is by display name, transitive, child over
-        // parent; a cycle falls back to treating the variant as a root.
-        Dictionary<string, VariantId> byDisplayName = variants
-            .GroupBy(v => v.DisplayName, StringComparer.Ordinal)
-            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
-        Dictionary<string, IReadOnlyDictionary<string, ResourceDefinition>> effective = new(StringComparer.Ordinal);
-
-        IReadOnlyDictionary<string, ResourceDefinition> Effective(VariantId variant, HashSet<string> visiting)
-        {
-            if (effective.TryGetValue(variant.Key, out IReadOnlyDictionary<string, ResourceDefinition>? done))
-            {
-                return done;
-            }
-
-            Dictionary<string, ResourceDefinition> result;
-            if (inheritance is not null
-                && inheritance.TryGetValue(variant.DisplayName, out string? parentName)
-                && byDisplayName.TryGetValue(parentName, out VariantId? parent)
-                && !ReferenceEquals(parent, variant)
-                && visiting.Add(variant.Key))
-            {
-                result = new Dictionary<string, ResourceDefinition>(Effective(parent, visiting), StringComparer.Ordinal);
-            }
-            else
-            {
-                result = new Dictionary<string, ResourceDefinition>(walk.Base, StringComparer.Ordinal);
-                if (variant.Key != DefaultVariant)
-                {
-                    Overlay(result, defaultOwn);
-                }
-            }
-
-            Overlay(result, OwnOf(variant));
-            effective[variant.Key] = result;
-            return result;
-        }
-
+        // Each variant is what the application's lookup finds under it: a variant's own theme dictionary, then
+        // those it inherits, by display name, then Default's, in each dictionary in turn.
         List<VariantInventory> inventories = variants
-            .Select(v => new VariantInventory(v.Key, v.DisplayName, v.Namespaces, Effective(v, [])))
+            .Select(v => new VariantInventory(v.Key, v.DisplayName, v.Namespaces, application))
             .ToList();
 
         VariantInventory? baseOnlyFallback = variants.Any(v => v.Key == DefaultVariant)
             ? null
-            : new VariantInventory(baseOnly.Key, baseOnly.DisplayName, baseOnly.Namespaces, walk.Base);
+            : new VariantInventory(baseOnly.Key, baseOnly.DisplayName, baseOnly.Namespaces, application);
 
-        return new ThemeInventory(inventories, baseOnlyFallback, walk.Unresolved, walk.Files, inheritance);
+        return new ThemeInventory(inventories, baseOnlyFallback, walk.Unresolved, walk.Files, inheritance, application);
+    }
+}
+
+/// <summary>A definition the lookup found, and the dictionary it found it in.</summary>
+internal readonly record struct Found(ResourceDefinition Definition, ResourceNode Node);
+
+/// <summary>
+/// What an application holds, as <c>Application.TryGetResource</c> at Avalonia 12.1.3 searches it: its resources,
+/// a consumer's tokens and then the files a configuration merges, the last listed first, before its styles, the
+/// theme; and the variant each display name inherits.
+/// </summary>
+/// <remarks>
+/// ⭐ <b>Where an alias resolves is plans/00006's model, and <c>DrawnColourTests</c> holds it to what Avalonia
+/// draws.</b> A key asked from outside, as a consumer's reference or a contrast pair's key is, starts here. A
+/// <c>StaticResource</c> alias searches its own chain first, in the variant of the theme dictionary around it, then
+/// here in that variant; a <c>DynamicResource</c> one searches here, in the variant asked.
+/// </remarks>
+internal sealed class ResourceApplication(IReadOnlyList<ResourceNode> roots, IReadOnlyDictionary<string, string>? inheritance)
+{
+    private readonly Dictionary<string, string[]> _searched = new(StringComparer.Ordinal);
+
+    /// <summary>The roots the lookup searches, in order.</summary>
+    public IReadOnlyList<ResourceNode> Roots { get; } = roots;
+
+    /// <summary>This application with <paramref name="resources"/>, a consumer's tokens, searched before what it holds.</summary>
+    public ResourceApplication Under(ResourceApplication resources) => new([.. resources.Roots, .. Roots], inheritance);
+
+    /// <summary>The colour <paramref name="key"/> resolves to, asked from outside under <paramref name="variant"/>.</summary>
+    public AuditColor? Resolve(string key, string variant)
+    {
+        return Find(key, variant, Building()) is { } found ? Colour(found, variant, 1.0) : null;
     }
 
-    private static void Overlay(Dictionary<string, ResourceDefinition> target, IReadOnlyDictionary<string, ResourceDefinition> source)
+    /// <summary>Every key the lookup finds under <paramref name="variant"/>, each with the definition it finds first.</summary>
+    public Dictionary<string, Found> Flatten(string variant)
     {
-        foreach ((string key, ResourceDefinition definition) in source)
+        Dictionary<string, Found> found = new(StringComparer.Ordinal);
+        foreach (ResourceNode root in Roots)
         {
-            target[key] = definition;
+            FlattenInto(root, variant, found);
         }
+
+        return found;
+    }
+
+    /// <summary>
+    /// The colour <paramref name="found"/> resolves to, asked under <paramref name="variant"/> and drawn inside elements
+    /// whose opacities multiply to <paramref name="opacity"/>.
+    /// </summary>
+    public AuditColor? Colour(Found found, string variant, double opacity)
+    {
+        return Colour(found, variant, Building(), opacity, asColor: false);
+    }
+
+    /// <summary>The definitions being resolved, which a lookup does not find, as Avalonia's does not while it builds one.</summary>
+    private static HashSet<ResourceDefinition> Building() => new(ReferenceEqualityComparer.Instance);
+
+    /// <summary>What the application's lookup finds first for <paramref name="key"/> under <paramref name="variant"/>.</summary>
+    private Found? Find(string key, string? variant, HashSet<ResourceDefinition> building)
+    {
+        foreach (ResourceNode root in Roots)
+        {
+            if (FindIn(root, key, variant, building) is { } found)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// What <paramref name="node"/>'s own lookup finds for <paramref name="key"/> under <paramref name="variant"/>: its own
+    /// entries, its theme dictionaries, its merged dictionaries the last first, then the files its styles include the last
+    /// first, each asked under the same variant.
+    /// </summary>
+    private Found? FindIn(ResourceNode node, string key, string? variant, HashSet<ResourceDefinition> building)
+    {
+        if (node.Own.TryGetValue(key, out ResourceDefinition? own) && !building.Contains(own))
+        {
+            return new Found(own, node);
+        }
+
+        if (node.Themes.Count > 0)
+        {
+            foreach (string name in Searched(variant))
+            {
+                if (node.Themes.TryGetValue(name, out ResourceNode? theme) && FindIn(theme, key, variant, building) is { } found)
+                {
+                    return found;
+                }
+            }
+        }
+
+        for (int i = node.Merged.Count - 1; i >= 0; i--)
+        {
+            if (FindIn(node.Merged[i], key, variant, building) is { } found)
+            {
+                return found;
+            }
+        }
+
+        for (int i = node.Styles.Count - 1; i >= 0; i--)
+        {
+            if (FindIn(node.Styles[i], key, variant, building) is { } found)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    private void FlattenInto(ResourceNode node, string variant, Dictionary<string, Found> found)
+    {
+        foreach ((string key, ResourceDefinition definition) in node.Own)
+        {
+            found.TryAdd(key, new Found(definition, node));
+        }
+
+        foreach (string name in Searched(variant))
+        {
+            if (node.Themes.TryGetValue(name, out ResourceNode? theme))
+            {
+                FlattenInto(theme, variant, found);
+            }
+        }
+
+        for (int i = node.Merged.Count - 1; i >= 0; i--)
+        {
+            FlattenInto(node.Merged[i], variant, found);
+        }
+
+        for (int i = node.Styles.Count - 1; i >= 0; i--)
+        {
+            FlattenInto(node.Styles[i], variant, found);
+        }
+    }
+
+    /// <summary>
+    /// The theme dictionaries a lookup under <paramref name="variant"/> searches, by display name: the variant and
+    /// those it inherits, then <c>Default</c>; <c>Default</c> alone for none, or for <c>Default</c> itself.
+    /// </summary>
+    private string[] Searched(string? variant)
+    {
+        string name = variant ?? ThemeInventory.DefaultVariant;
+        if (!_searched.TryGetValue(name, out string[]? searched))
+        {
+            List<string> chain = [];
+            for (string? current = name;
+                 current is not null && current != ThemeInventory.DefaultVariant && !chain.Contains(current, StringComparer.Ordinal);
+                 current = inheritance is not null && inheritance.TryGetValue(current, out string? parent) ? parent : null)
+            {
+                chain.Add(current);
+            }
+
+            chain.Add(ThemeInventory.DefaultVariant);
+            searched = [.. chain];
+            _searched[name] = searched;
+        }
+
+        return searched;
+    }
+
+    /// <summary>
+    /// Follows <paramref name="found"/>, <paramref name="opacity"/> being the product of the opacities met on the way,
+    /// and <paramref name="asColor"/> whether a brush's <c>Color</c> named it, so that it must be a colour.
+    /// </summary>
+    private AuditColor? Colour(Found found, string variant, HashSet<ResourceDefinition> building, double opacity, bool asColor)
+    {
+        ResourceDefinition definition = found.Definition;
+        if (!building.Add(definition))
+        {
+            return null;
+        }
+
+        try
+        {
+            switch (definition.Value)
+            {
+                case ResourceValue.ColorLiteral literal when !(asColor && IsBrush(definition)):
+                    return OpacityOf(literal.Opacity, literal.OpacityKey, found, variant, building) is { } own
+                        ? VariantInventory.WithOpacity(literal.Color, opacity * own)
+                        : null;
+                case ResourceValue.Alias alias when !(asColor && alias.FromColor):
+                    if (OpacityOf(alias.Opacity, alias.OpacityKey, found, variant, building) is not { } aliasing)
+                    {
+                        return null;
+                    }
+
+                    bool dynamic = ThemeDefinitionScanner.ReadsDynamically(definition.Element, "Color");
+                    return Locate(alias.TargetKey, found, dynamic, variant, building) is { } target
+                        ? Colour(target, variant, building, opacity * aliasing, asColor || alias.FromColor)
+                        : null;
+                default:
+                    return null;
+            }
+        }
+        finally
+        {
+            building.Remove(definition);
+        }
+    }
+
+    /// <summary>
+    /// Where the resource that <paramref name="from"/> names as <paramref name="key"/> is found: for a dynamic reference,
+    /// the application under the variant asked; for a static one, <paramref name="from"/>'s own chain, from its dictionary
+    /// out to its root, then the application, both in the variant of the theme dictionary around it. A dictionary with a
+    /// class of its own, built at once, has no application to fall back on that the audit can see.
+    /// </summary>
+    private Found? Locate(string key, Found from, bool dynamic, string variant, HashSet<ResourceDefinition> building)
+    {
+        if (dynamic)
+        {
+            return Find(key, variant, building);
+        }
+
+        string? around = from.Node.ResolutionVariant;
+        for (ResourceNode? node = from.Node; node is not null; node = node.Parent)
+        {
+            if (FindIn(node, key, around, building) is { } found)
+            {
+                return found;
+            }
+        }
+
+        return from.Node.Root.BuiltAtOnce ? null : Find(key, around, building);
+    }
+
+    /// <summary>
+    /// A brush's own opacity: <paramref name="literal"/>, or where the brush names a resource for it, the number an
+    /// <c>x:Double</c> under that key holds, found where the brush's own reference finds it, clamped as a literal is;
+    /// <c>null</c> when the key holds no number.
+    /// </summary>
+    private double? OpacityOf(double literal, string? key, Found brush, string variant, HashSet<ResourceDefinition> building)
+    {
+        if (key is null)
+        {
+            return literal;
+        }
+
+        bool dynamic = ThemeDefinitionScanner.ReadsDynamically(brush.Definition.Element, "Opacity");
+        return Locate(key, brush, dynamic, variant, building) is { Definition.Element: { Name.LocalName: "Double" } number }
+               && double.TryParse(number.Value.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double value)
+            ? Math.Clamp(value, 0, 1)
+            : null;
+    }
+
+    /// <summary>Whether a definition is a brush, which a brush's <c>Color</c> cannot name.</summary>
+    private static bool IsBrush(ResourceDefinition definition)
+    {
+        return definition.Element?.Name.LocalName.EndsWith("SolidColorBrush", StringComparison.Ordinal) == true;
     }
 }
