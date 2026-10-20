@@ -205,6 +205,29 @@ public static class ThemeDefinitionScanner
             : new ResourceValue.Opaque();
     }
 
+    /// <summary>
+    /// Whether a definition names the resource behind its <paramref name="property"/> dynamically: an alias element
+    /// written <c>&lt;DynamicResource&gt;</c>, or a brush's <paramref name="property"/> written <c>{DynamicResource …}</c>.
+    /// A <c>&lt;StaticResource&gt;</c>, a <c>{StaticResource …}</c>, a property element, and a provider's alias, which has
+    /// no element, are static.
+    /// </summary>
+    internal static bool ReadsDynamically(XElement? element, string property)
+    {
+        if (element is null)
+        {
+            return false;
+        }
+
+        if (element.Name.LocalName is "StaticResource" or "DynamicResource")
+        {
+            return element.Name.LocalName == "DynamicResource";
+        }
+
+        string? written = element.Attribute(property)?.Value.Trim();
+        return written is not null && written.StartsWith('{')
+               && written[1..].TrimStart().StartsWith("DynamicResource", StringComparison.Ordinal);
+    }
+
     /// <summary>How a brush writes one of its properties: a literal, a resource's key, unreadable, or not at all.</summary>
     private readonly record struct Written(string? Literal, string? Key, bool Unreadable);
 

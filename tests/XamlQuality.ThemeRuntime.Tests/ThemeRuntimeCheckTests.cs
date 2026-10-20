@@ -78,6 +78,23 @@ public sealed class ThemeRuntimeCheckTests
             Of(ThemeRuntimeCheck.Run(Audit(), Map()), "TopAlias"));
     }
 
+    /// <summary>
+    /// Where the two aliases above throw, the audit counts each defined and gives it no colour, by plans/00006; and the
+    /// alias outside every variant's dictionary whose target Default holds reads Default's under every variant.
+    /// </summary>
+    [Fact]
+    public void Where_an_alias_throws_the_audit_gives_it_no_colour()
+    {
+        ThemeInventory theme = Audit().Themes.Single(target => target.Config.Name == WithAliases).Inventory;
+        string[] every = ["Light", "Dark", "Contrast"];
+        string[] dark = ["Dark", "Contrast"];
+
+        Assert.All(every, variant => Assert.Null(theme.ForVariant(variant).Resolve("TopAlias")));
+        Assert.All(dark, variant => Assert.Null(theme.ForVariant(variant).Resolve("DarkAlias")));
+        Assert.All(every, variant => Assert.True(theme.ForVariant(variant).Defines("TopAlias")));
+        Assert.All(every, variant => Assert.Equal(new AuditColor(0xFF, 0x10, 0x10, 0x10), theme.ForVariant(variant).Resolve("GoodAlias")));
+    }
+
     [AvaloniaFact]
     public void A_variant_built_from_its_name_loses_what_it_inherits()
     {

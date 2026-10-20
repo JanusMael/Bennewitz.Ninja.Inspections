@@ -83,11 +83,13 @@ public sealed class SurfaceMap
 }
 
 /// <summary>
-/// Scores contrast pairs against a theme's variants. A key resolves through the consumer's own
-/// token dictionary first (its Light/Dark entries, or a per-variant override, following the same
-/// fallback the theme uses) and the theme second, so a pair can mix a consumer token with a host
-/// surface. Every pair yields a finding per variant — pass, fail, or unscored with the reason —
-/// so a silently skipped pair cannot masquerade as a passing one.
+/// Scores contrast pairs against a theme's variants. A key is looked up as the application looks it
+/// up, by plans/00006: the consumer's own token dictionary first (its Light/Dark entries, or a
+/// per-variant override, following the same fallback the theme uses), then the files merged into the
+/// theme, then the theme, so a pair can mix a consumer token with a host surface, and a token that
+/// aliases a theme key resolves to the theme's colour. Every pair yields a finding per variant —
+/// pass, fail, or unscored with the reason — so a silently skipped pair cannot masquerade as a
+/// passing one.
 /// </summary>
 public static class ContrastAudit
 {
@@ -184,7 +186,8 @@ public static class ContrastAudit
             key = surface;
         }
 
-        AuditColor? color = tokens?.ForVariant(variant).Resolve(key) ?? theme.ForVariant(variant).Resolve(key);
+        ResourceApplication application = tokens is null ? theme.Application : theme.Application.Under(tokens.Application);
+        AuditColor? color = application.Resolve(key, variant);
         return color is null
             ? new Resolved(key, null, $"{key} is undefined or not a colour under {variant}")
             : new Resolved(key, color, null);

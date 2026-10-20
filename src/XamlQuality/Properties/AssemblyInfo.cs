@@ -14,7 +14,8 @@
 // 2026.3.920.
 //
 // Internal, and staying that way: NamedColors, XamlFiles, ResourceKeyScanner, ThemeGraphWalker,
-// ResourceKey, VariantId, WalkResult. ThemeAudit, the CLI face, reaches them through the grant.
+// ResourceKey, VariantId, WalkResult, and plans/00006's model of the lookup, ResourceNode,
+// ResourceApplication and Found. ThemeAudit, the CLI face, reaches them through the grant.
 //
 // The test project asserts against the ported analysis directly, exactly as it did before the
 // move — which is what makes those fourteen files evidence that the move changed no behaviour.

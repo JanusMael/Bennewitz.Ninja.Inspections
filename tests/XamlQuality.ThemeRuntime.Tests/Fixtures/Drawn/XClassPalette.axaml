@@ -1,0 +1,7 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    x:Class="XamlQuality.ThemeRuntime.Tests.XClassPalette">
+  <!-- A dictionary with a class of its own, which a theme holds by its element, as Semi holds its palettes:
+       DrawnColourTests draws its alias, whose target is outside it. -->
+  <StaticResource x:Key="B" ResourceKey="Outside" />
+</ResourceDictionary>
