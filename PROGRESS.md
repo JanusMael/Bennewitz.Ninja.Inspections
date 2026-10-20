@@ -201,6 +201,7 @@ documents, by the developer's decision of 2026-10-12.
 | 2026-10-15 | The WPF-to-Avalonia port | Two findings, headless on Linux on Avalonia 12.1.3 with Semi.Avalonia 12.1.0.1, dark variant. Redefining Semi's palette keys, the colour `SemiBlue5Color` or the brush `SemiColorPrimary`, in the application's resources or in a merged dictionary's dark theme dictionary does not recolour Semi's controls, though `Application.TryGetResource` returns the redefinition, and redefining the component tokens the controls read does: measured, with the tokens' aliases read in Semi's source and the scope they resolve in inferred. And a `TemplateBinding` holds a part's value at `Template` priority, so an unconditional style aimed at the part does not beat it and a conditional one does: measured, with the order read in `BindingPriority`, and which priority a style takes in `StyleInstance`, which corrects the precedence the entry on local values gave | Received, and a receipt sent on 2026-10-15. Both landed in PR #87 as the port measured or read them, its inference marked, not reproduced here, by the developer's decision of 2026-10-14, and the entry on local values gives the precedence as read. Of their static parts, the developer put the first's on the rule backlog on 2026-10-19, a style aimed into a template that a `TemplateBinding` outranks, and held the second's, an audit check, among the follow-ups. The outcome went to the port's live session on 2026-10-19 |
 | 2026-10-16 | Issue #86, from the WPF-to-Avalonia port | Avalonia 12.1.3 never asks `IDataErrorInfo`, so a WPF `ValidatesOnDataErrors` binding ports to nothing: measured headless on Linux against `INotifyDataErrorInfo`, and read in the `Avalonia` package, none of whose assemblies names it. With what the leftover cost the port: a deadlock in Rx, set off by a re-raise of `PropertyChanged` kept only to make WPF ask again, which hid there since under Avalonia the re-raise drew nothing | Landed in PR #87 as the port measured or read it, the deadlock with it as Rx's and not Avalonia's, not reproduced here, by the developer's decision of 2026-10-14. Its static part, a view model that implements `IDataErrorInfo`, went on the rule backlog by the developer's decision of 2026-10-19. The outcome went to the port's live session on 2026-10-19, with that of the findings of 2026-10-15 |
 | 2026-10-19 | The WPF-to-Avalonia port | A focus ring is built once, when keyboard focus arrives, so a `FocusAdorner` a style varies by state goes stale, headless on Linux on Avalonia 12.1.3 with Semi.Avalonia 12.1.0.1, dark variant: measured in a row's theme and in Semi's own `ToggleButton`, stale after Space both ways, with the cause read in `Control.cs`; the fix, one ring bound to a property of the control it adorns, measured; and a pair of application styles that replaces Semi's ring, measured, with a plain style alone below Semi's inferred, as a correction the same day marked it | Received, and a receipt sent on 2026-10-19. Landed in PR #90 as the port measured or read it, its inference marked, not reproduced here, by the developer's decision of 2026-10-14. Its static part, a `FocusAdorner` setter in a style with an activator, went on the rule backlog by the developer's decision of 2026-10-19. The outcome went to the port's live session on 2026-10-19 |
+| 2026-10-20 | The WPF-to-Avalonia port | Its answer to the question the outcome of PR #87 put, how a `StaticResource` inside a theme's own dictionary resolves, read in the source of Avalonia 12.1.3, of the XamlX it pins and of Semi.Avalonia 12.1.0.1 by a subagent of its own, five of whose citations the port read again at the tag, each claim marked read or inferred. Read: an alias in a dictionary is a deferred item, which takes a snapshot of the resource nodes on the XAML parent stack when it is added, a stack that runs through the theme's include chain and ends with `Application.Current`, and which at its first lookup walks that snapshot innermost first and keeps the first hit for good. Inferred: Semi finds every token its aliases name in its own dictionaries before the walk reaches the application, as a text check of the 557 `StaticResource` references in its 51 dark theme files found. Its inference of 2026-10-15 holds, the port finds, with two corrections: the lookup happens at first access, not at load, and the application is on the stack, as its last node. With the edge cases an audit check would meet, and two corollaries, inferred and not measured | Received, and a receipt sent on 2026-10-20. It is to land in the entry on Semi's palette keys as the port read it, by the developer's decision of 2026-10-14; whether the audit check held for it is written waits on the developer, a question below |
 
 ## Rule backlog
 
@@ -268,7 +269,9 @@ template already leaves it out.
 
 ## Questions for the developer
 
-None open.
+- **Is the theme audit check held on 2026-10-19 written?** It waited on a reading of how a
+  `StaticResource` inside a theme's own dictionary resolves, which the port sent on 2026-10-20, in the
+  requests above. The follow-up below says what the check would report.
 
 ## Follow-ups
 
@@ -276,9 +279,10 @@ None open.
   developer, 2026-10-19).** A consumer that redefines such a key, as Semi's `SemiColorPrimary`, which
   Semi's control themes read only through `StaticResource` aliases in its own dictionaries, changes
   nothing they draw, as the entry on Semi's palette keys says the port measured. The audit could report
-  it, but why the aliases ignore the redefinition is inferred, not read. Read first how Avalonia
-  resolves a `StaticResource` inside a theme's own dictionary, then decide the check. Not yet measured
-  on real code.
+  it. Why the aliases ignore the redefinition was inferred when the check was held; the port read it in
+  Avalonia's source on 2026-10-20, in the requests above: an alias resolves at its first lookup through
+  the dictionaries around it when it was added, innermost first and the application last. Whether the
+  check is written is the developer's question above. Not yet measured on real code.
 - **The brand language takes no colour a caller supplies (PR #85's review).** A block replaces a
   placeholder whole, so a figure that composites a colour only a consumer's own code knows, as the
   port's search colours, is worked out by that consumer's program, with its own arithmetic, and its
