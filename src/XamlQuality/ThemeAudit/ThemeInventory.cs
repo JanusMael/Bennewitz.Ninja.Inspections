@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Xml.Linq;
 
@@ -286,7 +287,8 @@ internal readonly record struct Found(ResourceDefinition Definition, ResourceNod
 /// </remarks>
 internal sealed class ResourceApplication(IReadOnlyList<ResourceNode> roots, IReadOnlyDictionary<string, string>? inheritance)
 {
-    private readonly Dictionary<string, string[]> _searched = new(StringComparer.Ordinal);
+    // The one thing it caches, each variant's chain, is cached concurrently: an inventory resolves for whoever shares it.
+    private readonly ConcurrentDictionary<string, string[]> _searched = new(StringComparer.Ordinal);
 
     /// <summary>The roots the lookup searches, in order.</summary>
     public IReadOnlyList<ResourceNode> Roots { get; } = roots;
@@ -412,8 +414,7 @@ internal sealed class ResourceApplication(IReadOnlyList<ResourceNode> roots, IRe
     /// </summary>
     private string[] Searched(string? variant)
     {
-        string name = variant ?? ThemeInventory.DefaultVariant;
-        if (!_searched.TryGetValue(name, out string[]? searched))
+        return _searched.GetOrAdd(variant ?? ThemeInventory.DefaultVariant, static (name, inheritance) =>
         {
             List<string> chain = [];
             for (string? current = name;
@@ -424,11 +425,8 @@ internal sealed class ResourceApplication(IReadOnlyList<ResourceNode> roots, IRe
             }
 
             chain.Add(ThemeInventory.DefaultVariant);
-            searched = [.. chain];
-            _searched[name] = searched;
-        }
-
-        return searched;
+            return [.. chain];
+        }, inheritance);
     }
 
     /// <summary>
