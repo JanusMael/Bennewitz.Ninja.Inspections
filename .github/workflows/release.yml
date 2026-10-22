@@ -4,8 +4,10 @@ name: Release
 #
 # ⛔ A PUBLISHED NUGET VERSION CAN NEVER BE REPLACED. Everything this repository otherwise
 # treats as recoverable becomes permanent past the push step, so the gates below — build,
-# test, pack — all run before it, and --skip-duplicate makes a re-run of a completed release
-# a no-op rather than a failure.
+# test, pack, and the packed-vs-declared check — all run before it, and --skip-duplicate makes
+# a re-run of a completed release a no-op rather than a failure.
+#
+# The ids it publishes are read from packages.push, the one place they are declared.
 
 on:
   push:
@@ -122,6 +124,15 @@ jobs:
           /p:Version=${{ env.VERSION }}
           --output ./packages/Release
 
+      # ⛔ The last gate before anything becomes permanent. PackagingTests already checked the
+      # project files; this checks what pack ACTUALLY produced, reading each id from the <id>
+      # element inside the .nuspec rather than parsing filenames. A package that appears here and
+      # in neither packages.push nor packages.local stops the run, and so does one declared and
+      # not packed.
+      - name: Assert packed matches declared
+        if: env.RELEASING == 'true'
+        run: dotnet run --file scripts/assert-packages.cs -- ./packages/Release
+
       # Kept immediately before the push: the token this returns is short-lived, and a slow step
       # in between is how it expires before it is used.
       - name: NuGet Login (Trusted Publishing)
@@ -133,9 +144,9 @@ jobs:
 
       # ⚠ A successful login proves only that AT LEAST ONE policy matched. It cannot prove that
       # every id is covered, because the exchange is per-account, not per-package — so the ids are
-      # printed here to be checked by eye against https://www.nuget.org/account/trustedpublishing.
-      # An id the policy misses is the one failure that leaves the packages at DIFFERENT versions,
-      # and a published version cannot be replaced.
+      # printed here, read from packages.push, to be checked by eye against
+      # https://www.nuget.org/account/trustedpublishing. An id the policy misses is the one failure
+      # that leaves the packages at DIFFERENT versions, and a published version cannot be replaced.
       - name: Report the preflight result
         if: env.RELEASING != 'true'
         run: |
@@ -148,45 +159,56 @@ jobs:
             echo "### Trusted publishing verified"
             echo "Logged in as \`$NUGET_USER\`. A \`v*.*.*\` tag will publish these ids:"
             echo ""
-            echo "- \`Bennewitz.Ninja.XamlQuality\`"
-            echo "- \`Bennewitz.Ninja.XamlQuality.ThemeAudit\`"
-            echo "- \`Bennewitz.Ninja.XamlQuality.ThemeRuntime\`"
+            grep -v '^[[:space:]]*#' packages.push | grep -v '^[[:space:]]*$' | sed 's/^/- `/; s/$/`/'
             echo ""
             echo "⚠ Login proves *a* policy matched — never that it covers every id above."
             echo "Confirm ONE policy whose Glob Patterns cover them all, and NOT a policy per id:"
             echo "one exchange mints one key scoped to one policy, so a second policy is never"
             echo "consulted and its package is rejected 403 — after the first is already permanent."
+            # ⚠ Matches a line that HAS a real id, rather than `grep -qv` for "not a comment".
+            # A blank line is not a comment either, so the negated form fired on any
+            # packages.local containing one — printing the warning header below with nothing
+            # under it. packages.local's own header promises blank lines are ignored.
+            if grep -qE '^[[:space:]]*[^#[:space:]]' packages.local 2>/dev/null; then
+              echo ""
+              echo "⛔ That pattern must NOT match anything in packages.local:"
+              grep -v '^[[:space:]]*#' packages.local | grep -v '^[[:space:]]*$' | sed 's/^/- `/; s/$/`/'
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # ⚠ Packages are named EXPLICITLY, never globbed. A glob publishes whatever happens to be
-      # in the folder, and a published version is permanent — so the one time it picks up
-      # something unintended is the one time it cannot be undone.
-      #
+      # ⚠ NAMED, NEVER GLOBBED — and driven by packages.push rather than a list repeated here, so
+      # the declaration has exactly one home. A glob publishes whatever happens to be in the
+      # folder, and a published version is permanent, so the one time it picks up something
+      # unintended is the one time it cannot be undone.
       - name: Push to NuGet.org
         if: env.RELEASING == 'true' && env.NUGET_USER != ''
         run: |
-          dotnet nuget push \
-            ./packages/Release/Bennewitz.Ninja.XamlQuality.${{ env.VERSION }}.nupkg \
-            ./packages/Release/Bennewitz.Ninja.XamlQuality.ThemeAudit.${{ env.VERSION }}.nupkg \
-            ./packages/Release/Bennewitz.Ninja.XamlQuality.ThemeRuntime.${{ env.VERSION }}.nupkg \
-            --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} \
+          set -euo pipefail
+          targets=()
+          while IFS= read -r id; do
+            targets+=("./packages/Release/${id}.${VERSION}.nupkg")
+          done < <(grep -v '^[[:space:]]*#' packages.push | grep -v '^[[:space:]]*$')
+          printf 'Pushing %s\n' "${targets[@]}"
+          dotnet nuget push "${targets[@]}" \
+            --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" \
             --source https://api.nuget.org/v3/index.json \
             --skip-duplicate
 
-      # ⚠ NAMED HERE TOO, for the same reason as the push above — and the reasoning that says a glob
-      # is fine here is the reasoning worth distrusting. "Both packed ids are pushable" is true of
-      # today's project list, not of the first release that adds a packable project; that one would
-      # be attached to a release nobody chose it for. The failure is also QUIETER than the nuget.org
-      # one: a release asset can be deleted, so it never teaches the lesson permanently, it just
-      # ships something silently. ReleaseWorkflowTests fails if a glob returns to this file.
+      # ⚠ The same list, read the same way, for the same reason as the push above — and the
+      # reasoning that says a glob is fine here is the reasoning worth distrusting. "Every packed
+      # id is pushable" is true of today's project list, not of the first release that adds a
+      # packable project; that one would be attached to a release nobody chose it for. The failure
+      # is also QUIETER than the nuget.org one: a release asset can be deleted, so it never teaches
+      # the lesson permanently, it just ships something silently. PackagingTests fails if a glob
+      # returns to this file.
       - name: Create GitHub Release
         if: env.RELEASING == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ env.TAG }}" \
-            --title "${{ env.TAG }}" \
-            --generate-notes \
-            ./packages/Release/Bennewitz.Ninja.XamlQuality.${{ env.VERSION }}.nupkg \
-            ./packages/Release/Bennewitz.Ninja.XamlQuality.ThemeAudit.${{ env.VERSION }}.nupkg \
-            ./packages/Release/Bennewitz.Ninja.XamlQuality.ThemeRuntime.${{ env.VERSION }}.nupkg
+          set -euo pipefail
+          assets=()
+          while IFS= read -r id; do
+            assets+=("./packages/Release/${id}.${VERSION}.nupkg")
+          done < <(grep -v '^[[:space:]]*#' packages.push | grep -v '^[[:space:]]*$')
+          gh release create "${TAG}" --title "${TAG}" --generate-notes "${assets[@]}"

@@ -101,6 +101,10 @@ summary prints every id for exactly this reason: confirm a **single** policy who
 them all, rather than a policy per id. Nothing in a preflight can catch a coverage gap — only the
 push can, and by then part of the release is permanent.
 
+The ids it prints are `packages.push`'s, the file the push and the GitHub Release read too. An id
+that packs and must never be published goes in `packages.local` instead, and the summary lists those
+under a warning, since the policy's pattern must match none of them.
+
 ---
 
 ## Choosing the version
