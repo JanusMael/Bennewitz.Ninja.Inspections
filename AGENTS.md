@@ -310,7 +310,7 @@ counts.
 | A placeholder the language does not define is a block's: a block replaces the placeholder whose inside is its name, verbatim, and is never read as the language; a placeholder nothing fills, a block nothing names, and a block named as one of the language's own are problems; the tool passes no block | A consumer's rendering is read as placeholders, a misspelt placeholder is left in a committed document, or a block stands in for the language unannounced | `BrandRunner` remarks; tests `BrandRunnerTests.A_block_fills_the_placeholder_it_names_verbatim`, `BrandRunnerTests.A_block_nothing_names_and_one_named_as_the_languages_own_are_problems` |
 | The brand document's format is a contract: LF, invariant culture, no timestamp, no absolute path, a first line naming the template by its path from the configuration's folder, and a chart framed in the colours of the document's variant, its rows linked in order; a change to it is recorded under "Effect on a consumer" | Every consumer's committed document fails its drift check on the next upgrade; one generated on Windows differs from one generated on Linux; or a light variant's chart is drawn in a dark frame, whose titles vanish on its ground, or its rows stack in whatever order the layout picks | `BrandRunner` remarks and its private `Swatches`; tests `BrandRunnerTests.The_document_starts_with_a_line_naming_its_template_and_holds_no_carriage_return`, `BrandRunnerTests.Swatches_draw_each_token_over_the_frames_ground_labelled_with_its_key_and_colour`, `BrandRunnerTests.A_palette_with_light_and_dark_variants_is_filled_in_each_and_its_chart_framed_in_that_variants_colours`, `BrandRunnerTests.Swatches_put_four_to_a_row_file_by_file_in_the_order_the_theme_reads_them` |
 | The theme mappings reach a consumer's output as `Mappings/<name>.json` | `"mapping": "FluentToSemi"` is a file-not-found for every `PackageReference` consumer | The `None` item in `src/XamlQuality/XamlQuality.csproj`, where `Link`, `PackageCopyToOutput` and `PackagePath` are all load-bearing |
-| The release names each package it publishes; no step globs `*.nupkg` | A future packable project is published permanently, or attached to a GitHub Release nobody chose it for | `.github/workflows/release.yml`; tests `ReleaseWorkflowTests.The_release_workflow_names_every_package_it_publishes`, `ReleaseWorkflowTests.The_release_workflow_still_has_both_publishing_steps` |
+| Every project under `src` that packs is named in `packages.push` or `packages.local`, never both; the release's preflight list, push and GitHub Release read their ids from `packages.push` and spell none out; what was packed is checked against both lists before the push; and no step globs `*.nupkg` | A future packable project is published permanently, or attached to a GitHub Release nobody chose it for, or a second list of ids in the workflow drifts from the first | `packages.push`; `packages.local`; `scripts/assert-packages.cs`, run by `.github/workflows/release.yml` and CI's `pack` job; tests `PackagingTests.Every_packable_project_is_classified`, `PackagingTests.No_id_is_both_published_and_private`, `PackagingTests.The_release_workflow_globs_nothing_and_publishes_what_is_declared`, `PackagingTests.The_release_workflow_checks_what_was_packed_before_it_pushes`, `PackagingTests.The_release_workflow_never_names_a_private_package`, `PackagingTests.The_release_workflow_still_has_both_publishing_steps` |
 | `NUGET_USER` is a repository variable holding the nuget.org profile name, and a release refuses to run without it | A masked value hides why a login fails, and a tag with it unset creates a GitHub Release for a package that never shipped | `.github/workflows/release.yml`, step `Refuse to release without NUGET_USER`; `docs/publishing.md` |
 | The marketplace lists the `drivable-ui` plugin by a relative path that holds its manifest and skill, the guide gives the commands that install it, and neither manifest pins a `version` | Every `claude plugin install drivable-ui@xamlquality` fails or installs a plugin with no skill, the guide's commands name a plugin nobody serves, or every install stays on a stale copy of the skill | `.claude-plugin/marketplace.json`; `docs/ai-drivable-ui/plugin/`; tests `PluginMarketplaceTests.The_marketplace_lists_the_plugin_by_a_path_that_holds_its_manifest`, `PluginMarketplaceTests.The_skill_is_where_the_plugin_loads_skills_and_is_named_for_its_folder`, `PluginMarketplaceTests.No_version_is_pinned_so_an_update_picks_up_every_change`, `PluginMarketplaceTests.The_skill_sends_its_reader_to_the_guide_that_exists`, `PluginMarketplaceTests.The_guide_gives_the_commands_the_marketplace_answers_to` |
 | Nothing under `tools/` ships: it is never packed, no project of it is in `XamlQuality.slnx`, and nothing in `src` or `tests` references it | A measuring tool lands in the folder beside the two packages a release names, or the library gains a dependency through a tool | `tools/Directory.Build.props` (`IsPackable`); `XamlQuality.slnx` |
@@ -324,6 +324,7 @@ dotnet build XamlQuality.slnx -c Release
 dotnet test --solution XamlQuality.slnx
 XQ_UPDATE_DOCS=1 dotnet test --solution XamlQuality.slnx
 dotnet pack XamlQuality.slnx -c Release -p:Version=0.0.0-local --output ./packages/local
+dotnet run --file scripts/assert-packages.cs -- ./packages/local
 dotnet run --file tools/real-code.cs
 dotnet run --file tools/real-code.cs -- --update
 dotnet run --file tools/mutate.cs -- <TestClass> <catalog.json>
@@ -334,15 +335,17 @@ dotnet run --file scripts/fetch-reference.cs -- --status
 
 - The third regenerates the README's rules table (`RulesCatalogTests`). Commit the result; the build
   never writes a tracked file.
-- The fifth compares what every rule prints over the pinned real code with `main`'s record, and the
-  sixth rewrites the record from this tree. Read every line that moved before committing it.
-- The seventh plants each defect of a catalog in a copy of the tree and runs one test class, from the
+- The fifth checks that what the fourth packed is exactly what `packages.push` and `packages.local`
+  declare, reading each id from its `.nuspec`, as the release does before it pushes.
+- The sixth compares what every rule prints over the pinned real code with `main`'s record, and the
+  seventh rewrites the record from this tree. Read every line that moved before committing it.
+- The eighth plants each defect of a catalog in a copy of the tree and runs one test class, from the
   test project that holds it; it refuses a run estimated past 30 minutes.
-- The eighth measures the headless probe's cases whose id matches the pattern, a trailing `*` taking
+- The ninth measures the headless probe's cases whose id matches the pattern, a trailing `*` taking
   a prefix, and judges what `BNXQ1005`, `BNXQ1009` and `BNXQ1010` say about each against the
   measurements; it exits 1 when a measurement refutes a verdict.
-- The ninth fetches the real themes' sources into `reference/`, at the versions
-  `Directory.Packages.props` pins, for work by hand, and the tenth reports whether each is there at
+- The tenth fetches the real themes' sources into `reference/`, at the versions
+  `Directory.Packages.props` pins, for work by hand, and the eleventh reports whether each is there at
   its pin. No test, build or CI job reads them.
 - A local build of the solution wants `AVALONIA_TELEMETRY_OPTOUT=1`: `tests/XamlQuality.ThemeRuntime.Tests`
   takes Avalonia, whose build telemetry otherwise starts a process that outlives the build. Every job

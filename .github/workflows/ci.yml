@@ -67,6 +67,11 @@ jobs:
       - name: List packages
         run: ls -l ./packages/ci
 
+      # The same guard the release runs before it pushes, against the same kind of output, so a
+      # project packed and declared nowhere fails here rather than on a tag.
+      - name: Assert packed matches declared
+        run: dotnet run --file scripts/assert-packages.cs -- ./packages/ci
+
   # The family conventions: documentation at the root and in every top-level directory, the
   # description, topics, feature toggles and rulesets. See docs/repository-conventions.md in
   # Bennewitz.Ninja.Templates.
