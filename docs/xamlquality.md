@@ -302,7 +302,7 @@ out but not set to `null`; one that leaves nothing in its place, such as `parts`
 
 | Command | What it does |
 |---|---|
-| `theme-audit report` | Writes the audit report: the resource keys each theme leaves undefined for its consumers, and the colour pairs below a contrast floor |
+| `theme-audit report` | Writes the audit report: the resource keys each theme leaves undefined for its consumers, the keys a consumer redefines that the theme's own reads never see, and the colour pairs below a contrast floor |
 | `theme-audit compat` | Writes each configured compat dictionary: the keys one theme defines and another lacks, mapped onto the latter's tokens |
 | `theme-audit parts` | Writes the parts report: `BNXQ1003`'s reading of the configured controls |
 | `theme-audit brand` | Writes each configured brand document: a template filled from a theme's palette |
@@ -335,6 +335,19 @@ variant asked. So a theme's alias keeps the theme's own colour where a merged fi
 a token that aliases a theme key takes the theme's colour. A dictionary a theme holds by its class, as Semi holds its
 palettes, resolves its aliases when it is constructed, in itself alone. An alias Avalonia cannot resolve has no colour,
 though its key counts as defined.
+
+**A redefinition the theme does not see is reported.** A key a consumer redefines under a variant, with another value
+than the theme's own, changes nothing the theme draws where every read the theme has of it is a `StaticResource` that
+resolves inside the theme, or searches the application in a variant that does not hold the redefinition: redefining
+Semi's `SemiColorPrimary` in `App.axaml` leaves Semi's buttons as they were. The report's section "Redefinitions the
+theme does not see" lists each such key under the variants it is found under, where the consumer defines it, every
+read the theme has of it, and the keys to redefine instead, those the theme reads dynamically that lead to it, as
+Semi's `ButtonSolidPrimaryBackground` does; `ConsumerThemeFindings.Unseen` holds them for a test. A read counts where
+something applies or reads the entry holding it, and a definition a control theme, a template or a `Design.*` preview
+holds redefines nothing. What the audit cannot decide it names with why, in `ConsumerThemeFindings.UnseenNotDecided`:
+among others, a read that finds the key among the resources a control theme, a style or a template holds, and any
+redefinition under a theme whose walk left something unresolved. In that section a theme's file is written below its
+`baseDirectory`, and a consumer's below the directory it was read from.
 
 **The parts report is the template parts reference a control library commits.** For each control it lists the
 `PART_` constants the code declares, each part some code looks up on the control's template and whose code that is,

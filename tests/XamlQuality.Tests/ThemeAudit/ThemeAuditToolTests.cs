@@ -27,7 +27,7 @@ public sealed class ConsoleCapture;
 [Collection(nameof(ConsoleCapture))]
 public sealed class ThemeAuditToolTests : IDisposable
 {
-    private const string AuditSummary = "2 themes, 2 consumers, 5 undefined-key findings, 2 low-contrast findings";
+    private const string AuditSummary = "2 themes, 2 consumers, 5 undefined-key findings, 0 unseen-redefinition findings, 2 low-contrast findings";
 
     private const string CompatSummary = "4 mapped, 12 copied, 0 literal (review), 1 restored, 10 skipped";
 

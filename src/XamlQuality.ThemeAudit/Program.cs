@@ -149,7 +149,8 @@ report.SetAction(parseResult =>
 
         int undefined = result.Findings.Sum(f => f.Undefined.Select(u => u.Key).Distinct(StringComparer.Ordinal).Count());
         int lowContrast = result.Findings.Sum(f => f.Contrast.Count(c => c.Status == ContrastStatus.Fail));
-        string summary = $"{result.Themes.Count} themes, {result.Consumers.Count} consumers, {undefined} undefined-key findings, {lowContrast} low-contrast findings";
+        int unseen = result.Findings.Sum(f => f.Unseen.Sum(u => u.Variants.Count));
+        string summary = $"{result.Themes.Count} themes, {result.Consumers.Count} consumers, {undefined} undefined-key findings, {unseen} unseen-redefinition findings, {lowContrast} low-contrast findings";
 
         if (check)
         {
