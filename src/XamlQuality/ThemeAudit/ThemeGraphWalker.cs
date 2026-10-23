@@ -13,14 +13,19 @@ internal sealed record VariantId(string Key, string DisplayName, IReadOnlyDictio
 /// <summary>
 /// The raw material a <see cref="ThemeInventory"/> is built from: the variants the theme declares, the
 /// dictionary its entry is and each one the configuration merges after it, any include or code-behind
-/// reference that could not be resolved, and every file walked.
+/// reference that could not be resolved, and every file walked; and, by plans/00007, the theme's own reading:
+/// every reference the entry's walk met outside a preview, the files it reached, and the definitions a control
+/// theme, a style or a template holds.
 /// </summary>
 internal sealed record WalkResult(
     IReadOnlyList<VariantId> Variants,
     ResourceNode Entry,
     IReadOnlyList<ResourceNode> Merges,
     IReadOnlyList<UnresolvedInclude> Unresolved,
-    IReadOnlyList<string> Files);
+    IReadOnlyList<string> Files,
+    IReadOnlyList<ThemeRead> Reads,
+    IReadOnlySet<string> EntryFiles,
+    IReadOnlySet<ResourceDefinition> Scoped);
 
 /// <summary>
 /// One dictionary as Avalonia 12.1.3 holds it, which its lookup, <c>ResourceDictionary.TryGetResource</c>,
@@ -64,6 +69,18 @@ internal sealed class ResourceNode(ResourceNode? parent, string? variant, bool b
 
     /// <summary>The files its <c>StyleInclude</c>s name, in the order declared; searched after <see cref="Merged"/>, last to first.</summary>
     public List<ResourceNode> Styles { get; } = [];
+
+    /// <summary>
+    /// How it was reached from the root it was loaded in, hop by hop, each joined by <c>&gt;</c>: <c>entry</c> or
+    /// <c>merge</c> for a root, then for each dictionary the hop that built it, an inline <c>ResourceDictionary</c>, a
+    /// <c>ResourceInclude</c>, a <c>MergeResourceInclude</c>, a <c>StyleInclude</c>, a <c>class</c>'s element or a
+    /// <c>provider</c>, prefixed <c>theme-</c> where it is keyed as a theme dictionary. A dictionary with a class of its own
+    /// continues the route of the one whose element entered it, though it is a root of its own.
+    /// </summary>
+    public string Route { get; init; } = "entry";
+
+    /// <summary>The references its own entries and elements write, by plans/00007; a merged file's are not the theme's.</summary>
+    public List<ThemeRead> Reads { get; } = [];
 
     /// <summary>The root of this node's chain.</summary>
     public ResourceNode Root
@@ -119,8 +136,8 @@ internal static class ThemeGraphWalker
         XClassIndex classIndex = XClassIndex.Build(root);
 
         Walker walker = new(root, source, classIndex);
-        ResourceNode entry = walker.WalkRoot(Path.GetFullPath(source.EntryFile));
-        List<ResourceNode> merges = [.. (source.Merge ?? []).Select(merged => walker.WalkRoot(Path.GetFullPath(merged)))];
+        ResourceNode entry = walker.WalkRoot(Path.GetFullPath(source.EntryFile), "entry");
+        List<ResourceNode> merges = [.. (source.Merge ?? []).Select(merged => walker.WalkRoot(Path.GetFullPath(merged), "merge"))];
         return walker.ToResult(entry, merges);
     }
 
@@ -133,13 +150,22 @@ internal static class ThemeGraphWalker
         private readonly Dictionary<(XElement Element, string Context), ResourceDefinition> _definitions = [];
         private readonly HashSet<string> _walked = new(StringComparer.Ordinal);
         private readonly List<string> _chain = [];
+        private readonly List<ThemeRead> _reads = [];
+        private readonly HashSet<string> _entryFiles = new(StringComparer.Ordinal);
+        private readonly HashSet<ResourceDefinition> _scoped = new(ReferenceEqualityComparer.Instance);
+        private bool _inEntry;
         private int _quiet;
 
-        /// <summary>A file walked as a root of its own, as an application holds a theme or a dictionary it loads.</summary>
-        public ResourceNode WalkRoot(string file)
+        /// <summary>
+        /// A file walked as a root of its own, as an application holds a theme or a dictionary it loads; the theme's own
+        /// reading is taken from the <c>entry</c>'s walk alone, since a merged file is the configuration's.
+        /// </summary>
+        public ResourceNode WalkRoot(string file, string route)
         {
-            ResourceNode node = new(parent: null, variant: null, builtAtOnce: false);
+            ResourceNode node = new(parent: null, variant: null, builtAtOnce: false) { Route = route };
+            _inEntry = route == "entry";
             WalkFile(file, node, context: null);
+            _inEntry = false;
             return node;
         }
 
@@ -167,6 +193,11 @@ internal static class ThemeGraphWalker
 
                 if (document?.Root is { } documentRoot)
                 {
+                    if (_inEntry)
+                    {
+                        _entryFiles.Add(file);
+                    }
+
                     _chain.Add(file);
                     Process(documentRoot, file, node, context);
                     _chain.RemoveAt(_chain.Count - 1);
@@ -249,7 +280,7 @@ internal static class ThemeGraphWalker
                 }
                 else if (localName == "StyleInclude")
                 {
-                    if (Include(child, file, node, context, variant: null) is { } included)
+                    if (Include(child, file, node, context, variant: null, hop: "StyleInclude") is { } included)
                     {
                         node.Styles.Add(included);
                     }
@@ -261,8 +292,42 @@ internal static class ThemeGraphWalker
                         node.Own[keyed.Value] = DefinitionOf(child, file, context);
                     }
 
+                    Record(child, file, node, context);
                     Process(child, file, node, context);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Records each reference <paramref name="element"/> itself writes, in the entry's walk and outside a preview, with
+        /// the keyed entry holding it as this walk defined it.
+        /// </summary>
+        private void Record(XElement element, string file, ResourceNode node, VariantId? context)
+        {
+            if (!_inEntry)
+            {
+                return;
+            }
+
+            bool read = false;
+            XElement? holder = null;
+            foreach ((bool dynamic, string key) in ThemeReads.WrittenOn(element))
+            {
+                if (!read)
+                {
+                    if (ThemeReads.InPreview(element))
+                    {
+                        return;
+                    }
+
+                    holder = ThemeReads.HolderOf(element);
+                    read = true;
+                }
+
+                ResourceDefinition? held = holder is null ? null : _definitions.GetValueOrDefault((holder, context?.Key ?? string.Empty));
+                ThemeRead reference = new(key, dynamic, file, ThemeReads.LineOf(element), node, held, ThemeReads.HoldsOf(element, holder));
+                node.Reads.Add(reference);
+                _reads.Add(reference);
             }
         }
 
@@ -273,15 +338,16 @@ internal static class ThemeGraphWalker
         private ResourceNode? Descend(XElement element, string includingFile, ResourceNode parent, VariantId? context, string? variant)
         {
             string localName = element.Name.LocalName;
+            string slot = variant is null ? string.Empty : "theme-";
 
             if (IncludeElements.Contains(localName, StringComparer.Ordinal))
             {
-                return Include(element, includingFile, parent, context, variant);
+                return Include(element, includingFile, parent, context, variant, slot + localName);
             }
 
             if (localName == "ResourceDictionary")
             {
-                ResourceNode inline = new(parent, variant, builtAtOnce: false);
+                ResourceNode inline = new(parent, variant, builtAtOnce: false) { Route = parent.Route + ">" + slot + "inline" };
                 Process(element, includingFile, inline, context); // inline dictionary; its keys take this context
                 return inline;
             }
@@ -291,14 +357,14 @@ internal static class ThemeGraphWalker
                 // A code-behind dictionary element (e.g. <semi:Light/>), by x:Class: constructed with new, it is a root
                 // of its own, and a dictionary built at once.
                 bool dictionary = Load(file).Document?.Root?.Name.LocalName == "ResourceDictionary";
-                ResourceNode own = new(parent: null, variant: null, builtAtOnce: dictionary);
+                ResourceNode own = new(parent: null, variant: null, builtAtOnce: dictionary) { Route = parent.Route + ">" + slot + "class" };
                 WalkFile(file, own, context);
                 return own;
             }
 
             if (source.Providers is not null && source.Providers.TryGetValue(localName, out IReadOnlyDictionary<string, string?>? provided))
             {
-                ResourceNode supplied = new(parent, variant, builtAtOnce: false);
+                ResourceNode supplied = new(parent, variant, builtAtOnce: false) { Route = parent.Route + ">" + slot + "provider" };
                 foreach ((string key, string? literal) in provided)
                 {
                     supplied.Own[key] = new ResourceDefinition(ProvidedValue(literal), null, null);
@@ -311,8 +377,8 @@ internal static class ThemeGraphWalker
             return null;
         }
 
-        /// <summary>The dictionary an include builds inside <paramref name="parent"/>, whose chain it continues.</summary>
-        private ResourceNode? Include(XElement element, string includingFile, ResourceNode parent, VariantId? context, string? variant)
+        /// <summary>The dictionary an include builds inside <paramref name="parent"/>, whose chain it continues, reached by <paramref name="hop"/>.</summary>
+        private ResourceNode? Include(XElement element, string includingFile, ResourceNode parent, VariantId? context, string? variant, string hop)
         {
             string? includeSource = element.Attribute("Source")?.Value;
             if (string.IsNullOrWhiteSpace(includeSource))
@@ -323,7 +389,7 @@ internal static class ThemeGraphWalker
             if (ResourceIncludeResolver.TryResolveSource(includeSource.Trim(), includingFile, root, source.AssemblyName,
                                                          out string resolved, out string reason, source.Links))
             {
-                ResourceNode included = new(parent, variant, builtAtOnce: false);
+                ResourceNode included = new(parent, variant, builtAtOnce: false) { Route = parent.Route + ">" + hop };
                 WalkFile(resolved, included, context);
                 return included;
             }
@@ -345,6 +411,10 @@ internal static class ThemeGraphWalker
                     Line = ((IXmlLineInfo)element).HasLineInfo() ? ((IXmlLineInfo)element).LineNumber : 0,
                 };
                 _definitions[(element, context?.Key ?? string.Empty)] = definition;
+                if (ThemeReads.IsScoped(element))
+                {
+                    _scoped.Add(definition);
+                }
             }
 
             return definition;
@@ -417,7 +487,7 @@ internal static class ThemeGraphWalker
 
         public WalkResult ToResult(ResourceNode entry, IReadOnlyList<ResourceNode> merges)
         {
-            return new WalkResult([.. _variants.Values], entry, merges, _unresolved, _files);
+            return new WalkResult([.. _variants.Values], entry, merges, _unresolved, _files, _reads, _entryFiles, _scoped);
         }
     }
 }

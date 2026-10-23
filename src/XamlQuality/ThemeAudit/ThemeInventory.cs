@@ -163,12 +163,13 @@ public sealed class ThemeInventory
 
     private ThemeInventory(IReadOnlyList<VariantInventory> variants, VariantInventory? baseOnly,
                            IReadOnlyList<UnresolvedInclude> unresolved, IReadOnlyList<string> files,
-                           IReadOnlyDictionary<string, string>? inheritance, ResourceApplication application)
+                           IReadOnlyDictionary<string, string>? inheritance, ResourceApplication application, ThemeReading reading)
     {
         Variants = variants;
         Unresolved = unresolved;
         Files = files;
         Application = application;
+        Reading = reading;
         _inheritance = inheritance;
         _baseOnly = baseOnly;
         _byDisplayName = variants
@@ -190,6 +191,9 @@ public sealed class ThemeInventory
 
     /// <summary>The application holding the theme, and the files merged into it, as its lookup searches them.</summary>
     internal ResourceApplication Application { get; }
+
+    /// <summary>The theme's own reading, by plans/00007: what its entry's walk reads, reaches and scopes.</summary>
+    internal ThemeReading Reading { get; }
 
     /// <summary>
     /// The variant that applies when an application requests <paramref name="displayName"/>:
@@ -267,7 +271,8 @@ public sealed class ThemeInventory
             ? null
             : new VariantInventory(baseOnly.Key, baseOnly.DisplayName, baseOnly.Namespaces, application);
 
-        return new ThemeInventory(inventories, baseOnlyFallback, walk.Unresolved, walk.Files, inheritance, application);
+        ThemeReading reading = new(walk.Reads, walk.EntryFiles, walk.Scoped, walk.Entry, Path.GetFullPath(source.BaseDirectory));
+        return new ThemeInventory(inventories, baseOnlyFallback, walk.Unresolved, walk.Files, inheritance, application, reading);
     }
 }
 
@@ -323,8 +328,95 @@ internal sealed class ResourceApplication(IReadOnlyList<ResourceNode> roots, IRe
         return Colour(found, variant, Building(), opacity, asColor: false);
     }
 
+    /// <summary>
+    /// What the application's lookup finds first for <paramref name="key"/> under <paramref name="variant"/>, passing
+    /// <paramref name="past"/>, as a reference held by a definition of its own key searches past that definition.
+    /// </summary>
+    public Found? Find(string key, string? variant, ResourceDefinition? past)
+    {
+        return Find(key, variant, Past(past));
+    }
+
+    /// <summary>What <paramref name="node"/>'s own lookup finds for <paramref name="key"/> under <paramref name="variant"/>.</summary>
+    public Found? FindIn(ResourceNode node, string key, string? variant)
+    {
+        return FindIn(node, key, variant, Building());
+    }
+
+    /// <summary>
+    /// Where a theme's <paramref name="read"/> finds its key, by plans/00006: a dynamic one in the application under
+    /// <paramref name="variant"/>; a static one on its own chain, from its dictionary out to its root, then, unless its
+    /// root is a dictionary with a class of its own, in the application, both in the variant of the theme dictionary
+    /// around it, or in <c>Default</c> alone. A read held by a definition of its own key searches past it.
+    /// </summary>
+    public (ReadReach Reach, Found? Found) Locate(ThemeRead read, string variant)
+    {
+        ResourceDefinition? past = read.Holder is { } holder && KeyOf(holder) == read.Key ? holder : null;
+        if (read.Dynamic)
+        {
+            return (ReadReach.Dynamic, Find(read.Key, variant, Past(past)));
+        }
+
+        string? around = read.Node.ResolutionVariant;
+        for (ResourceNode? node = read.Node; node is not null; node = node.Parent)
+        {
+            if (FindIn(node, read.Key, around, Past(past)) is { } found)
+            {
+                return (ReadReach.Chain, found);
+            }
+        }
+
+        return read.Node.Root.BuiltAtOnce
+            ? (ReadReach.BuiltAtOnce, null)
+            : (ReadReach.Application, Find(read.Key, around, Past(past)));
+    }
+
+    /// <summary>
+    /// Whether <paramref name="found"/>, followed alias by alias where Avalonia follows it under <paramref name="variant"/>,
+    /// names <paramref name="key"/> on the way.
+    /// </summary>
+    public bool Reaches(Found found, string key, string variant)
+    {
+        HashSet<ResourceDefinition> building = Building();
+        for (Found? step = found; step is { } current && building.Add(current.Definition);)
+        {
+            if (current.Definition.Value is not ResourceValue.Alias alias)
+            {
+                return false;
+            }
+
+            if (alias.TargetKey == key)
+            {
+                return true;
+            }
+
+            bool dynamic = ThemeDefinitionScanner.ReadsDynamically(current.Definition.Element, "Color");
+            step = Locate(alias.TargetKey, current, dynamic, variant, building);
+        }
+
+        return false;
+    }
+
+    /// <summary>The key a definition is written under, from its element; <c>null</c> for one a provider supplied.</summary>
+    public static string? KeyOf(ResourceDefinition definition)
+    {
+        return definition.Element?.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Value;
+    }
+
     /// <summary>The definitions being resolved, which a lookup does not find, as Avalonia's does not while it builds one.</summary>
     private static HashSet<ResourceDefinition> Building() => new(ReferenceEqualityComparer.Instance);
+
+    /// <summary>A lookup that passes <paramref name="past"/>, where one is given.</summary>
+    private static HashSet<ResourceDefinition> Past(ResourceDefinition? past)
+    {
+        HashSet<ResourceDefinition> building = Building();
+        if (past is not null)
+        {
+            building.Add(past);
+        }
+
+        return building;
+    }
 
     /// <summary>What the application's lookup finds first for <paramref name="key"/> under <paramref name="variant"/>.</summary>
     private Found? Find(string key, string? variant, HashSet<ResourceDefinition> building)

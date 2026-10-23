@@ -14,8 +14,12 @@
 // 2026.3.920.
 //
 // Internal, and staying that way: NamedColors, XamlFiles, ResourceKeyScanner, ThemeGraphWalker,
-// ResourceKey, VariantId, WalkResult, and plans/00006's model of the lookup, ResourceNode,
-// ResourceApplication and Found. ThemeAudit, the CLI face, reaches them through the grant.
+// ResourceKey, VariantId, WalkResult, plans/00006's model of the lookup, ResourceNode,
+// ResourceApplication and Found, and plans/00007's readings and check: ThemeRead, ReadHolder,
+// ThemeReading, ReadReach, ThemeReads, ConsumerReading, ConsumerDefinition, ConsumerReference,
+// SameValue, UnseenCheck and UnseenResult, with ConsumerScan's init properties Reading and
+// NamesDirectories, ConsumerThemeFindings' UnseenExamined and UnseenRedefinition's ReadAt.
+// ThemeAudit, the CLI face, reaches them through the grant.
 //
 // The test project asserts against the ported analysis directly, exactly as it did before the
 // move — which is what makes those fourteen files evidence that the move changed no behaviour.
@@ -37,4 +41,8 @@
 // and a brush's Color written as an alias. Its brand output adds, as permanent, the init property
 // ResourceDefinition.Line, AuditConfig.Brand, and four types: BrandConfig and BrandFrame, a brand
 // document's configuration, and BrandRunner and BrandResult, which fill one; a consumer's own program
-// calls BrandRunner.Fill with the blocks only its code can render.
+// calls BrandRunner.Fill with the blocks only its code can render. Plans/00007 adds, as permanent,
+// UnseenRedefinition, a key a consumer redefines that its theme's own reads never see, holding strings
+// and numbers only, and the init properties ConsumerThemeFindings.Unseen and
+// ConsumerThemeFindings.UnseenNotDecided; a member added to UnseenRedefinition later is an init
+// property, never a new positional parameter.

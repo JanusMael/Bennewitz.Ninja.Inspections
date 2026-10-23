@@ -18,14 +18,34 @@ public sealed record ConsumerScan(
     IReadOnlyList<ResourceReference> References,
     IReadOnlySet<string> OwnKeys,
     IReadOnlyList<ContrastPair> Pairs,
-    string Digest);
+    string Digest)
+{
+    /// <summary>Where it defines each key and what holds it, and what holds each reference, by plans/00007; internal.</summary>
+    internal ConsumerReading Reading { get; init; } = new([], []);
+
+    /// <summary>Whether the report names the directory a definition was read from: the consumer reads more than one.</summary>
+    internal bool NamesDirectories { get; init; }
+}
 
 /// <summary>What one consumer looks like under one theme.</summary>
 public sealed record ConsumerThemeFindings(
     ConsumerScan Consumer,
     ThemeTarget Theme,
     IReadOnlyList<UndefinedKeyFinding> Undefined,
-    IReadOnlyList<ContrastFinding> Contrast);
+    IReadOnlyList<ContrastFinding> Contrast)
+{
+    /// <summary>
+    /// The keys the consumer redefines that the theme's own reads never see, by plans/00007: one for each key and set of
+    /// variants sharing its answer, by key and then first variant in the audit's order. Empty unless set.
+    /// </summary>
+    public IReadOnlyList<UnseenRedefinition> Unseen { get; init; } = [];
+
+    /// <summary>The redefinitions the check could not decide, each with why, ordered as <see cref="Unseen"/>. Empty unless set.</summary>
+    public IReadOnlyList<UnseenRedefinition> UnseenNotDecided { get; init; } = [];
+
+    /// <summary>How many redefinitions the check examined, each a key under a variant.</summary>
+    internal int UnseenExamined { get; init; }
+}
 
 /// <summary>One compat dictionary as generated for the report (the <c>compat</c> command writes the file).</summary>
 public sealed record CompatOutcome(CompatConfig Config, CompatMapping Mapping, CompatGeneration Generation);
@@ -77,7 +97,13 @@ public static class AuditRunner
                     contrast = ContrastAudit.Score(consumer.Pairs, theme.Inventory, theme.Variants, tokens, theme.Surfaces);
                 }
 
-                findings.Add(new ConsumerThemeFindings(consumer, theme, undefined, contrast));
+                UnseenResult unseen = UnseenCheck.Run(consumer.Reading, theme, consumer.NamesDirectories);
+                findings.Add(new ConsumerThemeFindings(consumer, theme, undefined, contrast)
+                {
+                    Unseen = unseen.Found,
+                    UnseenNotDecided = unseen.NotDecided,
+                    UnseenExamined = unseen.Examined,
+                });
             }
         }
 
@@ -149,11 +175,14 @@ public static class AuditRunner
         List<ResourceReference> references = [];
         HashSet<string> own = new(StringComparer.Ordinal);
         List<string> excluded = consumer.Exclude?.Select(config.Resolve).ToList() ?? [];
+        List<(string File, string Directory, string Named)> read = [];
 
         foreach (PathCandidates candidates in consumer.Paths)
         {
             string directory = candidates.ResolveDirectory(config);
-            files.AddRange(XamlFiles.Enumerate(directory, excluded));
+            IReadOnlyList<string> found = XamlFiles.Enumerate(directory, excluded);
+            files.AddRange(found);
+            read.AddRange(found.Select(file => (file, directory, candidates.Display)));
             references.AddRange(ResourceReferenceScanner.Scan(directory, excluded));
             own.UnionWith(ThemeDefinitionScanner.Scan(directory, excluded).Select(d => d.Key));
         }
@@ -167,13 +196,24 @@ public static class AuditRunner
             }
 
             own.UnionWith(ThemeDefinitionScanner.ScanFile(entry).Select(d => d.Key));
+            if (!read.Any(file => string.Equals(Path.GetFullPath(file.File), entry, StringComparison.Ordinal)))
+            {
+                // A tokens entry outside the scanned directories is written below its own base directory.
+                string named = tokens.BaseDirectory ?? Path.GetDirectoryName(tokens.Entry) ?? ".";
+                string directory = tokens.BaseDirectory is not null ? config.Resolve(tokens.BaseDirectory) : Path.GetDirectoryName(entry) ?? config.ConfigDirectory;
+                read.Add((entry, directory, named.Replace('\\', '/')));
+            }
         }
 
         IReadOnlyList<ContrastPair> pairs = consumer.Contrast is { } pairsPath
             ? ContrastPairsFile.Load(config.Resolve(pairsPath))
             : [];
 
-        return new ConsumerScan(consumer, files, references, own, pairs, Digest(CommonRoot(files, config.ConfigDirectory), files));
+        return new ConsumerScan(consumer, files, references, own, pairs, Digest(CommonRoot(files, config.ConfigDirectory), files))
+        {
+            Reading = ConsumerReading.Read(read),
+            NamesDirectories = read.Select(file => file.Named).Distinct(StringComparer.Ordinal).Count() > 1,
+        };
     }
 
 
