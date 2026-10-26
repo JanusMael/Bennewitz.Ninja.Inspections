@@ -5,7 +5,7 @@ compiled output, which is the thing a consumer actually binds against. A source 
 was written; this sees what was published.
 
 The assembly-shaped companion to
-[Bennewitz.Ninja.XamlQuality](https://github.com/JanusMael/Bennewitz.Ninja.XamlQuality): that one
+[Bennewitz.Ninja.XamlQuality](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/docs/xamlquality.md): that one
 reads markup, this one reads types. Every rule here came from a guard written inline in a real
 repository, where it could assert "no offenders today" and never that it would find one.
 

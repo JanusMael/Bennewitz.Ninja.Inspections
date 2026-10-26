@@ -17,9 +17,9 @@ the test script; a workaround helps one harness, a peer helps every later harnes
 believed until it has been seen to fail: the tests that cost the most were
 the ones that passed for the wrong reason. The full method, with the evidence and the traps, is
 XamlQuality's `docs/ai-drivable-ui.md`, the one living copy; read it before building the first
-harness in a project, from a local clone of `JanusMael/Bennewitz.Ninja.XamlQuality` when there is
+harness in a project, from a local clone of `JanusMael/Bennewitz.Ninja.Inspections` when there is
 one and otherwise from
-`https://raw.githubusercontent.com/JanusMael/Bennewitz.Ninja.XamlQuality/main/docs/ai-drivable-ui.md`.
+`https://raw.githubusercontent.com/JanusMael/Bennewitz.Ninja.Inspections/main/docs/ai-drivable-ui.md`.
 
 ## 1. Make the application honest to automation
 

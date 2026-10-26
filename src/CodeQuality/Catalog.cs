@@ -24,7 +24,14 @@ internal static class Catalog
     /// <summary>The category every rule reports under: the package, so a reader can find it.</summary>
     public const string Category = "Bennewitz.Ninja.CodeQuality";
 
-    /// <summary>The rule's section of the README, which is also the package's nuget.org page.</summary>
+    /// <summary>
+    /// The rule's section of the family's README, docs/codequality.md in Bennewitz.Ninja.Inspections,
+    /// which is also the package's nuget.org page.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ Releases before the move link to the README of Bennewitz.Ninja.CodeQuality, archived with its
+    /// rule sections kept so those links still land.
+    /// </remarks>
     public static string HelpLink(string id) =>
-        "https://github.com/JanusMael/Bennewitz.Ninja.CodeQuality#" + id.ToLowerInvariant();
+        "https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/docs/codequality.md#" + id.ToLowerInvariant();
 }

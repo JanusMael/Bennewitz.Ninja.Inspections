@@ -9,7 +9,7 @@ Its companion is [ai-drivable-ui.md](ai-drivable-ui.md), the method for making a
 agent can drive and verify through its automation tree.
 
 ⭐ **This is the one living copy, and what other repositories learn comes back here.** It belongs to
-[Bennewitz.Ninja.XamlQuality](https://github.com/JanusMael/Bennewitz.Ninja.XamlQuality). Send a new
+[Bennewitz.Ninja.Inspections](https://github.com/JanusMael/Bennewitz.Ninja.Inspections). Send a new
 foot-gun, or a correction to an entry, to the session working in that repository by message (it
 answers as `XamlQuality`), with the versions and the measurement or source that show it. When no
 such session is running, open an issue there instead. A claim is checked before it lands, or its
