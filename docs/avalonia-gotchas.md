@@ -356,6 +356,24 @@ Measured on Avalonia 12.1.3 and Semi.Avalonia 12.1.0.1, dark variant, headless o
 **Fix:** `BrushHelper.ResolveThemed`, which passes `Application.Current.ActualThemeVariant`. Kept as a **separate method** rather than an optional parameter, because an optional parameter is a thing somebody forgets and the failure is silent.
 
 ⚠ **This is untestable without a headless app.** In ordinary unit tests `Application.Current` is null or resource-less, so the flat and themed lookups both land on the fallback and both look correct. `AppSeverityThemedLookupTests` installs a themed dictionary whose sentinel colours match no fallback, so the flat lookup fails instead of passing. Canary confirmed: swapping `ResolveThemed` → `Resolve` reddens it, and reddens nothing else in the suite.
+
+⚠ **The null need not be written, and the answer need not be nothing.** `FindResource(key)` and `TryFindResource(key, out …)` pass a null variant themselves, on a control as on the application, whatever the control's own `ActualThemeVariant` is. And where a theme keeps a value for the key where a null variant lands, outside its dark dictionary, as Semi does, the lookup finds that value: a real colour, the light one, so no fallback fires and nothing looks missing. In a dark application, `Application.Current.FindResource("FlyoutBackground")` answers White while every flyout draws Semi's dark grey `#43444A`, and a control in a dark window, asked the same way, answers White too. A style, a `DynamicResource` and a control template resolve in the control's variant, which is why what is drawn is right and only code that looks a key up by name is wrong. Pass the variant: `control.FindResource(control.ActualThemeVariant, key)`, or `Application.Current.ActualThemeVariant` for the application.
+
+Read in Avalonia's source at 12.1.3: `ResourceNodeExtensions.FindResource(this IResourceHost, object key)` and `TryFindResource(this IResourceHost, object key, out object?)` call `TryFindResource(key, null, out value)` (`src/Avalonia.Base/Controls/ResourceNodeExtensions.cs`, lines 18 to 44); and `ResourceDictionary.TryGetResource(key, theme, out value)` looks in the variant's theme dictionary only when the variant is neither null nor `Default`, and then falls to the `Default` theme dictionary (`src/Avalonia.Base/Controls/ResourceDictionary.cs`, lines 188 to 221).
+
+Measured once on Avalonia 12.1.3 with Semi.Avalonia 12.1.0.1 and .NET 10, headless on Linux with Skia, the application's `RequestedThemeVariant` being `Dark`, not reproduced here:
+
+| Lookup | Answer |
+|---|---|
+| `app.FindResource(key)` | `White` |
+| `app.FindResource(null, key)`, `Default`, `Light` | `White` |
+| `app.FindResource(ThemeVariant.Dark, key)` | `#FF43444A` |
+| `app.FindResource(app.ActualThemeVariant, key)` | `#FF43444A` |
+| `window.FindResource(key)`, the window's `ActualThemeVariant` being `Dark` | `White` |
+| `window.FindResource(window.ActualThemeVariant, key)` | `#FF43444A` |
+| A templated `FlyoutPresenter`'s `Background` | `#FF43444A` |
+| `SemiTheme` (`app.Styles[0]`) asked directly | no variant: `White`; `Dark`: `#FF43444A` |
+
 ---
 
 ### AvaloniaEdit under Semi resolves only with the compat dictionaries
@@ -971,6 +989,18 @@ References: `ObjectPropertyEditorViewModel` (prefix categories + lazy `VisibleCh
 **Fix:** Raise `ScrollInvalidated` when the scrollable's position changes.
 
 Measured on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and Semi.Avalonia 12.1.0.1, headless on Linux, not reproduced here: a 300-line log was scrolled to its end, sent to its start with Home, and turned one notch down in the first `RunJobs()` that showed line 1, with no `ForceRenderTimerTick()` between. The notch was lost in 7 runs of 30, the presenter at 5454, which is 6000 − 546, each time. Waiting until the view model's first index agreed with the rows, pumping `RunJobs()` and `ForceRenderTimerTick()`, and then turning the wheel lost it in none of 15. A render tick alone was not measured.
+
+### A `VirtualizingPanel` that prepares a container again deselects it, and leaves it drawing its old item
+
+**Symptom:** A panel of your own that calls `PrepareItemContainer` and `ItemContainerPrepared` again on a container it has already prepared, to point it at another item or simply again after the items changed, fails silently in two ways. A selected container is deselected, with a `SelectionChanged` naming its item in `RemovedItems`. And a container pointed at another item goes on drawing the old one while its `DataContext` moves on, so a binding on the container itself, a `ToolTip.Tip` or an automation name, names the new item while the template draws the old.
+
+**Cause:** Read in Avalonia's source at 12.1.3. `SelectingItemsControl.ContainerForItemPreparedOverride` (`src/Avalonia.Controls/Primitives/SelectingItemsControl.cs`, lines 524 to 559), when `container.IsSet(IsSelectedProperty)` is true, takes `IsSelected` to be bound by a style or an item container theme, and calls `UpdateSelection(index, GetIsSelected(container), toggleModifier: true)`. After a container's first preparation `IsSelected` is set, since `MarkContainerSelected` wrote it with `SetCurrentValue` (line 1289), so every later preparation takes that branch. `UpdateSelection` (lines 776 to 838) then deselects an item that is already selected when the selection mode is multiple, and deselects the index outright when `select` is false. `ItemsControl.PrepareContainerForItemOverride` (`src/Avalonia.Controls/ItemsControl.cs`, lines 356 to 409) sets `Content` and `ContentTemplate` through `SetIfUnset`, so a container prepared before keeps its old content; only `ItemsControl.PrepareItemContainer` (lines 681 to 711) assigns `DataContext` every time. `ClearItemContainer`, through `ClearContainerForItemOverride` in `ItemsControl.cs` (from line 441) and in `SelectingItemsControl.cs` (lines 569 to 582), clears `Content`, `ContentTemplate` and `IsSelected`, which is what Avalonia's own panels do before they reuse a container for another item.
+
+**Fix:** Leave a container that already holds its item alone, and call `ClearItemContainer` before preparing one for a different item.
+
+⚠ **An item removed from the source is deselected by design, and that is easy to misread.** Read in the same source: when an item the selection holds is removed from the source, `SelectionModel` commits a deselection (`OnItemsRemoved` and `OnSelectionRemoved`, `src/Avalonia.Controls/Selection/SelectionModel.cs`, lines 360 to 376 and 397 to 439), so the control's `SelectionChanged` names that item in `RemovedItems`. Code that keeps a selection by the user's intent across virtualised rows must not read that as the user deselecting it: the item has left the collection, and `ItemsSource` no longer holds it when the event is raised.
+
+Measured on Avalonia 12.1.3 and .NET 10, headless on Linux with Skia, not reproduced here, each case red in a headless fixture before the fix and green after it. In a log list, a `ListBox` in `SelectionMode="Multiple"`, whose page gained a row, the panel prepared every existing container again, each with the item it already held, and the selected row was deselected: `SelectionChanged` with it in `RemovedItems`, raised from `ContainerForItemPreparedOverride` through `UpdateSelection(index, true, toggleModifier: true)` and `SelectionModel.Deselect(index)`, by its stack trace. A wrapping panel, in a `ListBox` in single selection, scrolled by one line and prepared each container again for the item now at its position, and every cell kept drawing the item it was first given, `Content` the old item and `DataContext` the new, and `SelectedItem` became null. After the same panel's items were filtered, the cells drew the unfiltered items: in an application's icon picker, a search for "Bullhorn" left one cell drawing the Account icon under Bullhorn's tooltip and name.
 
 ### There is no frame-rate cap: nothing ports WPF's `Timeline.DesiredFrameRate`
 
