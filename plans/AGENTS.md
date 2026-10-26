@@ -3,6 +3,10 @@
 Numbered plans: `NNNNN-slug.md`, zero-padded to five digits, sequential. List the directory before
 taking a number; two sessions picking "the next one" is how a number gets used twice.
 
+The plans here continue XamlQuality's sequence, for every family. `plans/assemblyquality/` holds the
+AssemblyQuality family's plans from before it moved here, unchanged and under their own numbers;
+nothing new is added there (`plans/00009` decision 16 in Bennewitz.Ninja.Templates).
+
 ## Lifecycle
 
 | Status line | What may happen to the file |
@@ -17,4 +21,5 @@ taking a number; two sessions picking "the next one" is how a number gets used t
 | An approved plan is never edited: not a typo, not a step that turned out differently | It is the record of what was agreed. Edited, it becomes a description of what was built |
 | What actually happened goes in `PROGRESS.md` | The plan stays the promise; the work state says how the promise was kept |
 | A materially different approach is a new number whose status line says `Supersedes NNNNN` | The old plan stays as it was approved |
-| A link inside an approved plan that stops resolving is left alone | Its links are specification. A dead one records drift, which a fix would hide |
+| A link inside an approved plan that stops resolving is left alone | Its links are specification. A dead one records drift, which a fix would hide; the plans moved into `plans/assemblyquality/` have such links |
+| A plan that depends on another repository's plan names it, and the number | Both are frozen once approved, so the reference cannot move under either |

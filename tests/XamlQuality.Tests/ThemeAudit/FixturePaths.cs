@@ -11,7 +11,7 @@ internal static class FixturePaths
     // missing. The same shape inside a RULE would have found no files and reported zero findings,
     // which is indistinguishable from clean markup.
     private const string ProjectMarker = "XamlQuality.Tests.csproj";
-    private const string RepoMarker = "XamlQuality.slnx";
+    private const string RepoMarker = "Inspections.slnx";
 
     /// <summary>The directory of the named fixture under <c>ThemeAudit/Fixtures/</c>.</summary>
     public static string Fixture(string name)
@@ -20,7 +20,7 @@ internal static class FixturePaths
         return Path.Combine(FindUp(ProjectMarker), "ThemeAudit", "Fixtures", name);
     }
 
-    /// <summary>The repository root, found by walking up to <c>XamlQuality.slnx</c>.</summary>
+    /// <summary>The repository root, found by walking up to <c>Inspections.slnx</c>.</summary>
     public static string RepoRoot => FindUp(RepoMarker);
 
     private static string FindUp(string marker)

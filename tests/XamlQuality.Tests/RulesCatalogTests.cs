@@ -32,7 +32,7 @@ public sealed class RulesCatalogTests
 
     /// <summary>Set to any non-empty value to rewrite the README region instead of asserting.</summary>
     /// <remarks>
-    /// ⓘ Regenerate with <c>XQ_UPDATE_DOCS=1 dotnet test --solution XamlQuality.slnx</c>, then
+    /// ⓘ Regenerate with <c>XQ_UPDATE_DOCS=1 dotnet test --solution Inspections.slnx</c>, then
     /// commit the README. The build deliberately does NOT write it: a build that edits a tracked
     /// file leaves CI with a dirty tree and no way to tell an intended change from a stale one.
     /// </remarks>
@@ -41,7 +41,7 @@ public sealed class RulesCatalogTests
     [Fact]
     public void TheReadmeRulesTable_IsWhatTheRuleTypesSay()
     {
-        string path = Path.Combine(RepositoryRoot(), "README.md");
+        string path = Path.Combine(RepositoryRoot(), "docs", "xamlquality.md");
         string readme = File.ReadAllText(path);
         string rendered = RenderTable();
 
@@ -193,14 +193,14 @@ public sealed class RulesCatalogTests
              directory is not null;
              directory = directory.Parent)
         {
-            if (File.Exists(Path.Combine(directory.FullName, "XamlQuality.slnx")))
+            if (File.Exists(Path.Combine(directory.FullName, "Inspections.slnx")))
             {
                 return directory.FullName;
             }
         }
 
         throw new InvalidOperationException(
-            $"No XamlQuality.slnx above {AppContext.BaseDirectory}; this test reads the "
+            $"No Inspections.slnx above {AppContext.BaseDirectory}; this test reads the "
             + "repository's README and must run from a source checkout.");
     }
 }

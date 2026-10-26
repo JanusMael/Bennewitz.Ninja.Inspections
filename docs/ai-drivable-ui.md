@@ -11,7 +11,7 @@ port, are beside this guide in [`ai-drivable-ui/`](ai-drivable-ui/).
 instrument that can actually see it, and no check is believed until it has been seen to fail.**
 
 ⭐ **This is the one living copy, and what other repositories learn comes back here.** It belongs to
-[Bennewitz.Ninja.XamlQuality](https://github.com/JanusMael/Bennewitz.Ninja.XamlQuality). Send a new
+[Bennewitz.Ninja.Inspections](https://github.com/JanusMael/Bennewitz.Ninja.Inspections). Send a new
 lesson, or a correction, to the session working in that repository by message (it answers as
 `XamlQuality`), with the measurement or source that shows it. When no such session is running, open
 an issue there instead. A claim is checked before it lands, and the sender hears the outcome. Keep no
@@ -22,7 +22,7 @@ copy elsewhere; cite this file by path or URL.
 marketplace once and install the plugin, from a shell or with `/plugin` in a session:
 
 ```bash
-claude plugin marketplace add JanusMael/Bennewitz.Ninja.XamlQuality
+claude plugin marketplace add JanusMael/Bennewitz.Ninja.Inspections
 claude plugin install drivable-ui@xamlquality
 ```
 

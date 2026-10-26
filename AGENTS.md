@@ -1,21 +1,127 @@
-# AGENTS.md — XamlQuality
+# AGENTS.md — Bennewitz.Ninja.Inspections
 
-> For anyone changing this repository, human or agent. The first half is the shape of the
-> repository and the reasoning behind it; the second, under **Operational rules**, is the
-> invariants a change must not break, each tied to what guards it, plus the commands and the
-> checklists for recurring work. Where the two disagree, the operational rules are the enforceable
-> ones. Each top-level directory has an `AGENTS.md` of its own for what only its files show.
+> For anyone changing this repository, human or agent. This top half is the repository as a whole:
+> the three families it holds, how each releases, the invariants they share, the commands and the
+> checklists. Each family's own contract follows under its name. Each top-level directory has an
+> `AGENTS.md` of its own for what only its files show.
 >
 > Work state lives in [`PROGRESS.md`](./PROGRESS.md), updated in the same change as the work it
-> describes: what is published, what is on `main` and not yet released, who depends on what, the
-> rule backlog, and the questions open for the developer. What every repository in this family
-> carries, and how it is checked, is prescribed in
+> describes. What every repository in this family carries, and how it is checked, is prescribed in
 > [`docs/repository-conventions.md`](https://github.com/JanusMael/Bennewitz.Ninja.Templates/blob/main/docs/repository-conventions.md)
-> in Bennewitz.Ninja.Templates.
+> in Bennewitz.Ninja.Templates, whose `plans/00009` brought the three families here.
 
 ## What this repository is
 
-Static analysis for XAML markup, shipped as three packages from one tag:
+Static analysis for .NET, read three ways: one product, three families, each with its own packages,
+version line and releases.
+
+| Family | Reads | Packages | Projects | Its README |
+|---|---|---|---|---|
+| `xamlquality` | XAML markup, and the consumer's compiled controls by reflection | `Bennewitz.Ninja.XamlQuality`, `.XamlQuality.ThemeAudit`, `.XamlQuality.ThemeRuntime` | `src/XamlQuality*` | [`docs/xamlquality.md`](docs/xamlquality.md) |
+| `assemblyquality` | The shipped assembly, by reflection | `Bennewitz.Ninja.AssemblyQuality` | `src/AssemblyQuality` | [`docs/assemblyquality.md`](docs/assemblyquality.md) |
+| `codequality` | The source, as a Roslyn analyzer | `Bennewitz.Ninja.CodeQuality` | `src/CodeQuality` | [`docs/codequality.md`](docs/codequality.md) |
+
+Each family's README is its rules catalog and its packages' nuget.org page: each package packs its
+family's file as `README.md` (`FamilyReadme` in its csproj). The root [`README.md`](README.md) is the
+overview. `BNCQ` rules are the compile-time counterparts of the `BNAQ` rules of the same number.
+
+The repository grew from Bennewitz.Ninja.XamlQuality, renamed; AssemblyQuality's and CodeQuality's
+histories were imported whole, their tags renamed `assemblyquality/v…` and `codequality/v…`, and
+AssemblyQuality's approved plans moved unchanged to `plans/assemblyquality/`.
+
+## Layout
+
+| Path | What it holds |
+|---|---|
+| `src/` | The shipped projects, each folder named for its family |
+| `tests/` | One test project per family; `tests/fixtures/` holds the assemblies AssemblyQuality's tests reflect over |
+| `tools/` | XamlQuality's verification tooling, never shipped |
+| `docs/` | Each family's README, the release runbook, and XamlQuality's Avalonia and drivable-UI documents |
+| `plans/` | Numbered plans, continuing XamlQuality's sequence; `plans/assemblyquality/` holds that family's, unchanged |
+| `scripts/` | File-based apps: the release resolution, the packaging guard, the conventions check, and XamlQuality's reference fetcher |
+| `.claude-plugin/` | The marketplace manifest serving the `drivable-ui` plugin from `docs/ai-drivable-ui/plugin/` |
+| `Inspections.slnx` | The one solution: every family's `src` and `tests` projects |
+| `AssemblyInfo.InternalsVisibleTo.cs` / `.External.cs`, `Directory.Build.targets` | Templates' solution-wide friend grants: every project grants its internals to every assembly the solution builds |
+
+## Families and releases
+
+Each family releases alone, from its own tag, `<family>/vYYYY.Q.MMDD`: `xamlquality/v2026.4.1101`.
+`scripts/release-target.cs` resolves the tag into the family's ids from `.github/repository.json`'s
+`families`; the release packs only those projects, publishes only those ids, and starts its notes
+at the family's previous tag. A bare `v…` tag, or a dispatch without a family, is refused before
+anything builds. A family is released when it changes, never because another did.
+[`docs/publishing.md`](docs/publishing.md) is the runbook.
+
+⛔ **A packable project never references another family's packable project.** A family's release
+packs at that family's version, so the reference would pack a dependency on a version of the other
+family that need not exist. Across families, a package references the other's package at a
+published version. A test project may reference any family's project, as XamlQuality's tests
+reference `src/AssemblyQuality`, so they are gated by its head. `repo-conventions check` fails the
+packable case.
+
+## Invariants every family shares
+
+| Invariant | Failure if broken | Guarded by |
+|---|---|---|
+| Every packable project's id is in exactly one of `packages.push` and `packages.local`, and the ids of `families` are exactly `packages.push`'s | A package nobody chose is published permanently, or a declared id is never released | Each family's `PackagingTests`; `scripts/assert-packages.cs`; `repo-conventions check` |
+| A release publishes the ids `release-target.cs` resolves for its family, each by its exact file, and never globs `*.nupkg` | A package of another family, or a new packable project, is published by the next tag | `.github/workflows/release.yml`; `release-target.cs`; `assert-packages.cs --family`; `repo-conventions check` |
+| The version is the tag's, `YYYY.Q.MMDD` with the quarter of its date | The package and the tag disagree. A published version can never be replaced | `release-target.cs`, before anything builds |
+| `NUGET_USER` is a repository **variable**, not a secret | A masked value hides why a trusted-publishing login fails | `release.yml`, step `Refuse to release without NUGET_USER` |
+| Packages resolve from nuget.org only | A second source added later silently starts supplying packages | `NuGet.config`, `packageSourceMapping` |
+| Versions are pinned centrally, one pin per package for the whole repository | Two projects drift to different versions of one dependency | `Directory.Packages.props` |
+| Warnings are errors | A warning ships | `Directory.Build.props`; `ci.yml` builds with `-warnaserror` |
+| Every library is trimmable, or exempted with its reason | A consumer's trimmed publish keeps an unmarked assembly whole | `src/Directory.Build.props`; `repo-conventions check`; `XamlQuality`'s exemption in `.github/repository.json` |
+| The repository meets the family conventions | Documentation or settings go missing unnoticed | `scripts/repo-conventions.cs`, run by CI and by the release |
+
+## Commands
+
+```bash
+dotnet build Inspections.slnx -c Release -warnaserror
+dotnet test --solution Inspections.slnx -c Release
+dotnet pack Inspections.slnx -c Release --output ./packages/Release
+dotnet run --file scripts/assert-packages.cs -- ./packages/Release
+dotnet run --file scripts/repo-conventions.cs -- check
+dotnet run --file scripts/repo-conventions.cs -- grants
+```
+
+- Tests run on Microsoft.Testing.Platform (`global.json`), so `dotnet test` takes `--solution` and
+  rejects VSTest-only switches such as `--nologo`.
+- Write `-p:` rather than `/p:`: Git Bash on Windows rewrites a leading-slash argument into a path.
+- A local build wants `AVALONIA_TELEMETRY_OPTOUT=1`; XamlQuality's commands say why.
+- Each family's regenerating and verification commands are in its section below.
+
+## Checklists every family shares
+
+**Adding a package:** add the project under `src/`, in a folder named for its family; its id to
+`packages.push` and to its family in `.github/repository.json`, or to `packages.local` with the
+reason; `FamilyReadme` and `AssemblyProduct` in its csproj; widen the trusted-publishing policy's
+pattern for its family (`docs/publishing.md`); record it in `PROGRESS.md`.
+
+**Adding a family:** its stem in `families`, lower-case; its ids in `packages.push`; its README in
+`docs/<family>.md`; its tests in a project of their own; a section in this file and in `README.md`.
+
+**Adding, removing or renaming a project:** run `repo-conventions grants`, which rewrites
+`AssemblyInfo.InternalsVisibleTo.cs`. Never declare a grant in a project; grants to another
+repository go in `AssemblyInfo.InternalsVisibleTo.External.cs`. A project that must stay out sets
+`<SolutionFriendGrants>false</SolutionFriendGrants>`, as every fixture under `tests/fixtures/` does.
+
+**Adding a top-level directory:** give it an `AGENTS.md` and a `CLAUDE.md` containing `@AGENTS.md`,
+or exempt it in `.github/repository.json` under `undocumented`, with the reason.
+
+**Releasing a family:** only on the maintainer's word for that release. `docs/publishing.md`; tag
+`<family>/vYYYY.Q.MMDD`, one release per calendar day per family; verify against the feed. The
+family's own section adds its steps.
+
+**Avalonia and drivable-UI lessons** for the whole family of repositories live here, in
+`docs/avalonia-gotchas.md` and `docs/ai-drivable-ui.md`; XamlQuality's section says how they are kept.
+
+**Every change:** update `PROGRESS.md` in the same commit. Commits are Conventional Commits.
+
+## XamlQuality
+
+### What this family is
+
+Static analysis for XAML markup, shipped as three packages from one tag, `xamlquality/v…`:
 
 | Package | Project | What it is |
 |---|---|---|
@@ -32,7 +138,7 @@ having learned a different subset of the cases. Extracting them was the point. `
 each turned out stricter than the guard it replaced, in ways nobody predicted: the guard behind
 `BNXQ1001` had passed `AutomationProperties.Name=""` for months.
 
-## Three design commitments
+### Three design commitments
 
 **A rule reports; it never asserts.** `IXamlRule.Analyze` returns an `XamlRuleResult`, findings
 rather than exceptions, so nothing in the library references a test framework. The consumer picks
@@ -51,7 +157,7 @@ and looks exactly like a clean codebase. So every result carries `Inspected`, ho
 examined, and `Skipped`, which names what it saw but could not check. A consumer asserts on all
 three.
 
-## How a scan works
+### How a scan works
 
 `XamlScanContext.Load(root)` reads every `.axaml` and `.xaml` file under a root once, skips `bin`
 and `obj`, and sorts the files so findings are stable from run to run. Each `XamlFile` offers its raw
@@ -59,7 +165,7 @@ and `obj`, and sorts the files so findings are stable from run to run. Each `Xam
 A file that does not parse carries a `ParseError` instead of disappearing. `WithAssemblies` returns
 a new context that also carries compiled assemblies, for the rules that need them.
 
-The rules live in `src/XamlQuality/Rules`, and the README's generated table lists every one. These
+The rules live in `src/XamlQuality/Rules`, and the generated table in `docs/xamlquality.md` lists every one. These
 are the ones that shaped the design:
 
 - **`BNXQ1001` and `BNXQ1002`** require a non-empty `AutomationProperties.Name`, in either spelling,
@@ -145,11 +251,11 @@ are the ones that shaped the design:
   through `ThemeReader`. It leaves tree rows out, because Fluent's and Simple's templates give a tree
   row's header a background of its own.
 
-There is no rule registry: a consumer constructs each rule by name. That makes the README's rules
+There is no rule registry: a consumer constructs each rule by name. That makes `docs/xamlquality.md`'s rules
 table the only enumeration of the rules anywhere, which is why a test generates it from the rule
 types rather than trusting anyone to add the row.
 
-## ThemeAudit
+### ThemeAudit
 
 The `ThemeAudit` namespace inventories the resource keys a theme defines and scans consumers for the
 keys they reference. It reports what a theme leaves undefined, and which colour pairs fall below a
@@ -189,7 +295,7 @@ This analysis moved here from DiffView, and its surface shipped public. DiffView
 narrowing it is a breaking change rather than a tidy-up. `src/XamlQuality/Properties/AssemblyInfo.cs`
 records which types are public and which stay internal.
 
-## The documents in `docs/`
+### The documents in `docs/`
 
 | File | What it is |
 |---|---|
@@ -206,7 +312,7 @@ promoted to a rule, and the entry keeps a line pointing at the rule's id, as `BN
 Other repositories contribute to both documents by message to the session working here, or by an
 issue when none is running, and cite them by path. Each document's header says so.
 
-## The verification tooling
+### The verification tooling
 
 `tools/` holds what a change to a rule is checked with, by `plans/00001`. The real-code comparison
 runs every rule over ClaudeForge's, DiffView's and ScopedEditors' markup and build output, at the
@@ -219,33 +325,33 @@ the reviews of `BNXQ1005`, `BNXQ1009` and `BNXQ1010`, and the changes to them, w
 Fluent, Simple and Semi themes, and judges what each of those rules says about each case against the
 measurements; CI builds it and does not run it. `tools/AGENTS.md` says how.
 
-## Who consumes this
+### Who consumes this
 
 Other repositories in the same family consume the library and the tool. ScopedEditors' tests run the
 rules, and DiffView runs the audit and commits its report. That is why the public surface is treated as a
 contract. `PROGRESS.md` lists which members each consumer uses.
 
-## Releases
+### Releases
 
 The release workflow publishes through nuget.org trusted publishing (OIDC), so no API key exists.
 The version is the tag, in the family's `YYYY.Q.MMDD` form. That allows one release per calendar
 day, and a published version can never be replaced. `docs/publishing.md` is the runbook.
 
-## Operational rules
+### Operational rules
 
 This half is **fact-shaped**: every claim cites a file, a type, a member or a test, so drift surfaces
 as a missing symbol under `grep` rather than as stale prose. No source-line numbers, no dates, no
 counts.
 
-### 1. Hard invariants
+#### 1. Hard invariants
 
 | Invariant | Failure signature if broken | Canonical source |
 |---|---|---|
 | The rules library takes no package reference and no framework dependency | A consumer's test project inherits dependencies it did not choose, and the rules stop working against WPF or MAUI markup | `src/XamlQuality/XamlQuality.csproj`; `Directory.Packages.props`, whose `Tool` group is for the CLI only; test `AssemblyQualityTests.BNAQ1003_no_assembly_references_a_framework_or_another_family_package` |
-| Every shipped assembly passes the family's AssemblyQuality rules with nothing skipped, and the scan finds each project under `src` by the assembly name its csproj declares, but one that declares `SourceOnlyPackage`, which ships no assembly and whose package `SourceOnlyPackageTests` holds instead | A package ships a violation of a rule nothing ran, a type a rule could not read passes as clean, a scan that silently drops `ThemeAudit.dll` reads as clean, or the exemption hides a project that ships an assembly | `AssemblyQualityTests`, one test per rule and `Every_shipped_assembly_is_in_the_scan`; `SourceOnlyPackageTests.DeclaresSourceOnly`; `Directory.Packages.props`, whose `Testing` group pins `Bennewitz.Ninja.AssemblyQuality` |
+| Every shipped assembly passes the family's AssemblyQuality rules with nothing skipped, and the scan finds each project under `src` by the assembly name its csproj declares, but one that declares `SourceOnlyPackage`, which ships no assembly and whose package `SourceOnlyPackageTests` holds instead | A package ships a violation of a rule nothing ran, a type a rule could not read passes as clean, a scan that silently drops `ThemeAudit.dll` reads as clean, or the exemption hides a project that ships an assembly | `AssemblyQualityTests`, one test per rule and `Every_shipped_assembly_is_in_the_scan`; `SourceOnlyPackageTests.DeclaresSourceOnly`; `tests/XamlQuality.Tests`, which references `src/AssemblyQuality` as a project |
 | A source-only package holds its project's `.cs` files as compile content for the library's framework, and the README, and no assembly; depends on the library alone, at a minimum of its own version; is no development dependency; and each file starts `// <auto-generated/>`, then `#nullable enable`, has no using directive, names every type outside it from `global::`, declares no public type and names no test framework. It is packed without a build | A file fails to compile in an adopting project that turns implicit usings off or declares a global alias of a name it uses; `dotnet add package` leaves the library's compile assets out, and the files do not compile (CS0103); a stray using of a test framework passes here, where the files compile only in a test project, and fails in an adopter; or a pack that builds rebuilds the library at another version between a release's build and its pack | `src/XamlQuality.ThemeRuntime/XamlQuality.ThemeRuntime.csproj`; `SourceOnlyPackageTests`; `tests/XamlQuality.ThemeRuntime.Tests`, which compiles the files with implicit usings off and, in `HostileAliases.cs`, a global alias of each Avalonia and library type name they use |
 | The runtime check's names, the library's half and the source half's alike, are permanent from the release that first carries them, and a member added later is an `init` property, never a new positional parameter | Every adopting test is written against them, and a source half compiled against a newer library, which the package's minimum allows, stops compiling | `RuntimeCheckPlan` remarks; `src/XamlQuality/Properties/AssemblyInfo.cs` |
-| No project in `XamlQuality.slnx` but `tests/XamlQuality.ThemeRuntime.Tests` takes a package whose id names Avalonia, directly or through another package, as read from each project's restore graph | Avalonia reaches the library's tests or a shipped assembly unannounced, or a project whose graph is missing passes for one that takes nothing | `AvaloniaConfinementTests` |
+| No project in `Inspections.slnx` but `tests/XamlQuality.ThemeRuntime.Tests` takes a package whose id names Avalonia, directly or through another package, as read from each project's restore graph | Avalonia reaches the library's tests or a shipped assembly unannounced, or a project whose graph is missing passes for one that takes nothing | `AvaloniaConfinementTests` |
 | A rule returns findings; it never throws or asserts on a violation | The library chooses the consumer's test runner and severity for them | `IXamlRule`, `XamlRuleResult`, `XamlFinding` |
 | Every result reports `Inspected`, and a rule names what it saw but could not check in `Skipped` | A rule that checked nothing returns zero findings, which reads as a clean codebase | `XamlRuleResult.Inspected`, `XamlRuleResult.Skipped`, `XamlSkip`; tests `ExpanderAutomationNameRuleTests.MarkupWithNoExpanders_InspectsNothingAndReportsNothing`, `GridSlotOverflowRuleTests.MarkupWithNoGrid_InspectsNothing`, `TemplatePartRuleTests.WithoutAssemblies_EveryThemedControlIsNamedAsSkipped` |
 | Elements are matched by local name, never by qualified name | A rule goes silently inert on the frameworks whose markup namespace it did not name | `InteractiveAutomationNameRule` remarks; test `ExpanderAutomationNameRuleTests.WpfMarkup_IsScannedToo` |
@@ -297,7 +403,7 @@ counts.
 | Every rule that asks which controls are themed reads `ControlThemes.In`, which takes a `ControlTheme`'s `TargetType` in both spellings | A theme written `{x:Type local:Thing}` is read by one rule and missed by another | `ControlThemes` remarks; tests `TemplatePartRuleTests.TheXTypeSpelling_IsUnderstood`, `CustomControlPeerRuleTests.TheXTypeSpelling_IsUnderstood` |
 | A rule id is permanent public API. Its number never changes, and its prefix, `BNXQ`, the family's `BN` and the product's initials, never changes once an id carrying it has shipped | Any suppression keyed on the old id silently stops applying | `IXamlRule.Id`; tests `RulesCatalogTests.EveryRuleId_IsUnique`, `RulesCatalogTests.EveryRuleId_CarriesTheFamilyPrefix` |
 | Every rule type is public and has a parameterless constructor | The rule vanishes from the README table, or generating the table throws | tests `RulesCatalogTests.EveryRuleType_IsPublic`, `RulesCatalogTests.TheReadmeRulesTable_IsWhatTheRuleTypesSay` |
-| The README's rules table, between the `BEGIN GENERATED RULES` and `END GENERATED RULES` markers, is generated; the prose outside them is hand-written | A hand edit to the table fails the build, and a generator that owned the whole section would delete the prose about how rules overlap | `RulesCatalogTests` |
+| The rules table in `docs/xamlquality.md`, between the `BEGIN GENERATED RULES` and `END GENERATED RULES` markers, is generated; the prose outside them is hand-written | A hand edit to the table fails the build, and a generator that owned the whole section would delete the prose about how rules overlap | `RulesCatalogTests` |
 | The rule API and the whole ThemeAudit audit surface are public contracts | Narrowing a member breaks a consumer the next time it moves off its pinned version | `src/XamlQuality/Properties/AssemblyInfo.cs`; the consumers, and the members they use, in `PROGRESS.md` |
 | The content digest is rooted at the deepest directory the scanned files share, never at the configuration's directory | The same files hash differently on a developer machine and in CI, so a committed report can never pass in both | `AuditRunner.CommonRoot`, `AuditRunner.Digest`; tests `DigestLocationTests.TheSameContentInTwoLocations_HashesTheSame`, `DigestLocationTests.ARenameThatDoesNotReorder_StillMovesTheDigest` |
 | The content digest reads each CRLF pair as LF, and a consumer's files are read in the order of their path below the scanned directory, written with `/` | A Windows checkout, where git writes LF as CRLF and `\` sorts sibling directories differently, hashes differently from Linux and macOS, so a committed report fails on one platform | `AuditRunner.Digest` remarks, `XamlFiles` remarks; tests `DigestPlatformTests.ACrlfCheckout_HashesAsAnLfOne`, `DigestPlatformTests.AnLfCheckout_HashesAsItAlwaysHas`, `DigestPlatformTests.AConsumersFiles_AreOrderedByTheirPathWithForwardSlashes` |
@@ -313,17 +419,17 @@ counts.
 | Every project under `src` that packs is named in `packages.push` or `packages.local`, never both; the release's preflight list, push and GitHub Release read their ids from `packages.push` and spell none out; what was packed is checked against both lists before the push; and no step globs `*.nupkg` | A future packable project is published permanently, or attached to a GitHub Release nobody chose it for, or a second list of ids in the workflow drifts from the first | `packages.push`; `packages.local`; `scripts/assert-packages.cs`, run by `.github/workflows/release.yml` and CI's `pack` job; tests `PackagingTests.Every_packable_project_is_classified`, `PackagingTests.No_id_is_both_published_and_private`, `PackagingTests.The_release_workflow_globs_nothing_and_publishes_what_is_declared`, `PackagingTests.The_release_workflow_checks_what_was_packed_before_it_pushes`, `PackagingTests.The_release_workflow_never_names_a_private_package`, `PackagingTests.The_release_workflow_still_has_both_publishing_steps` |
 | `NUGET_USER` is a repository variable holding the nuget.org profile name, and a release refuses to run without it | A masked value hides why a login fails, and a tag with it unset creates a GitHub Release for a package that never shipped | `.github/workflows/release.yml`, step `Refuse to release without NUGET_USER`; `docs/publishing.md` |
 | The marketplace lists the `drivable-ui` plugin by a relative path that holds its manifest and skill, the guide gives the commands that install it, and neither manifest pins a `version` | Every `claude plugin install drivable-ui@xamlquality` fails or installs a plugin with no skill, the guide's commands name a plugin nobody serves, or every install stays on a stale copy of the skill | `.claude-plugin/marketplace.json`; `docs/ai-drivable-ui/plugin/`; tests `PluginMarketplaceTests.The_marketplace_lists_the_plugin_by_a_path_that_holds_its_manifest`, `PluginMarketplaceTests.The_skill_is_where_the_plugin_loads_skills_and_is_named_for_its_folder`, `PluginMarketplaceTests.No_version_is_pinned_so_an_update_picks_up_every_change`, `PluginMarketplaceTests.The_skill_sends_its_reader_to_the_guide_that_exists`, `PluginMarketplaceTests.The_guide_gives_the_commands_the_marketplace_answers_to` |
-| Nothing under `tools/` ships: it is never packed, no project of it is in `XamlQuality.slnx`, and nothing in `src` or `tests` references it | A measuring tool lands in the folder beside the two packages a release names, or the library gains a dependency through a tool | `tools/Directory.Build.props` (`IsPackable`); `XamlQuality.slnx` |
+| Nothing under `tools/` ships: it is never packed, no project of it is in `Inspections.slnx`, and nothing in `src` or `tests` references it | A measuring tool lands in the folder beside the two packages a release names, or the library gains a dependency through a tool | `tools/Directory.Build.props` (`IsPackable`); `Inspections.slnx` |
 | `tools/real-code/expected/` is what `main`'s rules print over the inputs `tools/real-code/inputs.json` pins, and a pull request that changes it says why | A change to what a rule says about real code merges unseen, or a record `main` no longer prints fails every pull request after it | `tools/real-code.cs`; CI job `Verification tools`, a required check in `.github/repository.json` |
 | A case of the headless probe keeps its id and what it measures; a new question is a new case | A review's verdict, which cites a case by its id, silently comes to describe another measurement | `tools/probe/Probe`, whose `Cases.Every` lists every case; `tools/AGENTS.md`'s rules |
 
-### 2. Commands
+#### 2. Commands
 
 ```bash
-dotnet build XamlQuality.slnx -c Release
-dotnet test --solution XamlQuality.slnx
-XQ_UPDATE_DOCS=1 dotnet test --solution XamlQuality.slnx
-dotnet pack XamlQuality.slnx -c Release -p:Version=0.0.0-local --output ./packages/local
+dotnet build Inspections.slnx -c Release
+dotnet test --solution Inspections.slnx
+XQ_UPDATE_DOCS=1 dotnet test --solution Inspections.slnx
+dotnet pack Inspections.slnx -c Release -p:Version=0.0.0-local --output ./packages/local
 dotnet run --file scripts/assert-packages.cs -- ./packages/local
 dotnet run --file tools/real-code.cs
 dotnet run --file tools/real-code.cs -- --update
@@ -333,7 +439,7 @@ dotnet run --file scripts/fetch-reference.cs
 dotnet run --file scripts/fetch-reference.cs -- --status
 ```
 
-- The third regenerates the README's rules table (`RulesCatalogTests`). Commit the result; the build
+- The third regenerates the rules table in `docs/xamlquality.md` (`RulesCatalogTests`). Commit the result; the build
   never writes a tracked file.
 - The fifth checks that what the fourth packed is exactly what `packages.push` and `packages.local`
   declare, reading each id from its `.nuspec`, as the release does before it pushes.
@@ -357,9 +463,9 @@ dotnet run --file scripts/fetch-reference.cs -- --status
 - Warnings are errors (`Directory.Build.props`), and CI builds and tests on Linux, Windows and macOS
   because the rules compare paths (`.github/workflows/ci.yml`).
 
-### 3. Checklists
+#### 3. Checklists
 
-#### Budgeting a change, before it starts
+##### Budgeting a change, before it starts
 
 - **Set the review budget first.** A new rule, or a change to one, is ready when the suite passes, the
   mutations planted in the code it touches each fail a test (`tools/mutate.cs`), the real-code comparison holds
@@ -381,7 +487,7 @@ dotnet run --file scripts/fetch-reference.cs -- --status
   sentence a document adds is a claim a review can refute and a fix must rewrite. Keep a pull request's
   description to about a page.
 
-#### Adding a rule
+##### Adding a rule
 
 1. A public sealed class in `src/XamlQuality/Rules/` implementing `IXamlRule`, with a parameterless
    constructor. Take the next free `BNXQ` id. Ids are permanent and assigned only when a rule is
@@ -405,7 +511,7 @@ dotnet run --file scripts/fetch-reference.cs -- --status
    id.
 9. Add it to `PROGRESS.md`'s unreleased list, with its effect on a consumer.
 
-#### Changing a rule or the audit
+##### Changing a rule or the audit
 
 - A rule that becomes stricter turns a consumer's green markup red on their next upgrade. Record it
   in `PROGRESS.md`'s unreleased list, under "Effect on a consumer".
@@ -413,7 +519,7 @@ dotnet run --file scripts/fetch-reference.cs -- --status
   regenerate theirs. Record that too.
 - Keep `src/XamlQuality/Properties/AssemblyInfo.cs` accurate when a type's visibility changes.
 
-#### Editing the documents
+##### Editing the documents
 
 - `docs/ai-drivable-ui.md` is the one living copy of the guide. The port it began in retired its own
   and points here, so it is changed here and nowhere else; retitling or renumbering a section someone
@@ -423,10 +529,129 @@ dotnet run --file scripts/fetch-reference.cs -- --status
 - An entry that becomes mechanically checkable is promoted to a rule, as that document's header
   requires.
 
-#### Releasing
+##### Releasing
 
 - A tag publishes permanently. Tag only when the developer has decided to release.
-- Follow `docs/publishing.md`: tag `vYYYY.Q.MMDD`, one release per calendar day, verify against the
+- Follow `docs/publishing.md`: tag `xamlquality/vYYYY.Q.MMDD`, one release per calendar day, verify against the
   nuget.org flat-container API rather than the workflow, and never re-tag to fix a failed run.
 - Afterwards, move the released rows out of `PROGRESS.md`'s unreleased list and update its
   published version.
+
+## AssemblyQuality
+
+### What this family is
+
+`Bennewitz.Ninja.AssemblyQuality`: static analysis rules for the shape a .NET assembly ships, read
+by reflection over the compiled output rather than from source. The assembly-shaped companion to
+the XamlQuality family, which reads markup. [docs/assemblyquality.md](docs/assemblyquality.md)
+describes each rule for a consumer; this section covers how to change them.
+
+### Layout
+
+| Path | What it holds |
+|---|---|
+| `src/AssemblyQuality/` | The library, file by file in [src/AGENTS.md](src/AGENTS.md) |
+| `tests/AssemblyQuality.Tests/` | xunit v3 tests; `Fixtures/` holds real types that break the rules |
+| `tests/fixtures/` | Fixture assemblies the tests reflect over. They have their own `Directory.Build.props`, so they are plain libraries, not test projects. Each opts out of the friend grants with `SolutionFriendGrants=false`, since its metadata is what a test reads |
+
+### The contract every rule keeps
+
+- **A rule reports and never asserts.** It returns an `AssemblyRuleResult`, and the consumer
+  decides how severe a finding is.
+- **`Inspected` counts only candidates that could have produced a finding.** A rule whose check
+  can't be satisfied (it forbids nothing, or nothing it could match is in reach) reports `0`,
+  never the number of things it walked past.
+- **`Skipped` names what the rule could not examine**, such as a reference that would not load or a
+  type whose signature names a missing assembly. Record the item and move on; one missing
+  dependency must never crash the whole scan. Use `AssemblyScanContext.IsLoadFailure` and
+  `Unreadable`.
+- **Load references through `AssemblyScanContext.ReferencedNamespaces`**, which also reads forwarded
+  types. A facade like `System.Runtime` exports nothing and forwards everything.
+- **Every reflection entry point carries
+  `[RequiresUnreferencedCode(AssemblyScanContext.TrimMessage)]`.** `IsAotCompatible` turns on the
+  trim analyzers, so a missing attribute fails the build. The library is not trim-safe, and the
+  attribute is what says so to consumers.
+- **Every rule has a public parameterless constructor.** `RulesCatalogTests` creates each rule that
+  way. Put configuration in extra constructors or static factories, such as
+  `SurfaceLeakRule.Only(...)` and `NamespaceShadowRule.IncludingInternalTypes()`.
+- **A rule's `Id` is public API.** Changing it silently removes every suppression a consumer wrote
+  against it.
+
+### Tests
+
+- **Test both directions, always.** Each rule is shown finding a real violation AND clearing a clean
+  subject. A test that only asserts "no findings" passes just as well on a rule that has stopped
+  matching anything.
+- **Fixtures are real compiled types, never mocks**, because the rules read metadata. When a test
+  needs a runtime condition, such as a dependency that won't load, build a real assembly under
+  `tests/fixtures/` that has it, and assert the condition itself before relying on it (see
+  `CoverageTests.TheOrphansReference_ReallyWillNotLoad`).
+- **Watch a new test fail without the fix before trusting it.** Put the old code back, confirm the
+  new test fails, then restore.
+- **The rules table in `docs/assemblyquality.md` is generated.** `RulesCatalogTests` fails if it drifts from the rule
+  types. To regenerate it, set `AQ_UPDATE_DOCS=1` and run the tests.
+
+### Code style
+
+- XML doc remarks follow a house style: one `<para>` per point, each opening with a marker and a
+  bold claim: ⭐ key idea, ⚠ caution, ⛔ trap. Explain *why*, and say "Measured:" when a claim
+  comes from an observed failure.
+- The root namespace is `Bennewitz.Ninja.<ProjectName>`. Assembly names stay unprefixed
+  (`AssemblyQuality`); the package id carries the prefix.
+- Finding messages state the defect, why it bites, and every valid fix. Never prescribe one fix when
+  a common convention needs a different one (see BNAQ1004's two renames).
+
+## CodeQuality
+
+### What this family is
+
+`Bennewitz.Ninja.CodeQuality`: Roslyn analyzers for the shape of a .NET library's source, each the
+compile-time counterpart of a Bennewitz.Ninja.AssemblyQuality rule that reads the shipped assembly,
+with the same number. It ships one package, `Bennewitz.Ninja.CodeQuality`, consumed as a
+development dependency by any C# project whose compiler is Roslyn `RoslynVersion` (in
+`Directory.Packages.props`) or later. [docs/codequality.md](docs/codequality.md) describes each rule
+for a consumer; this section covers how to change them.
+
+### Invariants
+
+| Invariant | Failure if broken | Guarded by |
+|---|---|---|
+| Every analyzer derives from `ScopedAnalyzer<TScope>`, whose gate cannot register actions | The compiler loads the assembly whole, so one analyzer that registers unconditionally runs in every compilation that references the package | `AnalyzerConventionTests` |
+| The analyzer targets `netstandard2.0` and its compiled assembly references only what the compiler host loads beside it | A `net10.0` analyzer fails to load in Visual Studio's MSBuild; a package dependency is not packed beside the DLL and fails as `AD0001` | `AnalyzerShapeTests`; `repo-conventions check`, analyzer role |
+| The DLL is packed under `analyzers/dotnet/cs` with `IncludeBuildOutput` off and no dependencies, as a `DevelopmentDependency` | Under `lib/` a consumer gets a runtime reference and the compiler never loads the analyzer | `AnalyzerShapeTests.Every_analyzer_packs_only_itself_under_analyzers_dotnet_cs`; the consumer builds under "Measured before the first release" in `PROGRESS.md` |
+| `Microsoft.CodeAnalysis.CSharp` is pinned to the oldest compiler the package supports, `RoslynVersion` in `Directory.Packages.props`, and the tests resolve the same version | An API newer than the pin loads in no older compiler; a test on a newer Roslyn proves nothing about the pin | `Directory.Packages.props`; `CodeQuality.Tests.csproj`, the Workspaces reference |
+| Every rule ID is `BNCQ` plus four digits, its category is `Bennewitz.Ninja.CodeQuality`, its help link is its section of `docs/codequality.md`, and that file's rules table is generated from the descriptors | A consumer's suppressions name the ID; a help link to a missing section is a 404 on the rule they were just told about | `RulesCatalogTests` |
+| Every rule is recorded in `AnalyzerReleases.Unshipped.md`, and moved to `AnalyzerReleases.Shipped.md` under its release in the same change as the tag | RS2000 and RS2008 fail the build; a release that leaves the shipped file empty has no record of what it shipped | `Microsoft.CodeAnalysis.Analyzers`, release tracking; the releasing checklist |
+| Every rule is tested both ways: firing on a real violation, silent on clean code, and inert outside its scope, which is measured as registered actions and not as silence | A rule whose gate is wrong fails as silence, and a clean build cannot tell inert from checked | The rule test classes under `tests/CodeQuality.Tests/Rules/` |
+| The analyzer assembly exports no public type of its own | A public type is API to keep compatible for no reader; a consumer configures the package through `.editorconfig` | `AnalyzerConventionTests` |
+
+### Commands
+
+- The rule tests resolve the .NET reference assemblies from nuget.org on first run and cache them.
+- `BNCQ_UPDATE_DOCS=1 dotnet test --solution Inspections.slnx` regenerates the rules table in `docs/codequality.md`.
+
+### Checklists
+
+**Adding a rule**
+1. Its number is its `BNAQ` counterpart's, or the next free number for a rule with no counterpart.
+   `BNCQ1003` stays reserved. The code is written here: analyzers the maintainer wrote for another
+   project may be read for ideas and traps, but none of their code, names, IDs or links is copied.
+2. `src/CodeQuality/Rules/<Name>Analyzer.cs`, internal and sealed, deriving from
+   `ScopedAnalyzer<TScope>`. The gate returns null wherever the rule has nothing to compare against.
+   The descriptor takes its category and help link from `Catalog`.
+3. Its line in `src/CodeQuality/AnalyzerReleases.Unshipped.md`.
+4. `tests/CodeQuality.Tests/Rules/<Name>Tests.cs`: firing on a violation, silent on clean code,
+   inert outside its scope. Inert is a count of registered actions through `Plain`, zero beside a
+   control in scope that is not. Make the gate return null and watch the firing tests fail; force
+   it open and watch the inert test fail; then put the gate back. A test that never failed proves
+   nothing.
+5. Its `### BNCQ####` section in `docs/codequality.md`, linking the counterpart; regenerate the table.
+6. Its entry in `PROGRESS.md`, and a line in the counterpart's section of `docs/assemblyquality.md`
+   linking back.
+
+**Raising the Roslyn pin:** only for an API the rules cannot do without. Measure the lowest version
+that builds and passes the tests, set `RoslynVersion`, and change the compiler named in
+the install section of `docs/codequality.md` in the same change.
+
+**Releasing:** in the same change as the tag, move the rules from
+`AnalyzerReleases.Unshipped.md` into `AnalyzerReleases.Shipped.md` under `## Release <version>`.

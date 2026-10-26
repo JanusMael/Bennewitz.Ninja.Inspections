@@ -1,0 +1,59 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Framework packages, IsTestProject and OutputType all come from tests/Directory.Build.props. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AssemblyQuality\AssemblyQuality.csproj" />
+    <!-- BNAQ1005's subject: an assembly with four grants, three of them deliberately wrong. -->
+    <ProjectReference Include="..\fixtures\Granting\Granting.csproj" />
+  </ItemGroup>
+
+  <!-- Orphan is built but NOT referenced, and only its own dll is copied, into orphan/. Absent,
+       which Orphan references, therefore exists nowhere this process can load it from — a real
+       missing dependency for the coverage tests, not a simulated one. -->
+  <ItemGroup>
+    <ProjectReference Include="..\fixtures\Orphan\Orphan.csproj" ReferenceOutputAssembly="false" />
+    <None Include="..\fixtures\Orphan\bin\$(Configuration)\$(TargetFramework)\AssemblyQuality.Fixtures.Orphan.dll"
+          Link="orphan\AssemblyQuality.Fixtures.Orphan.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+  </ItemGroup>
+
+  <!-- Dependent was compiled against version one of AssemblyQuality.Fixtures.Versioned; versioned/
+       holds Dependent beside VERSION TWO. Neither is referenced, so this test project never sees two
+       assemblies of one name. The load-context tests load versioned/ into a context of its own. -->
+  <ItemGroup>
+    <ProjectReference Include="..\fixtures\Dependent\Dependent.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\fixtures\VersionTwo\VersionTwo.csproj" ReferenceOutputAssembly="false" />
+    <None Include="..\fixtures\Dependent\bin\$(Configuration)\$(TargetFramework)\AssemblyQuality.Fixtures.Dependent.dll"
+          Link="versioned\AssemblyQuality.Fixtures.Dependent.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+    <None Include="..\fixtures\VersionTwo\bin\$(Configuration)\$(TargetFramework)\AssemblyQuality.Fixtures.Versioned.dll"
+          Link="versioned\AssemblyQuality.Fixtures.Versioned.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+  </ItemGroup>
+
+  <!-- BNAQ1006's subjects. FriendConsumer was compiled against FriendV1; friend-v1/ holds it beside
+       the provider it was built against, friend-v2/ beside the provider's next release, which removed
+       one internal and withdrew the grant. None is referenced, so the two providers never meet. -->
+  <ItemGroup>
+    <ProjectReference Include="..\fixtures\FriendConsumer\FriendConsumer.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\fixtures\FriendV2\FriendV2.csproj" ReferenceOutputAssembly="false" />
+    <None Include="..\fixtures\FriendConsumer\bin\$(Configuration)\$(TargetFramework)\AssemblyQuality.Fixtures.FriendConsumer.dll"
+          Link="friend-v1\AssemblyQuality.Fixtures.FriendConsumer.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+    <None Include="..\fixtures\FriendV1\bin\$(Configuration)\$(TargetFramework)\AssemblyQuality.Fixtures.Friend.dll"
+          Link="friend-v1\AssemblyQuality.Fixtures.Friend.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+    <None Include="..\fixtures\FriendConsumer\bin\$(Configuration)\$(TargetFramework)\AssemblyQuality.Fixtures.FriendConsumer.dll"
+          Link="friend-v2\AssemblyQuality.Fixtures.FriendConsumer.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+    <None Include="..\fixtures\FriendV2\bin\$(Configuration)\$(TargetFramework)\AssemblyQuality.Fixtures.Friend.dll"
+          Link="friend-v2\AssemblyQuality.Fixtures.Friend.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+  </ItemGroup>
+</Project>

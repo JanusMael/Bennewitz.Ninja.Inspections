@@ -86,11 +86,17 @@ public sealed class PackagingTests
 
         Assert.DoesNotContain("*.nupkg", workflow, StringComparison.Ordinal);
 
-        foreach (string step in (string[])["Report the preflight result", "Push to NuGet.org", "Create GitHub Release"])
+        // The preflight lists packages.push; the push and the GitHub release take the ids
+        // scripts/release-target.cs resolved from it, or from the tagged family's entry.
+        Assert.True(
+            Step(instructions, "Report the preflight result").Contains("packages.push", StringComparison.Ordinal),
+            "The step \"Report the preflight result\" does not read packages.push, so it lists something else.");
+        Assert.Contains("scripts/release-target.cs -- resolve", workflow, StringComparison.Ordinal);
+        foreach (string step in (string[])["Push to NuGet.org", "Create GitHub Release"])
         {
             Assert.True(
-                Step(instructions, step).Contains("packages.push", StringComparison.Ordinal),
-                $"The step \"{step}\" does not read packages.push, so it stops publishing what is declared.");
+                Step(instructions, step).Contains("read -ra ids <<< \"$IDS\"", StringComparison.Ordinal),
+                $"The step \"{step}\" does not read the ids release-target.cs resolved, so it stops publishing what is declared.");
         }
 
         foreach (string id in Ids("packages.push"))
@@ -234,7 +240,7 @@ public sealed class PackagingTests
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);
 
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "XamlQuality.slnx")))
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Inspections.slnx")))
         {
             directory = directory.Parent;
         }

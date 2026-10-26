@@ -115,7 +115,7 @@ public sealed class SourceOnlyPackageTests : IClassFixture<SourceOnlyPackageTest
             ];
             Assert.Equal(compiled, declared);
 
-            Assert.Equal(File.ReadAllBytes(Path.Combine(RepoRoot(), "README.md")), BytesOf(archive, "README.md"));
+            Assert.Equal(File.ReadAllBytes(Path.Combine(RepoRoot(), "docs", "xamlquality.md")), BytesOf(archive, "README.md"));
         }
     }
 
@@ -285,7 +285,7 @@ public sealed class SourceOnlyPackageTests : IClassFixture<SourceOnlyPackageTest
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);
 
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "XamlQuality.slnx")))
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Inspections.slnx")))
         {
             directory = directory.Parent;
         }

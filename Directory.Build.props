@@ -16,13 +16,13 @@
     <!-- Bennewitz.Ninja.AutoVersioning source generator: version stamps computed at build time. -->
     <GenerateAutoVersionedAssemblyInfo>true</GenerateAutoVersionedAssemblyInfo>
     <AssemblyCompany>Bennewitz.Ninja</AssemblyCompany>
-    <AssemblyProduct>XamlQuality</AssemblyProduct>
+    <!-- The repository's, for what ships nothing: tests, tools and the scripts. AutoVersioning
+         fails any project without one (BAUTOVERSIONING03). Each family's packages set their own:
+         XamlQuality, AssemblyQuality or CodeQuality, in their csproj, which is read after this.
+         PublicVersion is in Directory.Build.targets, where Version already has its default. -->
+    <AssemblyProduct>Inspections</AssemblyProduct>
     <CopyrightHolder>Brian Bennewitz</CopyrightHolder>
     <CommitSha Condition="'$(CommitSha)' == ''">$(GITHUB_SHA)</CommitSha>
-    <!-- AutoVersioning records the released version as assembly metadata; it does not set it. The
-         package version comes from the release tag as /p:Version=, so this follows it and reads
-         1.0.0 on a local build, which is what a local build is. -->
-    <PublicVersion Condition="'$(PublicVersion)' == ''">$(Version)</PublicVersion>
   </PropertyGroup>
 
   <!-- Package metadata shared by every packable project. Without a licence expression a package is
@@ -32,8 +32,8 @@
   <PropertyGroup>
     <Authors>Brian Bennewitz</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/JanusMael/Bennewitz.Ninja.XamlQuality</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/JanusMael/Bennewitz.Ninja.XamlQuality</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/JanusMael/Bennewitz.Ninja.Inspections</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/JanusMael/Bennewitz.Ninja.Inspections</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
@@ -55,9 +55,13 @@
                       IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
   </ItemGroup>
 
-  <!-- The README travels inside every package, so nuget.org shows the same text the repository
-       does. Packable projects only: a test project with no README is not a packaging error. -->
-  <ItemGroup Condition="'$(IsPackable)' == 'true'">
-    <None Include="$(RepoRoot)README.md" Pack="true" PackagePath="\" Visible="false" />
+  <!-- Each package carries its family's README, packed as README.md, so nuget.org shows the text
+       the repository keeps for that family: docs/xamlquality.md, docs/assemblyquality.md or
+       docs/codequality.md, named by FamilyReadme in the package's csproj. Items are evaluated after
+       every property, so the csproj's value is the one read here. Packable projects only: a test
+       project with no README is not a packaging error. A packable project that names none packs
+       none, and `dotnet pack` fails it with NU5039, since PackageReadmeFile names README.md. -->
+  <ItemGroup Condition="'$(IsPackable)' == 'true' and '$(FamilyReadme)' != ''">
+    <None Include="$(RepoRoot)$(FamilyReadme)" Pack="true" PackagePath="README.md" Visible="false" />
   </ItemGroup>
 </Project>

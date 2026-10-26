@@ -72,7 +72,7 @@ public sealed class PluginMarketplaceTests
             "docs/ai-drivable-ui.md, the guide the skill condenses, is missing.");
         Assert.Contains("`docs/ai-drivable-ui.md`", skill, StringComparison.Ordinal);
         Assert.Contains(
-            "https://raw.githubusercontent.com/JanusMael/Bennewitz.Ninja.XamlQuality/main/docs/ai-drivable-ui.md",
+            "https://raw.githubusercontent.com/JanusMael/Bennewitz.Ninja.Inspections/main/docs/ai-drivable-ui.md",
             skill,
             StringComparison.Ordinal);
     }
@@ -85,7 +85,7 @@ public sealed class PluginMarketplaceTests
         using JsonDocument marketplace = JsonDocument.Parse(File.ReadAllText(MarketplacePath()));
         string marketplaceName = marketplace.RootElement.GetProperty("name").GetString()!;
 
-        Assert.Contains("claude plugin marketplace add JanusMael/Bennewitz.Ninja.XamlQuality", guide, StringComparison.Ordinal);
+        Assert.Contains("claude plugin marketplace add JanusMael/Bennewitz.Ninja.Inspections", guide, StringComparison.Ordinal);
         Assert.Contains($"claude plugin install {PluginName}@{marketplaceName}", guide, StringComparison.Ordinal);
         Assert.Contains($"claude plugin marketplace update {marketplaceName}", guide, StringComparison.Ordinal);
         Assert.Contains($"claude plugin update {PluginName}@{marketplaceName}", guide, StringComparison.Ordinal);
@@ -146,7 +146,7 @@ public sealed class PluginMarketplaceTests
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);
 
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "XamlQuality.slnx")))
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Inspections.slnx")))
         {
             directory = directory.Parent;
         }

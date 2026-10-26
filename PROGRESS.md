@@ -1,21 +1,93 @@
 # Progress
 
-The work state of `Bennewitz.Ninja.XamlQuality`: what is published, what is on `main` and not yet
-released, who depends on what, and the rule backlog with any questions open for the developer.
+The work state of `Bennewitz.Ninja.Inspections`: where the repository stands, then each family's
+own state: what is published, what is on `main` and not yet released, who depends on what, and what
+is open. What has stopped changing moves out rather than piling up.
 
-## Status
+## Resume
+
+This repository is Bennewitz.Ninja.XamlQuality renamed, with AssemblyQuality and CodeQuality moved
+in, by Bennewitz.Ninja.Templates' `plans/00009`, approved 2026-10-22. Step 5 of that plan, the
+merge, is this repository's first change under its new name; what it changed is under *Merged into
+Inspections* below. The rest of the plan's steps for this repository, each on the maintainer's word:
+
+| Step | What | Waits on |
+|---|---|---|
+| 5 | The merge's pull request: the maintainer runs `repo-conventions.cs apply` from its branch, so the ruleset's required checks are the merged CI's job names, `build (ubuntu-latest)`, `build (windows-latest)`, `build (macos-latest)`, `pack`, `conventions` and `Verification tools`; then it merges with every check passing, by a merge commit, allowed for that one pull request by the maintainer's decision of 2026-10-26 and disallowed again after it: a squash or a rebase would drop the imported histories off `main` | The maintainer |
+| 6 | The trusted-publishing policy, by decision 20: XamlQuality's existing policy edited to name this repository and to gain the patterns `Bennewitz.Ninja.AssemblyQuality` and `Bennewitz.Ninja.CodeQuality`, never a second policy beside it; `NUGET_USER`; then a blank-version preflight. A login proves only that some policy matched, so the policy page is read too: one policy, naming Inspections, a pattern per family | Step 5 |
+| 7 | AssemblyQuality and CodeQuality archived: open issues transferred here, a final README commit naming Inspections, then the archive. CodeQuality's final README keeps every rule's section, because the help links `2026.3.928` shipped point at `github.com/JanusMael/Bennewitz.Ninja.CodeQuality#bncq…` | Step 5 |
+| 9 | Each family's first release from here, when it next changes (decision 21: moving is not a reason to release). Each id read back from nuget.org's flat container with `RepositoryUrl` naming Inspections; the release's assets that family's ids alone. After AssemblyQuality's and CodeQuality's, the policy of the repository each left is deleted | A change in that family |
+
+Each family releases alone, from a tag `<family>/vYYYY.Q.MMDD`; [docs/publishing.md](docs/publishing.md)
+is the runbook. Whether a family has anything to release is in its section below.
+
+## Merged into Inspections (2026-10-26)
+
+The histories of AssemblyQuality, from its first commit, `bd44084` before the rewrite, through
+JanusMael/Bennewitz.Ninja.AssemblyQuality#17, and of CodeQuality were imported whole with `git filter-repo`. Their tags were renamed `assemblyquality/v…` and
+`codequality/v…`; XamlQuality's own `v…` tags were left as they are, by decision 15. AssemblyQuality's
+approved plans moved unchanged to `plans/assemblyquality/`. The build files, workflows and scripts are
+Templates' canonical ones from `2026.4.1023`, the release that ships multi-family support.
+
+### What changes for a consumer, in each family's first release from here
+
+| Family | Change |
+|---|---|
+| Every family | `RepositoryUrl` and `PackageProjectUrl` name `Bennewitz.Ninja.Inspections`. The package's README is the family's `docs/<family>.md`; its links to the repository are absolute now, and the maintainer's sections, releasing, versioning and publishing, moved to the root README and `docs/publishing.md` |
+| XamlQuality | The library's friend grants are the generated, solution-wide ones, in place of its hand-written grants to its own tests. `Bennewitz.Ninja.XamlQuality.ThemeAudit` now carries `IsTrimmable`, which every `src` project gets from `src/Directory.Build.props`, AssemblyQuality's; the library sets it false, as below. The drivable-ui marketplace is added as `JanusMael/Bennewitz.Ninja.Inspections`, its name, `xamlquality`, unchanged |
+| AssemblyQuality | The solution-wide friend grants of JanusMael/Bennewitz.Ninja.AssemblyQuality#17, unreleased when it moved. Its README links its CodeQuality counterparts in `docs/codequality.md` here |
+| CodeQuality | Each rule's help link names its section in `docs/codequality.md` here; `2026.3.928`'s links name the archived repository's README, which keeps those sections. The hand-written grant to its tests gives way to the generated ones. Its README links its AssemblyQuality counterparts in `docs/assemblyquality.md` here |
+
+### Where the merge departs from plans/00009, or decides what it left open
+
+- **The root `AssemblyProduct` is `Inspections`**, and each package sets its family's, as it was:
+  AutoVersioning fails the build without a product (`BAUTOVERSIONING03`).
+- **Each family's README is kept whole, at `docs/<family>.md`**, and packed as its packages'
+  `README.md` through a `FamilyReadme` property in each package's project. The root README condenses
+  each into a section and links it, as the plan's merging table asks; the rules catalogs, which
+  tests read and help links target, stay whole in the family files.
+- **CI is XamlQuality's workflow, its jobs renamed** `build` (the three-OS matrix), `pack`,
+  `conventions` and `Verification tools`, and `requiredChecks` follows.
+- **`XamlQuality.csproj` sets `IsTrimmable` and `EnableTrimAnalyzer` false**, with a `Trimming`
+  exemption in `.github/repository.json`, by decision 19: under AssemblyQuality's
+  `src/Directory.Build.props` the trim analyser reports 106 errors in the library (IL2026, IL2059,
+  IL2065, IL2070, IL2075). The exemption goes when Templates' `plans/00008` side 2 lands for it.
+- **`System.Security.Cryptography.Pkcs` is pinned at `10.0.14`** in `Directory.Packages.props`.
+  `Microsoft.CodeAnalysis.Analyzer.Testing` brings it in through `NuGet.Packaging` `7.0.3` at
+  `9.0.6`, which GHSA-2fmv-rv2c-59x7 (moderate) and GHSA-846f-f764-76mx (high), published
+  2026-10-13, make a restore error here. CodeQuality's own `main` has failed restore the same way
+  since then, unseen because nothing was pushed there.
+- **The hand-written `InternalsVisibleTo` grants are gone** from XamlQuality's
+  `Properties/AssemblyInfo.cs` and CodeQuality's project; the generated
+  `AssemblyInfo.InternalsVisibleTo.cs` covers both, and the conventions check fails on a hand-written
+  grant beside it.
+- **`PublicVersion` is set in `Directory.Build.targets`**, Templates' canonical file, not in the
+  root props.
+- **XamlQuality's earlier tags stay `v…`**, by decision 15, so its first `xamlquality/v…` release
+  finds no earlier tag of the family, and its notes say it is the family's first release.
+- **Each family's test that reads "every shipped assembly" reads its own family's `src` folders**,
+  and the packaging tests assert the canonical release: the ids from `release-target.cs`, never named
+  by hand.
+- **The drivable-ui marketplace keeps its name, `xamlquality`**: renaming it would break every
+  machine that added it. Only the repository its install command names changed.
+
+## XamlQuality
+
+Pull request and issue numbers in this section are this repository's own, from before it was renamed.
+
+### Status
 
 | | |
 |---|---|
-| Published | `2026.4.1026`: `Bennewitz.Ninja.XamlQuality`, `Bennewitz.Ninja.XamlQuality.ThemeAudit` and `Bennewitz.Ninja.XamlQuality.ThemeRuntime`, released 2026-10-26, called for by the developer that day for issue #92. What it changed for a consumer is in its [release notes](https://github.com/JanusMael/Bennewitz.Ninja.XamlQuality/releases/tag/v2026.4.1026) |
+| Published | `2026.4.1026`: `Bennewitz.Ninja.XamlQuality`, `Bennewitz.Ninja.XamlQuality.ThemeAudit` and `Bennewitz.Ninja.XamlQuality.ThemeRuntime`, released 2026-10-26, called for by the developer that day for issue #92. What it changed for a consumer is in its [release notes](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/releases/tag/v2026.4.1026) |
 | `main` | carries nothing unreleased |
-| Next release | Not scheduled; the developer calls for one. One release per calendar day |
+| Next release | Not scheduled; the developer calls for one, from an `xamlquality/vYYYY.Q.MMDD` tag; its notes, finding no earlier tag of the family, say it is the family's first. One release per calendar day |
 | Order of work | The developer's order of 2026-10-15 is done: the brand catalogue's generator, as a `theme-audit` output, by [plan 00004](plans/00004-brand-catalogue.md), in PR #84 and PR #85, released in `2026.4.1026`. Replies and entries for other repositories go out as small pull requests from `main` |
-| What a release publishes | The ids in `packages.push`, the three packages above; `packages.local`, for an id that packs and must never be published, is empty. The release's preflight list, its push and its GitHub Release read `packages.push`, and the release and CI's `pack` job check what was packed against both lists with `scripts/assert-packages.cs`, as the family template `bbpkg` does, since PR #94, step 2 of Templates' `plans/00009`, the consolidation of the family's NuGet repositories. Its later steps, this repository renamed `Bennewitz.Ninja.Inspections` and AssemblyQuality and CodeQuality moved into it, have not started |
-| Agent skill | `drivable-ui`, served from `main` as a Claude Code plugin since PR #47, by the developer's decision of 2026-09-29: `claude plugin marketplace add JanusMael/Bennewitz.Ninja.XamlQuality`, then `claude plugin install drivable-ui@xamlquality`. It is in neither package, so it ships on merge, not on a tag |
+| What a release publishes | The family's ids, the three packages above, as `families` in `.github/repository.json` names them: `scripts/release-target.cs` resolves them from the tag, and `scripts/assert-packages.cs --family xamlquality` checks the pack against them. `packages.push` lists every family's ids, and `packages.local` is empty. XamlQuality gained `packages.push` in PR #94, step 2 of Templates' `plans/00009`; step 5 brought AssemblyQuality and CodeQuality here, under *Merged into Inspections* above |
+| Agent skill | `drivable-ui`, served from `main` as a Claude Code plugin since PR #47, by the developer's decision of 2026-09-29: `claude plugin marketplace add JanusMael/Bennewitz.Ninja.Inspections`, then `claude plugin install drivable-ui@xamlquality`. It is in neither package, so it ships on merge, not on a tag |
 | Verification tooling | Under `tools/`, by [`plans/00001`](plans/00001-verification-tooling.md), complete: the real-code comparison, `tools/real-code.cs`, since PR #53; the mutation runner, `tools/mutate.cs`, since PR #54; and the headless probe, `tools/probe.cs` over `tools/probe/`, since PR #56. CI's required `Verification tools` job runs the first two and builds the third. Where they depart from the plan is listed below |
 
-### Where the verification tooling departs from plan 00001
+#### Where the verification tooling departs from plan 00001
 
 - `--from` reads a local clone with `git clone --shared` and a checkout, not with `git archive`, so
   that an input fetched and one taken from a clone are both git checkouts when they build.
@@ -32,7 +104,7 @@ released, who depends on what, and the rule backlog with any questions open for 
   asked for all. `W03b` reads as a skip, because the probe is now one assembly holding every
   review's types; the follow-up on `W03b` below says how.
 
-### Where `BNXQ1003` departs from plan 00002
+#### Where `BNXQ1003` departs from plan 00002
 
 - Decision 5 made two scanned types of one simple name one entry, as they were to the rule. Since
   PR #79, by the developer's assessment of 2026-10-14, such a name is no entry: the rule reads a
@@ -40,7 +112,7 @@ released, who depends on what, and the rule backlog with any questions open for 
   theme of the name in `Skipped`, and the reading names the name in its own `Skipped` where parts were
   found. Decision 7's list of what the reading's `Skipped` holds gains that kind.
 
-### Where PR #84 departs from plan 00004
+#### Where PR #84 departs from plan 00004
 
 - Decision 2's reason for leaving `AuditColor.CompositeOver` as it is, that a blend cannot differ from
   the renderer's, does not hold. Headless on Avalonia 12.1.3, a translucent solid brush takes Skia's
@@ -63,7 +135,7 @@ released, who depends on what, and the rule backlog with any questions open for 
   `ResourceValue.Alias.FromColor` land in PR #84, with decision 3, which reads through them; the rest
   of decision 11 is the brand output's.
 
-### Where PR #85 departs from plan 00004
+#### Where PR #85 departs from plan 00004
 
 - Step 3's check renamed nine of the port's placeholders, not two. Besides `{{SEMI …}}` and
   `{{PALETTE_SWATCHES}}`, the seven placeholders of the language that name one of the port's search
@@ -97,14 +169,14 @@ released, who depends on what, and the rule backlog with any questions open for 
   file-based program's default, native AOT, turns off the reflection `AuditConfig.Load` reads its JSON
   with. The README says so.
 
-### On `main`, not yet released
+#### On `main`, not yet released
 
 Every change after the `v2026.4.1026` tag (`7fd3306`) that a consumer can see; this repository's own
 working documents are left out. A change that makes a rule stricter or adds API goes here with its
 effect on a consumer, so the release that carries it can say so. `main` takes squash and rebase
 merges only, and both give a branch's commits new hashes, so a row cites its pull request.
 
-## Consumers inside the family
+### Consumers inside the family
 
 `2026.3.925` renamed the rule ids: what `2026.3.924` shipped as `XQ1001` to `XQ1004` is `BNXQ1001`
 to `BNXQ1004` from it on. Each entry below keeps the ids of the release it pins, and a consumer that
@@ -151,7 +223,7 @@ moves its pin past `2026.3.924` renames them in its test names, messages and com
   proposed the peer check, written as `BNXQ1006` in PR #27, and the reading of a helper's lookups that
   `BNXQ1003` gained in PR #30.
 
-## Requests from other repositories
+### Requests from other repositories
 
 Every request another repository has made of this one, with the date it arrived, so that its age is
 seen. A lesson for `docs/avalonia-gotchas.md` or `docs/ai-drivable-ui.md` is checked before it lands,
@@ -194,7 +266,7 @@ documents, by the developer's decision of 2026-10-12.
 | 2026-10-21 | Issue #93, from the WPF-to-Avalonia port | `FindResource(key)` passes no theme variant, so in a dark application a control gets Semi's light `FlyoutBackground`: measured once, headless on Linux on Avalonia 12.1.3 with Semi.Avalonia 12.1.0.1, the cause read in the source at the tag; it extends the entry on a themed resource looked up with a null variant | Landed in PR #96 as the port measured or read it, not reproduced here, by the developer's decision of 2026-10-14, in the entry it extends, whose heading stays. Its static part, a call to the overloads that pass no variant, went on the rule backlog by the developer's decision of 2026-10-26. The outcome went to the port's live session that day |
 | 2026-10-26 | Issue #95, from the WPF-to-Avalonia port | A `VirtualizingPanel` that prepares a container again deselects it and leaves it drawing its old item: measured headless on Linux on Avalonia 12.1.3, each case red in a fixture before the fix and green after it, the causes read in the source at the tag; with an item removed from the source being deselected by design, read there too | Landed in PR #96 as the port measured or read it, not reproduced here, by the developer's decision of 2026-10-14, as an entry under *Virtualization / perf*. It has no static part: whether a panel prepares a container again is decided by its code as it runs. The outcome went to the port's live session that day |
 
-## Rule backlog
+### Rule backlog
 
 Ids are permanent, and the README's rules table is generated from them, so an id is assigned only
 when a rule is written.
@@ -268,13 +340,13 @@ startup assertion or a headless test. Nor is the `LogToTrace()` call the logging
 against, by the developer's decision of 2026-10-14: it is C# start-up code too, and the family's
 template already leaves it out.
 
-## Questions for the developer
+### Questions for the developer
 
 - **Is the theme audit check held on 2026-10-19 written?** It waited on a reading of how a
   `StaticResource` inside a theme's own dictionary resolves, which the port sent on 2026-10-20, in the
   requests above. The follow-up below says what the check would report.
 
-## Follow-ups
+### Follow-ups
 
 - **A theme audit check for a key a theme's controls read only through its own aliases, held (the
   developer, 2026-10-19).** A consumer that redefines such a key, as Semi's `SemiColorPrimary`, which
@@ -485,3 +557,131 @@ template already leaves it out.
   that entry's own fix says `_NET_WM_ICON` is written. And "`XDG_SESSION_TYPE` distinguishes Wayland
   from X11" names the session, where `TryGetPlatformHandle()?.HandleDescriptor`, `XID` or none,
   tells the backend, as PR #64's measurement printed.
+
+## AssemblyQuality
+
+Pull request numbers in this section are AssemblyQuality's own, in
+JanusMael/Bennewitz.Ninja.AssemblyQuality.
+
+### Status
+
+| | |
+|---|---|
+| Published | `2026.3.929`, released 2026-09-29 and verified from the feed, its tag now `assemblyquality/v2026.3.929`. It added `BNAQ1005` (#12) and `BNAQ1006` (#13), by [plan 00001](plans/assemblyquality/00001-friend-grant-rules.md), now complete |
+| Not yet released | #17, Templates' solution-wide friend grants (`plans/00006`): the shipped `AssemblyQuality.dll` grants its internals to the repository's own assembly names, now this repository's, and every fixture opts out. Then the move, under *Merged into Inspections* above |
+| Next release | On the maintainer's word, from an `assemblyquality/vYYYY.Q.MMDD` tag. One release per calendar day, three-part `YYYY.Q.MMDD`: a fourth part is AutoVersioning's `HHmm` build stamp, not a patch counter |
+
+### Next
+
+1. **A later Templates plan** sets the provider-side `BNAQ1006` convention: which repositories declare
+   their published consumers, and where the release check lives. The wiring it builds on is in
+   `docs/assemblyquality.md`'s `BNAQ1006` section, and plan 00001's step 2 findings below. Nothing to
+   do here until it exists.
+
+### Friend grants across the family
+
+Decided 2026-09-28, with Templates' `plans/00006`.
+
+| Decision | Choice |
+|---|---|
+| Split | Templates owns the policy; AssemblyQuality provides configurable checks, the `BNAQ1003` / `LayeringTests.Tiers` shape |
+| Within a solution | Every project grants to every other, test projects included; grants between product projects are encouraged. `internal` then means solution-internal, so a member no other assembly may reach is `private` |
+| Across repositories | Internals may be granted to the maintainer's other repositories wherever that reduces friction, declared in the External file |
+| Signing | None. A grant is matched by assembly name, and on modern .NET public signing satisfies a keyed grant without the private key, so neither is a security boundary. Grants name only assemblies the family ships, and public consumers get none |
+| Name collisions | Accepted and documented (2026-09-28). Family assembly names are unprefixed, so a public assembly that happens to share one would receive its grants; names such as `AppServices.Tests` make that unlikely |
+| Version skew | An internal another repository uses is an informal promise: its owner does not change it without releasing the consumer. **`BNAQ1006` runs at the provider's release** (revised 2026-09-28), loading the already-published consumers beside the new build; in the consumer's own tests a removed internal is a compile error first, so the rule could almost never fail there |
+| `BNAQ1005`'s allowed names | The solution's own assemblies plus the External file's names, supplied by the repository's test. No family registry for now |
+| Existing repositories | Each moves over when it next syncs the Templates conventions. AppServices, FileServer and ScopedEditors document "grants to tests only" and rewrite those rules then |
+| Order | Plans, then the Templates convention, then `BNAQ1005`, then `BNAQ1006` |
+
+### Plan 00001's step 2 findings, for the provider-side convention
+
+Measured with a throwaway provider and consumer in the scratchpad, not in this repository. The consumer
+was compiled against provider v1 and loaded beside each variant in its own `AssemblyLoadContext`, and its
+references were resolved and then **called**, so the runtime's verdict was the ground truth:
+
+| Provider variant | `Module.ResolveMember` / `ResolveType` | Calling the consumer |
+|---|---|---|
+| Unchanged | every reference resolves; internals report as `internal` | runs |
+| A member removed | `MissingMethodException` on that member only | the same `MissingMethodException` |
+| A type removed | `TypeLoadException` on the type **and on every member reference through it** | the same `TypeLoadException` |
+| The grant withdrawn | **every reference resolves**: resolution does not check access | `MethodAccessException` |
+
+- **The resolver fails exactly as the runtime does**, so no signature is decoded by hand.
+- **A removed type is one finding, not one per member.** Every member reference under it throws the
+  same `TypeLoadException`; report the type once and skip its members.
+- **A withdrawn grant is found by the rule itself**: a reference that resolves to a non-public member
+  of an assembly whose `InternalsVisibleTo` no longer names the scanned assembly.
+- **The shared framework** is recognised by location under the runtime's shared-frameworks folder,
+  the parent of `RuntimeEnvironment.GetRuntimeDirectory()`, so ASP.NET Core and WindowsDesktop count
+  as framework too, not only `Microsoft.NETCore.App`.
+- **The provider-side wiring works.** A provider's test project references the provider's source and
+  fetches each published consumer with `<PackageDownload Include="…" Version="[x.y.z]" />`, which
+  downloads without joining the restore graph: its output held exactly one provider, the source build
+  at `2.0.0.0`, with the consumer's own packaged dependency on `1.0.0` absent. A target copies the
+  consumer's `lib/<tfm>/*.dll` from the packages folder, joining the path with `Path.Combine`, since
+  `NuGetPackageRoot` has no trailing slash when `RestorePackagesPath` is overridden. Loaded beside the
+  source build, the unchanged provider passed, the removed member failed, and the withdrawn grant
+  failed.
+
+### Decisions
+
+| Decision | Why |
+|---|---|
+| **Rule IDs are `BN` + the product's initials, with the rule number kept**: `BNAQ` here, `BNXQ` for XamlQuality, `BNCQ` for the CodeQuality analyzers | An analyzer's ID shares one flat namespace with every analyzer a project loads (`#pragma`, `NoWarn`, `.editorconfig`), and a two-letter prefix is the likeliest to collide. Four letters is unique enough and short enough to type; where a rule comes from is also shown by `helpLinkUri`, `Category` and the package id, so the ID need not spell it out |
+| **A prefix never changes once one ID in it has shipped** | Every rename breaks consumers' suppressions. `AQ` → `BNAQ` is the one exception, taken while only `2026.3.922` was published and used only as a test dependency |
+| **Each `BNAQ` rule's section in `docs/assemblyquality.md` links its `BNCQ` counterpart, and keeps its heading** | CodeQuality's README and its shipped help links target those anchors; `RulesCatalogTests.EveryRule_HasAReadmeSectionOfItsOwn` fails if a rule loses its heading |
+
+## CodeQuality
+
+Commits and pull request numbers in this section are CodeQuality's own, in
+JanusMael/Bennewitz.Ninja.CodeQuality.
+
+### Status
+
+| | |
+|---|---|
+| Published | `2026.3.928`, released 2026-09-28 and verified from the feed, its tag now `codequality/v2026.3.928`. `BNCQ1001`, `BNCQ1002` and `BNCQ1004`; each rule's help link resolves to its section of the archived repository's README |
+| Not yet released | Nothing of its own since `2026.3.928`. The move, under *Merged into Inspections* above |
+| Next release | On the maintainer's word, from a `codequality/vYYYY.Q.MMDD` tag, once the family has a change of its own |
+
+### Decisions
+
+Settled with the maintainer on 2026-09-25, first recorded in AssemblyQuality's `PROGRESS.md`, except
+where a row says otherwise.
+
+| Decision | Choice | Why |
+|---|---|---|
+| Scope | Roslyn analyzers only. Code generators go elsewhere, such as beside Bennewitz.Ninja.AutoVersioning | One kind of package, one kind of test |
+| Source | A clean-room rewrite. Analyzers the maintainer wrote for another project were read for ideas, patterns and the traps their documentation records; no code, names, IDs or links were carried over | |
+| Base class | `ScopedAnalyzer<TScope>`, internal: a sealed `Initialize` that enables concurrent execution and sets generated-code handling, a gate that returns null to stay inert and receives nothing it could register on, and a hook that registers only in scope. `AnalyzerConventionTests` fails on any analyzer that does not derive from it | The compiler loads the assembly whole and runs every analyzer in it in every compilation. Generic, because every analyzer here is internal, so its scope type can be internal too and reaches the hook without a cast; a public analyzer would force its scope type public |
+| Scaffolding | Generated with `bbpkg`, adapted to an analyzer, released, and only then upstreamed to Bennewitz.Ninja.Templates as a third template beside `bbpkg` and `bbavalonia` | The shape is proved by a release before it is copied |
+| First rules | Source-side counterparts of `BNAQ1004`, `BNAQ1001` (opt-in: a policy, not a defect) and `BNAQ1002` (with a transitive member walk). Not `BNAQ1003` | A forbidden use site at compile time is `Microsoft.CodeAnalysis.BannedApiAnalyzers`' job already |
+| Rule IDs | Prefix `BNCQ`: `BN` plus the product's initials, the family scheme. Once one ID ships, the prefix never changes. Each rule's README section links its `BNAQ` counterpart, and AssemblyQuality's README links back | One flat namespace of IDs across every analyzer a project loads |
+| Rule numbers | **Mirror `BNAQ`**: `BNCQ1004` is `BNAQ1004`'s counterpart. `BNCQ1003` is reserved. Decided by the maintainer in this repository's first session | A consumer who knows one rule knows the other |
+| Where a rule comes from | `helpLinkUri` (its README section), `Category` `Bennewitz.Ninja.CodeQuality`, and the package id, not a longer ID | |
+| Roslyn pin | **`4.14.0`**, matching AutoVersioning. Decided by the maintainer in this repository's first session | Since `BNCQ1002` reads extension-block receivers, 4.14 is also the oldest the rules can use: the members it reads first appear there, and `4.13.0` cannot compile them. Before that change they built and passed on `4.0.1`, `4.4.0`, `4.8.0` and `4.14.0`, and `3.11.0` could not compile them. The suite also passes against `5.9.0`. A consumer needs Visual Studio 2022 17.14 or a .NET 9.0.3xx SDK. Measured on SDK `8.0.425` (Roslyn 4.11): `CS9057`, the analyzer is skipped, and the build succeeds |
+| Extension blocks in one build | Read through the members Roslyn 4.14 declares on `ITypeSymbol`, not a second build for Roslyn 5. Decided by the maintainer on 2026-09-25 | Measured: those members survive in 5.9 beside the new `INamedTypeSymbol` pair, and the shipped 4.14 build reads receivers correctly inside the .NET 10 compiler. Dual `roslynX.Y` folders, measured working with CommunityToolkit.Mvvm on SDKs 9 and 10, are for an API the pin lacks entirely |
+| Trimming | The analyzer's csproj sets `IsTrimmable` and `EnableTrimAnalyzer` false | The SDK warns `NETSDK1212` for both on `netstandard2.0`, and CI builds with `-warnaserror`; `repo-conventions` holds only libraries to trimming |
+| Tests on the pin | The tests reference `Microsoft.CodeAnalysis.CSharp.Workspaces` at `RoslynVersion` | The testing package floors it at `1.0.1`; without the pin the restore fails with `NU1701` |
+| No package dependencies | `SuppressDependenciesWhenPacking` | Every reference is build-only, so pack wrote an empty dependency group and failed with `NU5128`; an analyzer cannot load a package dependency anyway |
+| Release tracking | `AnalyzerReleases.Unshipped.md` and `AnalyzerReleases.Shipped.md` from the first release | AutoVersioning left its shipped file empty across three releases |
+| Help links | Name the rule's section in `docs/codequality.md` here, since the move. The sections in the archived repository's README stay, for the links `2026.3.928` shipped | A help link is compiled into every consumer's build of a released version and cannot be changed after |
+
+### Measured before the first release
+
+On `af80b7b`, after an independent verification pass that found five rule defects, each fixed with
+a test that failed first.
+
+| What | Result |
+|---|---|
+| The rules against older Roslyn | Build and pass on `4.0.1`, `4.4.0`, `4.8.0` and `4.14.0`; `3.11.0` cannot compile them |
+| The compiler each installed SDK ships | `5.0.408`: 3.11; `6.0.428`: 4.3; `7.0.410`: 4.7; `8.0.425`: 4.11; `9.0.318`: 4.14; `10.0.401`: 5.9 |
+| A consumer of the packed package | SDK `10.0.401` and `9.0.318`: all three rules fire. SDK `8.0.425`: `CS9057`, the analyzer is skipped, and the build succeeds |
+| Seven family repositories, copied, with the analyzer injected into every project and `BNCQ1001` enabled | AssemblyQuality: 8 findings, all in its own `BNAQ` fixtures; `Orphaned.cs` is a shadow its reflection rule is documented as unable to see. DiffView: 2 `BNCQ1001`, `DiffDocumentBuilder.Build` and `DiffSearch.Find`. JsonC: 2 `BNCQ1002`, `JsonNode` in a JSON editor's API by design. XamlQuality, AppServices, ScopedEditors and FileServer: none, with the analyzer confirmed in every project. No `AD0001` anywhere. DiffView's build stopped at a test project's step that clones reference sources, on a path too long for the copy, after all five of its projects had compiled; GeoHash was not built, because it needs a package that is not on nuget.org |
+
+### Waiting on others
+
+| Sent to | What |
+|---|---|
+| The Templates session, 2026-09-25 | The measured differences from `bbpkg` for a third template, an analyzer's: the diff `e457b5d..v2026.3.925`, with what each change is for. Acknowledged the same day; the analyzer template is a candidate for a later plan there. Nothing here waits on it |

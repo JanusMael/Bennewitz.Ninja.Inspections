@@ -12,6 +12,8 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>theme-audit</ToolCommandName>
     <PackageId>Bennewitz.Ninja.XamlQuality.ThemeAudit</PackageId>
+    <AssemblyProduct>XamlQuality</AssemblyProduct>
+    <FamilyReadme>docs/xamlquality.md</FamilyReadme>
     <IsPackable>true</IsPackable>
     <Description>
       Command-line face of Bennewitz.Ninja.XamlQuality: audits an Avalonia, WPF or MAUI theme
