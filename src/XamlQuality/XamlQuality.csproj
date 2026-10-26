@@ -3,6 +3,8 @@
     <OutputType>Library</OutputType>
     <IsPackable>true</IsPackable>
     <PackageId>Bennewitz.Ninja.XamlQuality</PackageId>
+    <AssemblyProduct>XamlQuality</AssemblyProduct>
+    <FamilyReadme>docs/xamlquality.md</FamilyReadme>
     <AssemblyName>XamlQuality</AssemblyName>
     <Description>
       Static analysis rules for XAML markup quality: accessibility names, theme-token
@@ -20,6 +22,13 @@
     </Description>
     <PackageTags>xaml;avalonia;wpf;maui;accessibility;theme;analysis;quality;lint</PackageTags>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- ⛔ Not yet trimmable, so it says so rather than shipping the claim src/Directory.Build.props
+         makes for every library: it reads types and IL by reflection (ElementTypes, CompiledStrings),
+         and the trim analyser reports 106 places (IL2026, IL2070, IL2075, IL2059, IL2065), measured
+         2026-10-26. Exempted in .github/repository.json under props, by plans/00009 decision 19,
+         until plans/00008 side 2 makes it trim-clean; then these two lines and the exemption go. -->
+    <IsTrimmable>false</IsTrimmable>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
   </PropertyGroup>
 
   <ItemGroup>

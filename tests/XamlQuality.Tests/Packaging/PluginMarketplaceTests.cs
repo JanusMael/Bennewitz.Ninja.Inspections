@@ -146,7 +146,7 @@ public sealed class PluginMarketplaceTests
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);
 
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "XamlQuality.slnx")))
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Inspections.slnx")))
         {
             directory = directory.Parent;
         }

@@ -18,8 +18,11 @@ env:
   AVALONIA_TELEMETRY_OPTOUT: 1
 
 jobs:
-  build-and-test:
-    name: Build & Test (${{ matrix.os }})
+  # ⚠ The family's job names, `build`, `pack` and `conventions`; each is a required check in
+  # .github/repository.json, `build` once per operating system. Renaming one means changing that list
+  # and running `repo-conventions apply` in the same change, or every pull request blocks.
+  build:
+    name: build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -35,18 +38,18 @@ jobs:
           global-json-file: global.json
 
       - name: Build
-        run: dotnet build XamlQuality.slnx -c Release --nologo -warnaserror
+        run: dotnet build Inspections.slnx -c Release --nologo -warnaserror
 
-      # ⚠ Three operating systems, and that is not ceremony for a library with no platform
-      # code. These rules compare and normalise PATHS, and path separators and case sensitivity
-      # differ per OS — a rule that scans "src/Views" resolves on Linux and silently matches
+      # ⚠ Three operating systems, for all three families, and that is not ceremony for libraries
+      # with no platform code. XamlQuality's rules compare and normalise PATHS, and path
+      # separators and case sensitivity differ per OS — a rule that scans "src/Views" resolves on
+      # Linux and silently matches
       # nothing on a case-sensitive filesystem if it was written against Windows. That class of
       # bug only ever appears in a consumer's CI.
       - name: Test
-        run: dotnet test --solution XamlQuality.slnx --no-build -c Release
+        run: dotnet test --solution Inspections.slnx --no-build -c Release
 
   pack:
-    name: Pack (verify the packages build)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -62,7 +65,7 @@ jobs:
       # and finding it during a release means finding it at the one moment the version is
       # already immutable.
       - name: Pack
-        run: dotnet pack XamlQuality.slnx -c Release --nologo /p:Version=0.0.0-ci --output ./packages/ci
+        run: dotnet pack Inspections.slnx -c Release --nologo /p:Version=0.0.0-ci --output ./packages/ci
 
       - name: List packages
         run: ls -l ./packages/ci

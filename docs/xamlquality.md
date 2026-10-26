@@ -57,7 +57,7 @@ Avalonia either.
 
 The table above is rendered from the rule types — `Id` and `Summary` on each `IXamlRule` — and a
 test fails if it drifts. Regenerate it with `XQ_UPDATE_DOCS=1 dotnet test --solution
-XamlQuality.slnx` and commit the result. Everything below the markers is written by hand, because
+Inspections.slnx` and commit the result. Everything below the markers is written by hand, because
 none of it is a property of any single rule.
 
 **The ids carry the family's prefix.** Every id is `BN`, for the family, then `XQ`, this product's
@@ -435,9 +435,9 @@ repository.
 
 ## Publishing
 
-See [docs/publishing.md](docs/publishing.md) — one-time trusted-publishing setup, the version rule,
+See [docs/publishing.md](publishing.md) — one-time trusted-publishing setup, the version rule,
 and what to check after a release.
 
 ## Licence
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](../LICENSE).

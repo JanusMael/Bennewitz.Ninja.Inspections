@@ -13,6 +13,8 @@
     <!-- The id below is derived from the stem passed to `dotnet new bbpkg -n <Stem>`; the assembly
          name stays the bare stem, which is the convention across these repos. -->
     <PackageId>Bennewitz.Ninja.CodeQuality</PackageId>
+    <AssemblyProduct>CodeQuality</AssemblyProduct>
+    <FamilyReadme>docs/codequality.md</FamilyReadme>
     <AssemblyName>CodeQuality</AssemblyName>
     <Description>Roslyn analyzers for the shape of a .NET library's source: namespace segments that shadow a referenced root namespace, implementation types leaking into the public surface, and cancellation tokens a caller can leave out. The source-side companion to Bennewitz.Ninja.AssemblyQuality.</Description>
     <PackageTags>analyzers roslyn code-quality static-analysis api-design</PackageTags>
@@ -46,8 +48,9 @@
     <!-- Release tracking (RS2007/RS2008): every rule is recorded, from the first release on. -->
     <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
     <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
-    <!-- The analyzers and their base are internal, so the tests need this to instantiate them. -->
-    <InternalsVisibleTo Include="CodeQuality.Tests" />
+    <!-- The analyzers and their base are internal; the tests reach them through the repository's
+         friend grants, AssemblyInfo.InternalsVisibleTo.cs at the root, which grants every assembly
+         the solution builds. -->
   </ItemGroup>
 
   <ItemGroup>

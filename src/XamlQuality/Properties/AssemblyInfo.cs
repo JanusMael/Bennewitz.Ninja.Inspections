@@ -1,6 +1,6 @@
-using System.Runtime.CompilerServices;
-
-// The CLI face of this library, which reaches the seven genuinely internal helpers below.
+// What this library's surface promises. It declares no friend grant: the repository's
+// AssemblyInfo.InternalsVisibleTo.cs grants every assembly the solution builds, ThemeAudit, the CLI
+// face, and XamlQuality.Tests among them.
 //
 // ⛔ THE AUDIT SURFACE IS PUBLIC, AND HAS BEEN SINCE 2026.3.920. Whatever the intent, that is what
 // shipped: 53 public top-level types under ThemeAudit/ against 7 internal. AuditRunner,
@@ -14,12 +14,10 @@ using System.Runtime.CompilerServices;
 // 2026.3.920.
 //
 // Internal, and staying that way: NamedColors, XamlFiles, ResourceKeyScanner, ThemeGraphWalker,
-// ResourceKey, VariantId, WalkResult.
-[assembly: InternalsVisibleTo("ThemeAudit")]
-
+// ResourceKey, VariantId, WalkResult. ThemeAudit, the CLI face, reaches them through the grant.
+//
 // The test project asserts against the ported analysis directly, exactly as it did before the
 // move — which is what makes those fourteen files evidence that the move changed no behaviour.
-[assembly: InternalsVisibleTo("XamlQuality.Tests")]
 
 // The rules' surface is public as well, and as permanent: each IXamlRule, the scan model, and
 // BNXQ1003's reading, TemplatePartRule.ReadParts with its six types, TemplatePartReading,

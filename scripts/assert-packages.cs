@@ -11,19 +11,58 @@
 // "Widget" from one ending in "Widget.2026". A guard that splits on dots is wrong in exactly the
 // cases it exists to catch.
 //
-// Usage:  dotnet run scripts/assert-packages.cs -- <packages-directory>
+// ⭐ A FAMILY'S RELEASE packs only that family's projects, so with --family the declaration is that
+// family's entry in .github/repository.json's "families", and nothing else may have been packed: an
+// id of another family, or one of packages.local, is as unexpected there as an undeclared one.
+//
+// Usage:  dotnet run scripts/assert-packages.cs -- <packages-directory> [--family <family>]
 
 using System.IO.Compression;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Xml.Linq;
 
-string packagesDirectory = args.Length > 0 ? args[0] : Path.Combine("packages", "Release");
+string? packagesDirectory = null;
+string? family = null;
+for (int i = 0; i < args.Length; i++)
+{
+    if (args[i] == "--family" && i + 1 < args.Length)
+    {
+        family = args[++i].Trim().ToLowerInvariant();
+    }
+    else if (packagesDirectory is null && !args[i].StartsWith("--", StringComparison.Ordinal))
+    {
+        packagesDirectory = args[i];
+    }
+    else
+    {
+        return Fail($"Unknown or incomplete argument '{args[i]}'. Usage: assert-packages <packages-directory> [--family <family>]");
+    }
+}
+packagesDirectory ??= Path.Combine("packages", "Release");
 string repoRoot = Directory.GetCurrentDirectory();
 
-HashSet<string> declared =
-[
-    .. ReadList(Path.Combine(repoRoot, "packages.push")),
-    .. ReadList(Path.Combine(repoRoot, "packages.local")),
-];
+HashSet<string> declared;
+string declaredWhere;
+if (family is null)
+{
+    declared =
+    [
+        .. ReadList(Path.Combine(repoRoot, "packages.push")),
+        .. ReadList(Path.Combine(repoRoot, "packages.local")),
+    ];
+    declaredWhere = "packages.push or packages.local";
+}
+else
+{
+    string[]? ids = FamilyIds(Path.Combine(repoRoot, ".github", "repository.json"), family, out string? problem);
+    if (ids is null)
+    {
+        return Fail(problem!);
+    }
+    declared = new HashSet<string>(ids, StringComparer.OrdinalIgnoreCase);
+    declaredWhere = $"the {family} family in .github/repository.json";
+}
 
 if (!Directory.Exists(packagesDirectory))
 {
@@ -40,7 +79,7 @@ if (produced.Length == 0)
     return Fail($"No .nupkg files in '{packagesDirectory}'. A release that publishes nothing is a failure, not a no-op.");
 }
 
-HashSet<string> packed = [];
+HashSet<string> packed = new(declared.Comparer);
 
 foreach (string package in produced)
 {
@@ -54,24 +93,26 @@ foreach (string package in produced)
     packed.Add(id);
 }
 
-string[] unexpected = [.. packed.Except(declared).Order()];
-string[] missing = [.. declared.Except(packed).Order()];
+string[] unexpected = [.. packed.Except(declared, declared.Comparer).Order()];
+string[] missing = [.. declared.Except(packed, declared.Comparer).Order()];
 
 if (unexpected.Length > 0)
 {
-    return Fail(
-        "Packed but declared nowhere: " + string.Join(", ", unexpected) +
-        ". Add it to packages.push or packages.local before this reaches a push — a published id cannot be withdrawn.");
+    return Fail(family is null
+        ? "Packed but declared nowhere: " + string.Join(", ", unexpected) +
+          ". Add it to packages.push or packages.local before this reaches a push — a published id cannot be withdrawn."
+        : $"Packed but not in {declaredWhere}: " + string.Join(", ", unexpected) +
+          ". A family's release packs only that family's projects.");
 }
 
 if (missing.Length > 0)
 {
     return Fail(
-        "Declared but not packed: " + string.Join(", ", missing) +
+        $"Declared in {declaredWhere} but not packed: " + string.Join(", ", missing) +
         ". The push names it explicitly, so the release would fail on a file that does not exist.");
 }
 
-Console.WriteLine($"Packages check out: {packed.Count} packed, all declared.");
+Console.WriteLine($"Packages check out: {packed.Count} packed, all declared in {declaredWhere}.");
 foreach (string id in packed.Order())
 {
     Console.WriteLine($"  {id}");
@@ -83,6 +124,46 @@ static string[] ReadList(string path) =>
     File.Exists(path)
         ? [.. File.ReadLines(path).Select(line => line.Trim()).Where(line => line.Length > 0 && !line.StartsWith('#'))]
         : [];
+
+// The family's ids, matching its stem without regard to case, as the release resolves it.
+static string[]? FamilyIds(string path, string family, out string? problem)
+{
+    problem = null;
+    JsonObject? families;
+    try
+    {
+        families = File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path))?["families"] as JsonObject : null;
+    }
+    catch (JsonException error)
+    {
+        problem = ".github/repository.json is not valid JSON: " + error.Message;
+        return null;
+    }
+    if (families is null)
+    {
+        problem = $"--family {family}, but .github/repository.json declares no families.";
+        return null;
+    }
+
+    foreach ((string stem, JsonNode? ids) in families)
+    {
+        if (stem.Equals(family, StringComparison.OrdinalIgnoreCase))
+        {
+            string[] list = ids is JsonArray array
+                ? [.. array.Select(n => n is JsonValue value && value.TryGetValue(out string? id) ? id.Trim() : "").Where(id => id.Length > 0)]
+                : [];
+            if (list.Length == 0)
+            {
+                problem = $"The {family} family in .github/repository.json lists no ids.";
+                return null;
+            }
+            return list;
+        }
+    }
+
+    problem = $"--family {family}, which .github/repository.json does not declare; it declares {string.Join(", ", families.Select(f => f.Key))}.";
+    return null;
+}
 
 static string? IdOf(string packagePath)
 {

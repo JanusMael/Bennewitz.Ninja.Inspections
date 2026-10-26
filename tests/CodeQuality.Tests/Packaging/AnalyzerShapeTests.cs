@@ -46,7 +46,7 @@ public sealed class AnalyzerShapeTests
     public void Every_shipped_assembly_has_the_shape_its_role_requires()
     {
         string output = Path.GetDirectoryName(typeof(AnalyzerShapeTests).Assembly.Location)!;
-        string[] projects = [.. Directory.GetFiles(Path.Combine(RepoRoot(), "src"), "*.csproj", SearchOption.AllDirectories)];
+        string[] projects = FamilyProjects();
 
         // ⛔ Without this, an empty src/ would pass every assertion below.
         Assert.NotEmpty(projects);
@@ -100,7 +100,7 @@ public sealed class AnalyzerShapeTests
     [Fact]
     public void Every_analyzer_packs_only_itself_under_analyzers_dotnet_cs()
     {
-        string[] analyzers = [.. Directory.GetFiles(Path.Combine(RepoRoot(), "src"), "*.csproj", SearchOption.AllDirectories).Where(IsAnalyzer)];
+        string[] analyzers = [.. FamilyProjects().Where(IsAnalyzer)];
 
         // ⛔ Without this, a repository whose analyzer lost IsRoslynComponent would pass.
         Assert.NotEmpty(analyzers);
@@ -121,6 +121,16 @@ public sealed class AnalyzerShapeTests
                 name + " does not pack its own DLL under analyzers/dotnet/cs, where the compiler looks for it.");
         }
     }
+
+    /// <summary>
+    /// This family's projects: src/ holds three families, each folder named for its family, and each
+    /// family's tests build only what they reference.
+    /// </summary>
+    private static string[] FamilyProjects() =>
+    [
+        .. Directory.GetDirectories(Path.Combine(RepoRoot(), "src"), "CodeQuality*")
+            .SelectMany(directory => Directory.GetFiles(directory, "*.csproj")),
+    ];
 
     private static string? Property(XDocument document, string name) =>
         document.Descendants(name).LastOrDefault()?.Value.Trim().ToLowerInvariant();

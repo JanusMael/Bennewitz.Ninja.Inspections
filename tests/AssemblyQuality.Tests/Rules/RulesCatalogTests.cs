@@ -128,8 +128,8 @@ public sealed class RulesCatalogTests
         string? dir = AppContext.BaseDirectory;
         for (int i = 0; i < 12 && dir is not null; i++)
         {
-            string candidate = Path.Combine(dir, "README.md");
-            if (File.Exists(candidate) && File.Exists(Path.Combine(dir, "AssemblyQuality.slnx")))
+            string candidate = Path.Combine(dir, "docs", "assemblyquality.md");
+            if (File.Exists(candidate) && File.Exists(Path.Combine(dir, "Inspections.slnx")))
             {
                 return candidate;
             }

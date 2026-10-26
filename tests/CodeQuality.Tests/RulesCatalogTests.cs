@@ -45,7 +45,7 @@ public sealed class RulesCatalogTests
     [Fact]
     public void Every_rule_has_its_section_in_the_README()
     {
-        string readme = File.ReadAllText(Path.Combine(RepoRoot(), "README.md"));
+        string readme = File.ReadAllText(Path.Combine(RepoRoot(), "docs", "codequality.md"));
 
         foreach (DiagnosticDescriptor rule in Rules())
         {
@@ -56,7 +56,7 @@ public sealed class RulesCatalogTests
     [Fact]
     public void The_README_rules_table_matches_the_descriptors()
     {
-        string path = Path.Combine(RepoRoot(), "README.md");
+        string path = Path.Combine(RepoRoot(), "docs", "codequality.md");
         string readme = File.ReadAllText(path);
 
         int begin = readme.IndexOf(Begin, StringComparison.Ordinal);

@@ -9,6 +9,8 @@
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <PackageId>Bennewitz.Ninja.XamlQuality.ThemeRuntime</PackageId>
+    <AssemblyProduct>XamlQuality</AssemblyProduct>
+    <FamilyReadme>docs/xamlquality.md</FamilyReadme>
     <AssemblyName>XamlQuality.ThemeRuntime</AssemblyName>
     <Description>
       The runtime half of the XamlQuality theme audit, as source files an Avalonia test project

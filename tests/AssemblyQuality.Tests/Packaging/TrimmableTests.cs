@@ -28,7 +28,10 @@ public sealed class TrimmableTests
 
         string[] projects =
         [
-            .. Directory.GetFiles(Path.Combine(RepoRoot(), "src"), "*.csproj", SearchOption.AllDirectories)
+            // This family's projects only: src/ holds three families, each folder named for its
+            // family, and each family's tests build only what they reference.
+            .. Directory.GetDirectories(Path.Combine(RepoRoot(), "src"), "AssemblyQuality*")
+                .SelectMany(directory => Directory.GetFiles(directory, "*.csproj"))
                 .Select(Path.GetFileNameWithoutExtension)
                 .Select(name => name!),
         ];

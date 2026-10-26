@@ -1,20 +1,27 @@
 {
-  "description": "Static analysis rules for XAML markup quality — accessibility names, theme tokens, resource keys and contrast. Dependency-free, no Avalonia reference. Ships as Bennewitz.Ninja.XamlQuality, Bennewitz.Ninja.XamlQuality.ThemeAudit and Bennewitz.Ninja.XamlQuality.ThemeRuntime.",
+  "description": "Static analysis for .NET in three families: XamlQuality for XAML markup, AssemblyQuality for the compiled assembly, and CodeQuality, a Roslyn analyzer, for the source. Ships as Bennewitz.Ninja.XamlQuality, .XamlQuality.ThemeAudit, .XamlQuality.ThemeRuntime, .AssemblyQuality and .CodeQuality.",
   "homepage": "",
   "topics": [
+    "accessibility",
+    "api-surface",
+    "architecture",
+    "avalonia",
     "csharp",
     "dotnet",
+    "layering",
     "nuget",
-    "xaml",
-    "avalonia",
-    "accessibility",
-    "static-analysis"
+    "public-api",
+    "reflection",
+    "roslyn",
+    "roslyn-analyzer",
+    "static-analysis",
+    "xaml"
   ],
   "requiredChecks": [
-    "Build & Test (ubuntu-latest)",
-    "Build & Test (windows-latest)",
-    "Build & Test (macos-latest)",
-    "Pack (verify the packages build)",
+    "build (ubuntu-latest)",
+    "build (windows-latest)",
+    "build (macos-latest)",
+    "pack",
     "conventions",
     "Verification tools"
   ],
@@ -22,7 +29,19 @@
   "undocumented": {
     ".claude-plugin": "Holds only marketplace.json, the manifest Claude Code reads to serve the drivable-ui plugin in docs/ai-drivable-ui/plugin/. docs/AGENTS.md describes both."
   },
+  "families": {
+    "xamlquality": [
+      "Bennewitz.Ninja.XamlQuality",
+      "Bennewitz.Ninja.XamlQuality.ThemeAudit",
+      "Bennewitz.Ninja.XamlQuality.ThemeRuntime"
+    ],
+    "assemblyquality": ["Bennewitz.Ninja.AssemblyQuality"],
+    "codequality": ["Bennewitz.Ninja.CodeQuality"]
+  },
   "props": {
+    "XamlQuality": {
+      "Trimming": "It reads types and IL by reflection (ElementTypes, CompiledStrings), and the trim analyser reports 106 places, measured 2026-10-26. Not trimmable until plans/00008 side 2 makes it trim-clean (plans/00009 decision 19 in Bennewitz.Ninja.Templates)."
+    },
     "XamlQuality.ThemeRuntime.Tests": {
       "ImplicitUsings": "It compiles the runtime theme check's source files as an adopting project that turns implicit usings off would, so a file that leans on one fails here rather than in that project (plans/00003)."
     }

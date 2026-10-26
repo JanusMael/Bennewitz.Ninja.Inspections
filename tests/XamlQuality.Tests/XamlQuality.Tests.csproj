@@ -9,9 +9,8 @@
          restores and builds the source-only package's project: SourceOnlyPackageTests packs it
          without a build, and a pack without a build restores nothing. -->
     <ProjectReference Include="../../src/XamlQuality.ThemeRuntime/XamlQuality.ThemeRuntime.csproj" ReferenceOutputAssembly="false" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Bennewitz.Ninja.AssemblyQuality" />
+    <!-- The AssemblyQuality family's rules, by project rather than at a release, so these tests are
+         gated by its head (plans/00009 decision 18). A test project may reference another family. -->
+    <ProjectReference Include="../../src/AssemblyQuality/AssemblyQuality.csproj" />
   </ItemGroup>
 </Project>

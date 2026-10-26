@@ -2,7 +2,7 @@
 
 What a change to a rule is checked with before it merges, by
 [`plans/00001`](../plans/00001-verification-tooling.md). Nothing here ships: `Directory.Build.props`
-imports the root's and sets `IsPackable` to `false`, and no project here is in `XamlQuality.slnx`.
+imports the root's and sets `IsPackable` to `false`, and no project here is in `Inspections.slnx`.
 
 | Path | What it is | Run by |
 |---|---|---|

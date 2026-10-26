@@ -5,7 +5,7 @@ namespace XamlQuality.Tests.Packaging;
 
 /// <summary>
 /// Avalonia stays in the one project that compiles the runtime theme check's files: no other project in
-/// <c>XamlQuality.slnx</c> takes a package whose id names Avalonia, directly or through another package.
+/// <c>Inspections.slnx</c> takes a package whose id names Avalonia, directly or through another package.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -86,10 +86,10 @@ public sealed class AvaloniaConfinementTests
         ];
     }
 
-    /// <summary>Every project <c>XamlQuality.slnx</c> holds, by its path from the root, written with <c>/</c>.</summary>
+    /// <summary>Every project <c>Inspections.slnx</c> holds, by its path from the root, written with <c>/</c>.</summary>
     private static string[] SolutionProjects(string root) =>
     [
-        .. XDocument.Load(Path.Combine(root, "XamlQuality.slnx"))
+        .. XDocument.Load(Path.Combine(root, "Inspections.slnx"))
             .Descendants("Project")
             .Select(project => project.Attribute("Path")?.Value.Replace('\\', '/'))
             .OfType<string>(),
@@ -103,7 +103,7 @@ public sealed class AvaloniaConfinementTests
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);
 
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "XamlQuality.slnx")))
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Inspections.slnx")))
         {
             directory = directory.Parent;
         }

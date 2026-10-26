@@ -163,13 +163,16 @@ public sealed class AssemblyQualityTests
     }
 
     /// <summary>
-    /// The assembly name of every project under <c>src</c> that ships one: the <c>AssemblyName</c> its
-    /// csproj declares, or the project's file name when it declares none. A source-only project ships
-    /// none, and <see cref="SourceOnlyPackageTests"/> holds its package.
+    /// The assembly name of every XamlQuality project under <c>src</c> that ships one: the
+    /// <c>AssemblyName</c> its csproj declares, or the project's file name when it declares none. A
+    /// source-only project ships none, and <see cref="SourceOnlyPackageTests"/> holds its package.
+    /// src/ holds three families, each folder named for its family; the others' assemblies are not in
+    /// this output, and their own tests hold them.
     /// </summary>
     private static string[] LoadAssemblyNames() =>
     [
-        .. Directory.GetFiles(Path.Combine(RepoRoot(), "src"), "*.csproj", SearchOption.AllDirectories)
+        .. Directory.GetDirectories(Path.Combine(RepoRoot(), "src"), "XamlQuality*")
+            .SelectMany(directory => Directory.GetFiles(directory, "*.csproj"))
             .Where(path => !SourceOnlyPackageTests.DeclaresSourceOnly(path))
             .Select(AssemblyNameOf)
             .Order(StringComparer.Ordinal),
@@ -193,7 +196,7 @@ public sealed class AssemblyQualityTests
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);
 
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "XamlQuality.slnx")))
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Inspections.slnx")))
         {
             directory = directory.Parent;
         }

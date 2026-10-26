@@ -8,7 +8,18 @@
 # ⛔ Every id here must be covered by the repository's ONE trusted-publishing policy. nuget.org
 # mints one API key per token exchange scoped to one matching policy, so a policy per id does not
 # work: the first id publishes permanently and the rest are rejected 403 in the same command.
+#
+# Three families release from this repository, each alone, from its own <family>/v<version> tag:
+# "families" in .github/repository.json says which ids release together, and repo-conventions
+# fails unless its ids are exactly these.
 
+# xamlquality
 Bennewitz.Ninja.XamlQuality
 Bennewitz.Ninja.XamlQuality.ThemeAudit
 Bennewitz.Ninja.XamlQuality.ThemeRuntime
+
+# assemblyquality
+Bennewitz.Ninja.AssemblyQuality
+
+# codequality
+Bennewitz.Ninja.CodeQuality

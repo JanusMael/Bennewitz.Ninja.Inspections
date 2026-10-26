@@ -1,9 +1,16 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/XamlQuality/XamlQuality.csproj" />
+    <Project Path="src/XamlQuality.ThemeAudit/XamlQuality.ThemeAudit.csproj" />
+    <Project Path="src/XamlQuality.ThemeRuntime/XamlQuality.ThemeRuntime.csproj" />
     <Project Path="src/AssemblyQuality/AssemblyQuality.csproj" />
+    <Project Path="src/CodeQuality/CodeQuality.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/XamlQuality.Tests/XamlQuality.Tests.csproj" />
+    <Project Path="tests/XamlQuality.ThemeRuntime.Tests/XamlQuality.ThemeRuntime.Tests.csproj" />
     <Project Path="tests/AssemblyQuality.Tests/AssemblyQuality.Tests.csproj" />
+    <Project Path="tests/CodeQuality.Tests/CodeQuality.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/fixtures/">
     <Project Path="tests/fixtures/Absent/Absent.csproj" />
