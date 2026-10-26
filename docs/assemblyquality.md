@@ -48,24 +48,9 @@ a dependency only it references, or one its neighbours carry and it must not. A 
 assembly by name and then checks that the name matches does not do this: it passes for whatever it
 loaded.
 
-## Releasing
-
-See [docs/publishing.md](publishing.md). The short version:
-
-1. Add the `NUGET_USER` variable — your nuget.org **profile name**, not an email.
-2. Create **one** trusted-publishing policy whose glob patterns cover every id in
-   [`packages.push`](../packages.push) and match nothing in [`packages.local`](../packages.local).
-3. Run **Release** → *Run workflow* with the version **blank**. That logs in and stops, proving the
-   credentials without publishing.
-4. Tag `vYYYY.Q.MMDD` and push.
-
-⛔ **One policy, never one per package id.** nuget.org mints one API key per token exchange, scoped
-to one matching policy — so a second policy is never consulted and its package is rejected `403`
-after the first has already published permanently.
-
 ## Licence
 
-MIT. See [LICENSE](../LICENSE).
+MIT. See [LICENSE](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/LICENSE).
 
 ## Rules
 
@@ -86,7 +71,7 @@ names an old ID, or it stops matching. The prefix is `BN` plus the product's ini
 the Bennewitz.Ninja quality packages, and it will not change again.
 
 The table above is rendered from the rule types — `Id` and `Summary` on each `IAssemblyRule` — and
-a test fails if it drifts. Regenerate it with `AQ_UPDATE_DOCS=1 dotnet test AssemblyQuality.slnx`
+a test fails if it drifts. Regenerate it with `AQ_UPDATE_DOCS=1 dotnet test --solution Inspections.slnx`
 and commit the result.
 
 **Every rule reports; none of them assert.** A finding can fail a build, warn in CI or print in a
@@ -99,7 +84,7 @@ tells "nothing is wrong" apart from "nothing was checked" — which is the failu
 library replaced actually had.
 
 **Source-side counterparts.** Three of these rules also exist as Roslyn analyzers in
-[Bennewitz.Ninja.CodeQuality](https://github.com/JanusMael/Bennewitz.Ninja.CodeQuality), with the same
+[Bennewitz.Ninja.CodeQuality](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/docs/codequality.md), with the same
 number under the `BNCQ` prefix. The analyzer reports at the line as it is typed and reads the source,
 internal code included. This package reads what actually shipped, including everything a source
 generator added. Where you can, run both: each sees something the other cannot.
@@ -108,14 +93,14 @@ generator added. Where you can, run both: each sees something the other cannot.
 
 No public method takes a `CancellationToken` with a default value, and no public method is a
 token-less overload of a sibling that takes one. A policy rule rather than a defect rule, so adopt it
-deliberately. Counterpart: [`BNCQ1001`](https://github.com/JanusMael/Bennewitz.Ninja.CodeQuality#bncq1001),
+deliberately. Counterpart: [`BNCQ1001`](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/docs/codequality.md#bncq1001),
 off by default, which also reads protected methods and constructors.
 
 ### BNAQ1002
 
 No type from a leak-prone namespace appears in a public signature, generic arguments unwrapped.
 `new SurfaceLeakRule(extra)` adds namespaces to `LeakProneNamespaces`; `SurfaceLeakRule.Only(list)`
-replaces them. Counterpart: [`BNCQ1002`](https://github.com/JanusMael/Bennewitz.Ninja.CodeQuality#bncq1002),
+replaces them. Counterpart: [`BNCQ1002`](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/docs/codequality.md#bncq1002),
 which walks referenced types transitively and also reads generic constraints and a containing type's
 type arguments, such as `List<JsonNode>.Enumerator`. This rule reads signature types only.
 
@@ -130,7 +115,7 @@ site, while this rule reads the reference list the compiled assembly actually ke
 
 No namespace segment after the first shadows the root namespace of a referenced assembly.
 `NamespaceShadowRule.IncludingInternalTypes()` extends it from public types to all of them.
-Counterpart: [`BNCQ1004`](https://github.com/JanusMael/Bennewitz.Ninja.CodeQuality#bncq1004).
+Counterpart: [`BNCQ1004`](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/docs/codequality.md#bncq1004).
 
 ⚠ **A reference that does not load at run time is invisible here and visible there.** This rule
 compares against the roots of references it can load, and names any it cannot in `Skipped`. The

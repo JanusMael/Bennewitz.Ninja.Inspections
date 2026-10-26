@@ -424,20 +424,6 @@ does not name, fails the test instead of passing unchecked. The check builds eve
 for each theme and variant, sets the application's own styles and resources aside while it asks, and puts everything
 back. It runs on Avalonia's UI thread, so run it in a test that nothing runs beside.
 
-## Versioning
-
-Versions come from the release tag (`v1.2.3` → `1.2.3`), passed to the build as `/p:Version=`.
-`Bennewitz.Ninja.AutoVersioning` records build metadata into the assemblies; it does not set the
-package version. A local build reads `1.0.0`, which is what a local build is.
-
-Publishing uses **NuGet.org Trusted Publishing (OIDC)** — no long-lived API key exists in this
-repository.
-
-## Publishing
-
-See [docs/publishing.md](publishing.md) — one-time trusted-publishing setup, the version rule,
-and what to check after a release.
-
 ## Licence
 
-MIT. See [LICENSE](../LICENSE).
+MIT. See [LICENSE](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/LICENSE).

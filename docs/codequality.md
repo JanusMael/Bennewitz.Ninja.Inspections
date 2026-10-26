@@ -3,7 +3,7 @@
 Roslyn analyzers for the shape of a .NET library's source: a namespace segment that shadows a
 referenced root namespace, an implementation type leaking into the public surface, and a
 cancellation token a caller can leave out. Each rule is the compile-time counterpart of a
-[Bennewitz.Ninja.AssemblyQuality](https://github.com/JanusMael/Bennewitz.Ninja.AssemblyQuality)
+[Bennewitz.Ninja.AssemblyQuality](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/docs/assemblyquality.md)
 rule that reads the shipped assembly, and carries the same number: `BNCQ1004` finds while you type
 what `BNAQ1004` finds after the build.
 
@@ -31,7 +31,7 @@ where warnings are errors.
 
 The table is rendered from the analyzers' own descriptors, and a test fails if it drifts.
 `BNCQ1003` is reserved: its counterpart
-[`BNAQ1003`](https://github.com/JanusMael/Bennewitz.Ninja.AssemblyQuality#bnaq1003) forbids a
+[`BNAQ1003`](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/docs/assemblyquality.md#bnaq1003) forbids a
 reference, and a forbidden use site at compile time is already
 [Microsoft.CodeAnalysis.BannedApiAnalyzers](https://www.nuget.org/packages/Microsoft.CodeAnalysis.BannedApiAnalyzers)'
 job.
@@ -48,7 +48,7 @@ which is why each rule's tests show it firing on a real violation as well as sta
 ### BNCQ1001
 
 **A visible method lets the caller leave the cancellation token out.** Off by default. Counterpart:
-[`BNAQ1001`](https://github.com/JanusMael/Bennewitz.Ninja.AssemblyQuality#bnaq1001).
+[`BNAQ1001`](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/docs/assemblyquality.md#bnaq1001).
 
 A `CancellationToken` parameter with a default value hands every caller who forgets it
 `CancellationToken.None`: an operation that cannot be cancelled, chosen by nobody, visible nowhere.
@@ -77,7 +77,7 @@ a compilation that cannot name `CancellationToken`.
 ### BNCQ1002
 
 **A type from a leak-prone namespace appears in the visible surface.** Counterpart:
-[`BNAQ1002`](https://github.com/JanusMael/Bennewitz.Ninja.AssemblyQuality#bnaq1002).
+[`BNAQ1002`](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/docs/assemblyquality.md#bnaq1002).
 
 Return a `JsonNode` from one public method and every consumer now binds against
 `System.Text.Json`, its version, its behaviour and its breaking changes, whether or not they
@@ -119,7 +119,7 @@ does not mean to expose, or empty it.
 ### BNCQ1004
 
 **A namespace segment shadows the root namespace of a referenced assembly.** Counterpart:
-[`BNAQ1004`](https://github.com/JanusMael/Bennewitz.Ninja.AssemblyQuality#bnaq1004).
+[`BNAQ1004`](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/docs/assemblyquality.md#bnaq1004).
 
 C# resolves the first identifier of a qualified name by walking outward from the current
 namespace. Inside `Acme.Widgets.Avalonia`, the name `Avalonia` finds your namespace first, and
@@ -138,22 +138,6 @@ that convention, so the fix there renames assembly and namespace together, `.Ava
 `.AvaloniaUI`. The package id takes no part in name resolution and may keep the word. Inert in a
 compilation whose references declare no visible namespace.
 
-## Releasing
-
-See [docs/publishing.md](publishing.md). The short version:
-
-1. Add the `NUGET_USER` repository **variable**, not a secret: your nuget.org **profile name**,
-   not an email.
-2. Create **one** trusted-publishing policy whose glob patterns cover every id in
-   [`packages.push`](../packages.push) and match nothing in [`packages.local`](../packages.local).
-3. Run **Release** → *Run workflow* with the version **blank**. That logs in and stops, proving the
-   credentials without publishing.
-4. Tag `vYYYY.Q.MMDD` and push.
-
-⛔ **One policy, never one per package id.** nuget.org mints one API key per token exchange, scoped
-to one matching policy — so a second policy is never consulted and its package is rejected `403`
-after the first has already published permanently.
-
 ## Licence
 
-MIT. See [LICENSE](../LICENSE).
+MIT. See [LICENSE](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/LICENSE).
