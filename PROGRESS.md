@@ -8,14 +8,17 @@ is open. What has stopped changing moves out rather than piling up.
 
 This repository is Bennewitz.Ninja.XamlQuality renamed, with AssemblyQuality and CodeQuality moved
 in, by Bennewitz.Ninja.Templates' `plans/00009`, approved 2026-10-22. Step 5 of that plan, the
-merge, is this repository's first change under its new name; what it changed is under *Merged into
-Inspections* below. The rest of the plan's steps for this repository, each on the maintainer's word:
+merge, is done: the repository was renamed on 2026-10-26, `repo-conventions.cs apply` ran from the
+merge's branch, and PR #98 merged as `a18a303` with every check passing, by a merge commit, allowed
+for that one pull request by the maintainer's decision of that day, since a squash or a rebase would
+have dropped the imported histories off `main`. Merge commits were disallowed again after it, and
+`check --admin` conforms. What the merge changed is under *Merged into Inspections* below. The rest of
+the plan's steps for this repository, each on the maintainer's word:
 
 | Step | What | Waits on |
 |---|---|---|
-| 5 | The merge's pull request: the maintainer runs `repo-conventions.cs apply` from its branch, so the ruleset's required checks are the merged CI's job names, `build (ubuntu-latest)`, `build (windows-latest)`, `build (macos-latest)`, `pack`, `conventions` and `Verification tools`; then it merges with every check passing, by a merge commit, allowed for that one pull request by the maintainer's decision of 2026-10-26 and disallowed again after it: a squash or a rebase would drop the imported histories off `main` | The maintainer |
-| 6 | The trusted-publishing policy, by decision 20: XamlQuality's existing policy edited to name this repository and to gain the patterns `Bennewitz.Ninja.AssemblyQuality` and `Bennewitz.Ninja.CodeQuality`, never a second policy beside it; `NUGET_USER`; then a blank-version preflight. A login proves only that some policy matched, so the policy page is read too: one policy, naming Inspections, a pattern per family | Step 5 |
-| 7 | AssemblyQuality and CodeQuality archived: open issues transferred here, a final README commit naming Inspections, then the archive. CodeQuality's final README keeps every rule's section, because the help links `2026.3.928` shipped point at `github.com/JanusMael/Bennewitz.Ninja.CodeQuality#bncq…` | Step 5 |
+| 6 | The trusted-publishing policy, by decision 20: XamlQuality's existing policy edited to name this repository and to gain the patterns `Bennewitz.Ninja.AssemblyQuality` and `Bennewitz.Ninja.CodeQuality`, never a second policy beside it; `NUGET_USER`; then a blank-version preflight. A login proves only that some policy matched, so the policy page is read too: one policy, naming Inspections, a pattern per family | The maintainer |
+| 7 | AssemblyQuality and CodeQuality archived: open issues transferred here, a final README commit naming Inspections, then the archive. CodeQuality's final README keeps every rule's section, because the help links `2026.3.928` shipped point at `github.com/JanusMael/Bennewitz.Ninja.CodeQuality#bncq…` | The maintainer |
 | 9 | Each family's first release from here, when it next changes (decision 21: moving is not a reason to release). Each id read back from nuget.org's flat container with `RepositoryUrl` naming Inspections; the release's assets that family's ids alone. After AssemblyQuality's and CodeQuality's, the policy of the repository each left is deleted | A change in that family |
 
 Each family releases alone, from a tag `<family>/vYYYY.Q.MMDD`; [docs/publishing.md](docs/publishing.md)
