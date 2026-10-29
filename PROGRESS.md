@@ -25,11 +25,16 @@ which answers the question decision 20 left open. Edited to the new name, the pr
 family.
 AssemblyQuality's and CodeQuality's own policies stay until each family's first release from here.
 
-The rest of the plan's steps for this repository, each on the maintainer's word:
+Step 7 is done too, on 2026-10-29, by the maintainer's decisions of that day: AssemblyQuality and
+CodeQuality are archived, each with a final README commit pushed to its `main` that names this
+repository above the README as it was, kept whole because released versions link to its rule
+sections. CodeQuality#3, its one open issue, asked for conventions this repository already carries,
+and was closed as done rather than transferred. Neither has an open issue or pull request.
+
+What remains of the plan for this repository:
 
 | Step | What | Waits on |
 |---|---|---|
-| 7 | AssemblyQuality and CodeQuality archived: open issues transferred here, a final README commit naming Inspections, then the archive. CodeQuality's final README keeps every rule's section, because the help links `2026.3.928` shipped point at `github.com/JanusMael/Bennewitz.Ninja.CodeQuality#bncq…` | The maintainer |
 | 9 | Each family's first release from here, when it next changes (decision 21: moving is not a reason to release). Each id read back from nuget.org's flat container with `RepositoryUrl` naming Inspections; the release's assets that family's ids alone. After AssemblyQuality's and CodeQuality's, the policy of the repository each left is deleted | A change in that family |
 
 Each family releases alone, from a tag `<family>/vYYYY.Q.MMDD`; [docs/publishing.md](docs/publishing.md)
