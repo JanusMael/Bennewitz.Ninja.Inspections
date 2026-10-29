@@ -35,7 +35,7 @@ What remains of the plan for this repository:
 
 | Step | What | Waits on |
 |---|---|---|
-| 9 | Each family's first release from here, when it next changes (decision 21: moving is not a reason to release). Each id read back from nuget.org's flat container with `RepositoryUrl` naming Inspections; the release's assets that family's ids alone. After AssemblyQuality's and CodeQuality's, the policy of the repository each left is deleted. **AssemblyQuality's is done**, `assemblyquality/v2026.4.1029`, below; its old policy is the maintainer's to delete. Until Templates' `plans/00011` scopes a family's generated notes to the family, replace them by hand after the run: GitHub lists every pull request merged in the repository since the family's previous tag | XamlQuality and CodeQuality: a change in that family |
+| 9 | Each family's first release from here, when it next changes (decision 21: moving is not a reason to release). Each id read back from nuget.org's flat container with `RepositoryUrl` naming Inspections; the release's assets that family's ids alone. After AssemblyQuality's and CodeQuality's, the policy of the repository each left is deleted. **AssemblyQuality's is done**, `assemblyquality/v2026.4.1029`, below; its old policy was deleted by the maintainer the same day. Until Templates' `plans/00011` scopes a family's generated notes to the family, replace them by hand after the run: GitHub lists every pull request merged in the repository since the family's previous tag | XamlQuality and CodeQuality: a change in that family |
 
 Each family releases alone, from a tag `<family>/vYYYY.Q.MMDD`; [docs/publishing.md](docs/publishing.md)
 is the runbook. Whether a family has anything to release is in its section below.
