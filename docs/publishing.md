@@ -50,7 +50,7 @@ ids you publish:
 | Workflow File | `release.yml` |
 | Environment | **leave blank** |
 | Scopes | **Publish new packages** *and* **Publish new versions of existing packages** |
-| Glob Patterns | `Bennewitz.Ninja.XamlQuality*`, `Bennewitz.Ninja.AssemblyQuality` and `Bennewitz.Ninja.CodeQuality`: a pattern per family, covering every id in `packages.push` — and matching nothing in `packages.local` |
+| Glob Patterns | `Bennewitz.Ninja.XamlQuality*`, `Bennewitz.Ninja.AssemblyQuality*` and `Bennewitz.Ninja.CodeQuality*`: a pattern per family, covering every id in `packages.push` — and matching nothing in `packages.local` |
 
 ⛔ **ONE policy, never one per package id.** nuget.org mints one API key per token exchange, scoped
 to **one** matching policy. Two policies matching the same repository and workflow means one is
@@ -186,6 +186,10 @@ thing at a time and re-run the preflight, which costs nothing:
 4. **The scope allows publishing new packages.**
 5. **A single policy's patterns cover every id** in `packages.push`.
 6. **The policy shows no pending or inactive warning** in the UI.
+7. **The policy's Repository is this repository's current name.** A policy keeps the name the
+   repository had when the policy was saved, beside its id. After this repository was renamed from
+   `Bennewitz.Ninja.XamlQuality`, on 2026-10-29, the policy still showed the old name with the
+   unchanged id, and the login failed with this 401 until the policy was edited to the new name.
 
 ⚠ **Order matters, and this list used to start at what is now step 2.** On 2026-09-21 the
 `Bennewitz.Ninja.Templates` first release burned six preflight runs working down the policy
