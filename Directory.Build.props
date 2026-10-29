@@ -55,12 +55,17 @@
                       IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
   </ItemGroup>
 
-  <!-- Each package carries its family's README, packed as README.md, so nuget.org shows the text
-       the repository keeps for that family: docs/xamlquality.md, docs/assemblyquality.md or
-       docs/codequality.md, named by FamilyReadme in the package's csproj. Items are evaluated after
-       every property, so the csproj's value is the one read here. Packable projects only: a test
-       project with no README is not a packaging error. A packable project that names none packs
-       none, and `dotnet pack` fails it with NU5039, since PackageReadmeFile names README.md. -->
+  <!-- The README travels inside every package, so nuget.org shows the same text the repository
+       does. Packable projects only: a test project with no README is not a packaging error.
+
+       In a repository with package families, each family's packages carry the family's README
+       instead: docs/<stem>.md, which each of its projects names in FamilyReadme, beside its
+       family's AssemblyProduct. Packed as README.md, so nuget.org shows the family's page, not the
+       repository's. Items are evaluated after every property, so the csproj's value is the one read
+       here. `repo-conventions check` fails a family's package that names another file, or none. -->
+  <ItemGroup Condition="'$(IsPackable)' == 'true' and '$(FamilyReadme)' == ''">
+    <None Include="$(RepoRoot)README.md" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
   <ItemGroup Condition="'$(IsPackable)' == 'true' and '$(FamilyReadme)' != ''">
     <None Include="$(RepoRoot)$(FamilyReadme)" Pack="true" PackagePath="README.md" Visible="false" />
   </ItemGroup>

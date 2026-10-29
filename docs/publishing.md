@@ -115,8 +115,10 @@ git push origin xamlquality/v2026.3.920
 
 The version comes from the tag (everything after `/v`), so the tag and the packages agree by
 construction rather than by remembering to bump a file. The release publishes only that family's
-ids, packs only the projects that produce them, and starts the GitHub release's notes from the
-family's previous tag. A bare `v…` tag is refused before anything is built.
+ids, packs only the projects that produce them, and writes the GitHub release's notes from the
+family's own commits since its previous tag, marking it "Latest" unless a tag of any family is
+newer. XamlQuality's previous tag may be a bare `v…` one, from before the merge. A bare `v…` tag is
+refused before anything is built.
 
 ⓘ A release can also be started from the Actions tab — **Release** → *Run workflow* → **enter the
 version and the family** — which is the path to use when a tag already exists. Filling the version

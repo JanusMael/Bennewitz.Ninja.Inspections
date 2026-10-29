@@ -38,6 +38,7 @@
     "assemblyquality": ["Bennewitz.Ninja.AssemblyQuality"],
     "codequality": ["Bennewitz.Ninja.CodeQuality"]
   },
+  "bareTags": "xamlquality",
   "props": {
     "XamlQuality": {
       "Trimming": "It reads types and IL by reflection (ElementTypes, CompiledStrings), and the trim analyser reports 106 places, measured 2026-10-26. Not trimmable until plans/00008 side 2 makes it trim-clean (plans/00009 decision 19 in Bennewitz.Ninja.Templates)."

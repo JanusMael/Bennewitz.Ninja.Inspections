@@ -47,8 +47,10 @@ AssemblyQuality's approved plans moved unchanged to `plans/assemblyquality/`.
 
 Each family releases alone, from its own tag, `<family>/vYYYY.Q.MMDD`: `xamlquality/v2026.4.1101`.
 `scripts/release-target.cs` resolves the tag into the family's ids from `.github/repository.json`'s
-`families`; the release packs only those projects, publishes only those ids, and starts its notes
-at the family's previous tag. A bare `v…` tag, or a dispatch without a family, is refused before
+`families`; the release packs only those projects, publishes only those ids, and writes its notes
+from the family's own commits since its previous tag. The bare `v…` tags were XamlQuality's
+releases before the merge (`"bareTags": "xamlquality"`), so its first family release starts from
+the last of them. A bare `v…` tag, or a dispatch without a family, is refused before
 anything builds. A family is released when it changes, never because another did.
 [`docs/publishing.md`](docs/publishing.md) is the runbook.
 
