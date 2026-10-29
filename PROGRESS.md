@@ -35,7 +35,7 @@ What remains of the plan for this repository:
 
 | Step | What | Waits on |
 |---|---|---|
-| 9 | Each family's first release from here, when it next changes (decision 21: moving is not a reason to release). Each id read back from nuget.org's flat container with `RepositoryUrl` naming Inspections; the release's assets that family's ids alone. After AssemblyQuality's and CodeQuality's, the policy of the repository each left is deleted | A change in that family |
+| 9 | Each family's first release from here, when it next changes (decision 21: moving is not a reason to release). Each id read back from nuget.org's flat container with `RepositoryUrl` naming Inspections; the release's assets that family's ids alone. After AssemblyQuality's and CodeQuality's, the policy of the repository each left is deleted. **AssemblyQuality's is done**, `assemblyquality/v2026.4.1029`, below; its old policy is the maintainer's to delete. Until Templates' `plans/00011` scopes a family's generated notes to the family, replace them by hand after the run: GitHub lists every pull request merged in the repository since the family's previous tag | XamlQuality and CodeQuality: a change in that family |
 
 Each family releases alone, from a tag `<family>/vYYYY.Q.MMDD`; [docs/publishing.md](docs/publishing.md)
 is the runbook. Whether a family has anything to release is in its section below.
@@ -54,7 +54,7 @@ Templates' canonical ones from `2026.4.1023`, the release that ships multi-famil
 |---|---|
 | Every family | `RepositoryUrl` and `PackageProjectUrl` name `Bennewitz.Ninja.Inspections`. The package's README is the family's `docs/<family>.md`; its links to the repository are absolute now, and the maintainer's sections, releasing, versioning and publishing, moved to the root README and `docs/publishing.md` |
 | XamlQuality | The library's friend grants are the generated, solution-wide ones, in place of its hand-written grants to its own tests. `Bennewitz.Ninja.XamlQuality.ThemeAudit` now carries `IsTrimmable`, which every `src` project gets from `src/Directory.Build.props`, AssemblyQuality's; the library sets it false, as below. The drivable-ui marketplace is added as `JanusMael/Bennewitz.Ninja.Inspections`, its name, `xamlquality`, unchanged |
-| AssemblyQuality | The solution-wide friend grants of JanusMael/Bennewitz.Ninja.AssemblyQuality#17, unreleased when it moved. Its README links its CodeQuality counterparts in `docs/codequality.md` here |
+| AssemblyQuality | Released in `2026.4.1029`. The solution-wide friend grants of JanusMael/Bennewitz.Ninja.AssemblyQuality#17, unreleased when it moved. Its README links its CodeQuality counterparts in `docs/codequality.md` here |
 | CodeQuality | Each rule's help link names its section in `docs/codequality.md` here; `2026.3.928`'s links name the archived repository's README, which keeps those sections. The hand-written grant to its tests gives way to the generated ones. Its README links its AssemblyQuality counterparts in `docs/assemblyquality.md` here |
 
 ### Where the merge departs from plans/00009, or decides what it left open
@@ -586,8 +586,8 @@ JanusMael/Bennewitz.Ninja.AssemblyQuality.
 
 | | |
 |---|---|
-| Published | `2026.3.929`, released 2026-09-29 and verified from the feed, its tag now `assemblyquality/v2026.3.929`. It added `BNAQ1005` (#12) and `BNAQ1006` (#13), by [plan 00001](plans/assemblyquality/00001-friend-grant-rules.md), now complete |
-| Not yet released | #17, Templates' solution-wide friend grants (`plans/00006`): the shipped `AssemblyQuality.dll` grants its internals to the repository's own assembly names, now this repository's, and every fixture opts out. Then the move, under *Merged into Inspections* above |
+| Published | `2026.4.1029`, released 2026-10-29 from this repository, the family's first here: tag `assemblyquality/v2026.4.1029` on `3092aee`, release run `40939268891`. Verified from the feed: the flat container lists it, the served nuspec names Inspections at `3092aee`, its DLL is byte-identical to the GitHub release asset's, and a project restoring from nuget.org alone gets it and finds all six rules. It carries #17, Templates' solution-wide friend grants (`plans/00006`): the DLL grants its internals to this repository's sixteen assemblies, matched by name, and every fixture opts out; and the move: the package names Inspections and packs `docs/assemblyquality.md` as its README. No rule, dependency or public API changed. The release's notes were written by hand, the generated ones listing XamlQuality's pull requests. The previous release, `2026.3.929`, added `BNAQ1005` (#12) and `BNAQ1006` (#13), by [plan 00001](plans/assemblyquality/00001-friend-grant-rules.md), now complete |
+| Not yet released | Nothing |
 | Next release | On the maintainer's word, from an `assemblyquality/vYYYY.Q.MMDD` tag. One release per calendar day, three-part `YYYY.Q.MMDD`: a fourth part is AutoVersioning's `HHmm` build stamp, not a patch counter |
 
 ### Next
