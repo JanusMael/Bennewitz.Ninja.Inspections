@@ -13,7 +13,9 @@
 //
 // ⭐ A FAMILY'S RELEASE packs only that family's projects, so with --family the declaration is that
 // family's entry in .github/repository.json's "families", and nothing else may have been packed: an
-// id of another family, or one of packages.local, is as unexpected there as an undeclared one.
+// id of another family, or one of packages.local, is as unexpected there as an undeclared one. Each of
+// its packages must also carry the family's README, docs/<family>.md, byte for byte, as the README its
+// .nuspec names: what nuget.org will show, read from what pack produced.
 //
 // Usage:  dotnet run scripts/assert-packages.cs -- <packages-directory> [--family <family>]
 
@@ -80,10 +82,11 @@ if (produced.Length == 0)
 }
 
 HashSet<string> packed = new(declared.Comparer);
+List<(string Id, byte[]? Readme)> readmes = [];
 
 foreach (string package in produced)
 {
-    string? id = IdOf(package);
+    (string? id, byte[]? readme) = Read(package);
 
     if (id is null)
     {
@@ -91,6 +94,7 @@ foreach (string package in produced)
     }
 
     packed.Add(id);
+    readmes.Add((id, readme));
 }
 
 string[] unexpected = [.. packed.Except(declared, declared.Comparer).Order()];
@@ -112,10 +116,35 @@ if (missing.Length > 0)
         ". The push names it explicitly, so the release would fail on a file that does not exist.");
 }
 
+if (family is not null)
+{
+    string readmePath = Path.Combine(repoRoot, "docs", family + ".md");
+    if (!File.Exists(readmePath))
+    {
+        return Fail($"docs/{family}.md is missing: it is the {family} family's README, which each of its packages carries.");
+    }
+
+    byte[] expected = File.ReadAllBytes(readmePath);
+    string[] wrong = [.. readmes
+        .Where(r => r.Readme is null || !r.Readme.AsSpan().SequenceEqual(expected))
+        .OrderBy(r => r.Id, StringComparer.Ordinal)
+        .Select(r => r.Readme is null ? $"{r.Id} packs none" : $"{r.Id}'s is another file")];
+    if (wrong.Length > 0)
+    {
+        return Fail(
+            $"The {family} family's packages carry docs/{family}.md as their README.md, byte for byte: " + string.Join("; ", wrong) +
+            $". Set FamilyReadme to docs/{family}.md in each one's project.");
+    }
+}
+
 Console.WriteLine($"Packages check out: {packed.Count} packed, all declared in {declaredWhere}.");
 foreach (string id in packed.Order())
 {
     Console.WriteLine($"  {id}");
+}
+if (family is not null)
+{
+    Console.WriteLine($"Each carries docs/{family}.md as its README.md.");
 }
 
 return 0;
@@ -165,7 +194,9 @@ static string[]? FamilyIds(string path, string family, out string? problem)
     return null;
 }
 
-static string? IdOf(string packagePath)
+// The package's id, and the bytes of the README its .nuspec names: null when it names none, or the
+// file it names is not in the package.
+static (string? Id, byte[]? Readme) Read(string packagePath)
 {
     using ZipArchive archive = ZipFile.OpenRead(packagePath);
 
@@ -175,16 +206,28 @@ static string? IdOf(string packagePath)
 
     if (nuspec is null)
     {
-        return null;
+        return (null, null);
     }
 
-    using Stream stream = nuspec.Open();
-    XDocument document = XDocument.Load(stream);
+    XDocument document;
+    using (Stream stream = nuspec.Open())
+    {
+        document = XDocument.Load(stream);
+    }
 
     // The nuspec namespace varies by schema version, so match on local name.
-    return document.Descendants()
-        .FirstOrDefault(element => element.Name.LocalName == "id")
-        ?.Value.Trim();
+    string? id = document.Descendants().FirstOrDefault(element => element.Name.LocalName == "id")?.Value.Trim();
+    string? readme = document.Descendants().FirstOrDefault(element => element.Name.LocalName == "readme")?.Value.Trim().Replace('\\', '/');
+    ZipArchiveEntry? entry = readme is { Length: > 0 } ? archive.GetEntry(readme) : null;
+    if (entry is null)
+    {
+        return (id, null);
+    }
+
+    using Stream content = entry.Open();
+    using MemoryStream bytes = new();
+    content.CopyTo(bytes);
+    return (id, bytes.ToArray());
 }
 
 static int Fail(string message)

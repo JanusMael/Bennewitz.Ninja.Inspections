@@ -14,17 +14,26 @@
 // version is permanent, so a malformed one is refused while that is still free. Templates'
 // 2026.3.1001 went out from a tag nothing checked; 1 October is in the fourth quarter.
 //
+// ⭐ A FAMILY'S RELEASE NOTES are its own (plans/00011 decision 6): the commits since its previous tag
+// that touched its projects or its README, and those descending from that tag that touched a build
+// input every package shares. GitHub's generated notes list every pull request in the repository.
+//
 // Usage:
 //   dotnet run scripts/release-target.cs -- resolve --event push --ref <tag> [--github-env <file>]
 //   dotnet run scripts/release-target.cs -- resolve --event workflow_dispatch --version <v> [--family <f>] [--github-env <file>]
 //   dotnet run scripts/release-target.cs -- projects --family <f> [--out <file>]
+//   dotnet run scripts/release-target.cs -- notes --family <f> [--previous <tag>] --out <file>
 //
-//   resolve      prints VERSION, TAG, FAMILY, IDS (space-separated) and PREVIOUS_TAG as KEY=value
-//                lines, and appends them to the --github-env file. FAMILY and PREVIOUS_TAG are
-//                empty without families. PREVIOUS_TAG is the family's newest tag below this version,
-//                read with `git tag`, so the checkout needs the tags.
+//   resolve      prints VERSION, TAG, FAMILY, IDS (space-separated), PREVIOUS_TAG and LATEST as
+//                KEY=value lines, and appends them to the --github-env file. FAMILY, PREVIOUS_TAG and
+//                LATEST are empty without families. PREVIOUS_TAG is the family's newest tag below this
+//                version, the bare v<version> tags counting as the family's that "bareTags" names.
+//                LATEST is false when a tag of any family, or a bare one, has a higher version.
+//                Read with `git tag`, so the checkout needs the tags.
 //   projects     prints, and writes to the --out file, the solution's project that packs each of
 //                the family's ids, as MSBuild evaluates it. Run it after the build, once restored.
+//   notes        writes the family's release notes, from --previous to HEAD, to the --out file. With
+//                no previous tag it says the release is the family's first. Run it once restored.
 //   --root DIR   read the repository from DIR instead of the current directory
 //
 // Exit codes: 0 resolved, 1 refused, 2 usage.
@@ -35,12 +44,12 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
 string? verb = args.Length > 0 ? args[0] : null;
-if (verb is not ("resolve" or "projects"))
+if (verb is not ("resolve" or "projects" or "notes"))
 {
-    return Usage("the first argument must be 'resolve' or 'projects'.");
+    return Usage("the first argument must be 'resolve', 'projects' or 'notes'.");
 }
 
-string? eventName = null, refName = null, version = null, family = null, githubEnv = null, outFile = null, root = null;
+string? eventName = null, refName = null, version = null, family = null, githubEnv = null, outFile = null, root = null, previousTag = null;
 for (int i = 1; i < args.Length; i++)
 {
     switch (args[i])
@@ -52,6 +61,7 @@ for (int i = 1; i < args.Length; i++)
         case "--github-env" when i + 1 < args.Length: githubEnv = args[++i]; break;
         case "--out" when i + 1 < args.Length: outFile = args[++i]; break;
         case "--root" when i + 1 < args.Length: root = args[++i]; break;
+        case "--previous" when i + 1 < args.Length: previousTag = args[++i]; break;
         default: return Usage($"unknown or incomplete argument '{args[i]}'.");
     }
 }
@@ -60,7 +70,12 @@ string repository = Path.GetFullPath(root ?? Directory.GetCurrentDirectory());
 
 try
 {
-    return verb == "resolve" ? Resolve() : Projects();
+    return verb switch
+    {
+        "resolve" => Resolve(),
+        "projects" => Projects(),
+        _ => Notes(),
+    };
 }
 catch (Refused refused)
 {
@@ -98,7 +113,14 @@ int Resolve()
     }
 
     string tag = releaseFamily.Length == 0 ? "v" + releaseVersion : $"{releaseFamily}/v{releaseVersion}";
-    string previous = releaseFamily.Length == 0 ? "" : Release.Previous(repository, releaseFamily, releaseVersion);
+    string previous = "", latest = "";
+    if (releaseFamily.Length > 0)
+    {
+        string[] tags = Tags.List(repository);
+        bool ownsBareTags = Families.BareTags(repository, families!) == releaseFamily;
+        previous = Tags.Previous(tags, releaseFamily, releaseVersion, ownsBareTags);
+        latest = Tags.Latest(tags, releaseVersion) ? "true" : "false";
+    }
 
     string[] lines =
     [
@@ -107,6 +129,7 @@ int Resolve()
         "FAMILY=" + releaseFamily,
         "IDS=" + string.Join(' ', ids),
         "PREVIOUS_TAG=" + previous,
+        "LATEST=" + latest,
     ];
     foreach (string line in lines)
     {
@@ -126,14 +149,67 @@ int Projects()
         return Usage("projects needs --family.");
     }
 
-    IReadOnlyDictionary<string, string[]> families = Families.Read(repository)
-        ?? throw new Refused(".github/repository.json declares no families, so there is no family to pack; a release without families packs the whole solution.");
-    string key = family.Trim().ToLowerInvariant();
-    if (!families.TryGetValue(key, out string[]? ids))
+    (string key, string[] ids) = Family(family, "to pack; a release without families packs the whole solution");
+    string[] chosen = FamilyProjects(key, ids);
+    foreach (string project in chosen)
     {
-        throw new Refused($"There is no family \"{family}\"; .github/repository.json declares {string.Join(", ", families.Keys)}.");
+        Console.WriteLine(project);
+    }
+    if (outFile is not null)
+    {
+        File.WriteAllLines(outFile, chosen);
+    }
+    return 0;
+}
+
+int Notes()
+{
+    if (string.IsNullOrWhiteSpace(family))
+    {
+        return Usage("notes needs --family.");
+    }
+    if (string.IsNullOrWhiteSpace(outFile))
+    {
+        return Usage("notes needs --out, the file the GitHub release reads its notes from.");
     }
 
+    (string key, string[] ids) = Family(family, "to write notes for; a release without families takes GitHub's");
+    string start = previousTag?.Trim() ?? "";
+    string text;
+    if (start.Length == 0)
+    {
+        text = $"The first release of the {key} family.\n";
+    }
+    else
+    {
+        string[] own = [.. ReleaseNotes.OwnPaths(repository, FamilyProjects(key, ids)), $"docs/{key}.md"];
+        List<Commit> mine = ReleaseNotes.Log(repository, start, own, descendantsOnly: false);
+        HashSet<string> listed = [.. mine.Select(c => c.Hash)];
+        List<Commit> shared = [.. ReleaseNotes.Log(repository, start, ReleaseNotes.SharedInputs, descendantsOnly: true).Where(c => !listed.Contains(c.Hash))];
+        text = ReleaseNotes.Render(key, start, mine, shared);
+    }
+
+    Console.Write(text);
+    File.WriteAllText(outFile, text);
+    return 0;
+}
+
+// The declared family's stem and ids; refused where there are no families, or not this one.
+(string Key, string[] Ids) Family(string name, string purpose)
+{
+    IReadOnlyDictionary<string, string[]> families = Families.Read(repository)
+        ?? throw new Refused($".github/repository.json declares no families, so there is no family {purpose}.");
+    string key = name.Trim().ToLowerInvariant();
+    if (!families.TryGetValue(key, out string[]? ids))
+    {
+        throw new Refused($"There is no family \"{name}\"; .github/repository.json declares {string.Join(", ", families.Keys)}.");
+    }
+    return (key, ids);
+}
+
+// The solution's project that packs each of the family's ids, by evaluated PackageId.
+string[] FamilyProjects(string key, string[] ids)
+{
     string[] solutions = [.. Directory.EnumerateFiles(repository)
         .Select(path => Path.GetFileName(path))
         .Where(f => f.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".sln", StringComparison.OrdinalIgnoreCase))];
@@ -176,22 +252,13 @@ int Projects()
         }
         chosen.Add(found[0]);
     }
-
-    foreach (string project in chosen)
-    {
-        Console.WriteLine(project);
-    }
-    if (outFile is not null)
-    {
-        File.WriteAllLines(outFile, chosen);
-    }
-    return 0;
+    return [.. chosen];
 }
 
 static int Usage(string problem)
 {
     Console.Error.WriteLine("release-target: " + problem);
-    Console.Error.WriteLine("usage: release-target (resolve --event push --ref <tag> | resolve --event workflow_dispatch --version <v> [--family <f>]) [--github-env <file>] | projects --family <f> [--out <file>]; [--root DIR]");
+    Console.Error.WriteLine("usage: release-target (resolve --event push --ref <tag> | resolve --event workflow_dispatch --version <v> [--family <f>]) [--github-env <file>] | projects --family <f> [--out <file>] | notes --family <f> [--previous <tag>] --out <file>; [--root DIR]");
     return 2;
 }
 
@@ -285,25 +352,181 @@ static class Release
         }
     }
 
-    /// <summary>The family's newest tag below <paramref name="version"/>, or empty for its first release.</summary>
-    public static string Previous(string repository, string family, string version)
+}
+
+/// <summary>The repository's release tags, <c>v&lt;version&gt;</c> and <c>&lt;family&gt;/v&lt;version&gt;</c>, read with <c>git tag</c>.</summary>
+static class Tags
+{
+    private static readonly Regex Tag = new(@"^(?:(?<family>[^/]+)/)?v(?<version>[^/]+)$");
+
+    public static string[] List(string repository)
     {
-        (int exit, string output) = Shell.Run("git", repository, "tag", "--list", family + "/v*");
+        (int exit, string output) = Shell.Run("git", repository, "tag", "--list");
         if (exit != 0)
         {
-            throw new Refused($"`git tag --list` failed, so the {family} family's previous tag is unknown: {output.Trim()}");
+            throw new Refused($"`git tag --list` failed, so the previous release is unknown: {output.Trim()}");
+        }
+        return [.. output.Split('\n').Select(line => line.Trim()).Where(line => line.Length > 0)];
+    }
+
+    /// <summary>
+    /// The family's newest tag below <paramref name="version"/>, or empty for its first release. Where
+    /// the family owns the bare tags ("bareTags"), a bare tag counts as one of its own.
+    /// </summary>
+    public static string Previous(string[] tags, string family, string version, bool ownsBareTags)
+    {
+        Version current = Version.Parse(version);
+        return Parsed(tags)
+            .Where(t => t.Family == family || (ownsBareTags && t.Family.Length == 0))
+            .Where(t => t.Version < current)
+            .OrderByDescending(t => t.Version)
+            .Select(t => t.Tag)
+            .FirstOrDefault() ?? "";
+    }
+
+    /// <summary>
+    /// Whether a release at <paramref name="version"/> is the repository's newest, whichever family's
+    /// (plans/00011 decision 8): no tag of any family, nor a bare one, has a higher version. A dispatch
+    /// re-releasing an older version leaves "Latest" where it is.
+    /// </summary>
+    public static bool Latest(string[] tags, string version)
+    {
+        Version current = Version.Parse(version);
+        return !Parsed(tags).Any(t => t.Version > current);
+    }
+
+    private static IEnumerable<(string Tag, string Family, Version Version)> Parsed(string[] tags)
+    {
+        foreach (string tag in tags)
+        {
+            Match match = Tag.Match(tag);
+            if (match.Success && Version.TryParse(match.Groups["version"].Value, out Version? parsed))
+            {
+                yield return (tag, match.Groups["family"].Value, parsed);
+            }
+        }
+    }
+}
+
+/// <summary>One commit as a release's notes list it.</summary>
+sealed record Commit(string Hash, string Short, string Subject);
+
+/// <summary>A family's release notes (plans/00011 decision 6), from <c>git log</c>.</summary>
+static class ReleaseNotes
+{
+    /// <summary>
+    /// The build inputs every package shares. A commit touching one changes every family's packages,
+    /// as AssemblyQuality#17's friend grants did without touching its project.
+    /// </summary>
+    public static readonly string[] SharedInputs =
+    [
+        "Directory.Build.props",
+        "Directory.Build.targets",
+        "Directory.Packages.props",
+        "global.json",
+        "NuGet.config",
+        ":(glob)AssemblyInfo.*.cs",
+        "src/Directory.Build.props",
+        "src/Directory.Build.targets",
+    ];
+
+    /// <summary>
+    /// The directories of the family's projects, and of every project they reference that packs
+    /// nothing, since its code ships inside theirs. A packable project of another family is not
+    /// followed: `repo-conventions check` fails such a reference.
+    /// </summary>
+    public static IEnumerable<string> OwnPaths(string repository, string[] projects)
+    {
+        HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+        Queue<string> pending = new(projects.Select(p => Path.GetFullPath(Path.Combine(repository, p))));
+        // The family's own projects are dequeued first; whatever follows was reached by reference.
+        int roots = projects.Length;
+        while (pending.Count > 0)
+        {
+            string project = pending.Dequeue();
+            bool isRoot = roots-- > 0;
+            if (!seen.Add(project))
+            {
+                continue;
+            }
+
+            (int exit, string output) = Shell.Run("dotnet", repository, "msbuild", project, "-p:Configuration=Release", "-getProperty:IsPackable", "-getItem:ProjectReference");
+            JsonObject? evaluated = exit == 0 ? Evaluation.Json(output) : null;
+            if (evaluated is null)
+            {
+                throw new Refused($"{project} could not be evaluated, so the paths of its family's notes are unknown: {output.Trim()}");
+            }
+            if (!isRoot && Evaluation.Text(evaluated["Properties"]?["IsPackable"]) == "true")
+            {
+                continue;
+            }
+
+            yield return Path.GetRelativePath(repository, Path.GetDirectoryName(project)!).Replace('\\', '/');
+            foreach (JsonNode? reference in evaluated["Items"]?["ProjectReference"]?.AsArray() ?? [])
+            {
+                string path = Evaluation.Text(reference?["FullPath"]);
+                if (path.Length > 0)
+                {
+                    pending.Enqueue(Path.GetFullPath(path));
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// The commits after <paramref name="start"/> up to HEAD that touched <paramref name="paths"/>,
+    /// merges aside, newest first. With <paramref name="descendantsOnly"/>, only those descending from
+    /// <paramref name="start"/>: an imported history has root build files of the same names, and its
+    /// commits are not this family's.
+    /// </summary>
+    public static List<Commit> Log(string repository, string start, string[] paths, bool descendantsOnly)
+    {
+        List<string> arguments = ["log", "--no-merges", "--format=%H%x1f%h%x1f%s"];
+        if (descendantsOnly)
+        {
+            arguments.Add("--ancestry-path");
+        }
+        arguments.Add(start + "..HEAD");
+        arguments.Add("--");
+        arguments.AddRange(paths);
+
+        (int exit, string output) = Shell.Run("git", repository, [.. arguments]);
+        if (exit != 0)
+        {
+            throw new Refused($"`git log {start}..HEAD` failed, so the notes cannot be written: {output.Trim()}");
+        }
+        return [.. output.Split('\n')
+            .Select(line => line.TrimEnd('\r').Split('\x1f'))
+            .Where(parts => parts.Length == 3)
+            .Select(parts => new Commit(parts[0], parts[1], parts[2]))];
+    }
+
+    public static string Render(string family, string start, List<Commit> own, List<Commit> shared)
+    {
+        if (own.Count == 0 && shared.Count == 0)
+        {
+            return $"No commit since {start} changed the {family} family's packages.\n";
         }
 
-        Version current = Version.Parse(version);
-        string prefix = family + "/v";
-        return output.Split('\n')
-            .Select(line => line.Trim())
-            .Where(tag => tag.StartsWith(prefix, StringComparison.Ordinal))
-            .Select(tag => (Tag: tag, Parsed: Version.TryParse(tag[prefix.Length..], out Version? parsed) ? parsed : null))
-            .Where(candidate => candidate.Parsed is not null && candidate.Parsed < current)
-            .OrderByDescending(candidate => candidate.Parsed)
-            .Select(candidate => candidate.Tag)
-            .FirstOrDefault() ?? "";
+        System.Text.StringBuilder text = new();
+        text.Append("## The ").Append(family).Append(" family since ").Append(start).Append('\n').Append('\n');
+        foreach (Commit commit in own)
+        {
+            text.Append("- ").Append(commit.Subject).Append(" (").Append(commit.Short).Append(")\n");
+        }
+        if (own.Count == 0)
+        {
+            text.Append("Nothing of the family's own.\n");
+        }
+        if (shared.Count > 0)
+        {
+            text.Append('\n').Append("## The build every family shares\n").Append('\n');
+            foreach (Commit commit in shared)
+            {
+                text.Append("- ").Append(commit.Subject).Append(" (").Append(commit.Short).Append(")\n");
+            }
+        }
+        return text.ToString();
     }
 }
 
@@ -363,6 +586,25 @@ static class Families
         }
         return families;
     }
+
+    /// <summary>
+    /// <c>"bareTags": "&lt;stem&gt;"</c> (plans/00011 decision 7): the family whose releases the
+    /// repository's bare <c>v…</c> tags were, before it had families, or empty when none is named.
+    /// </summary>
+    public static string BareTags(string repository, IReadOnlyDictionary<string, string[]> families)
+    {
+        JsonNode? node = JsonNode.Parse(File.ReadAllText(Path.Combine(repository, ".github", "repository.json")))?["bareTags"];
+        if (node is null)
+        {
+            return "";
+        }
+        string stem = node is JsonValue value && value.TryGetValue(out string? text) ? text.Trim().ToLowerInvariant() : "";
+        if (!families.ContainsKey(stem))
+        {
+            throw new Refused($"\"bareTags\" in .github/repository.json is {node.ToJsonString()}, which is not a declared family; it declares {string.Join(", ", families.Keys)}.");
+        }
+        return stem;
+    }
 }
 
 static class Lists
@@ -377,7 +619,10 @@ static class Lists
 static class Evaluation
 {
     /// <summary>The <c>Properties</c> object of <c>dotnet msbuild -getProperty</c>'s JSON, or null.</summary>
-    public static JsonObject? Properties(string output)
+    public static JsonObject? Properties(string output) => Json(output)?["Properties"] as JsonObject;
+
+    /// <summary><c>dotnet msbuild -getProperty</c>/<c>-getItem</c>'s whole JSON, or null.</summary>
+    public static JsonObject? Json(string output)
     {
         int start = output.IndexOf('{');
         if (start < 0)
@@ -386,7 +631,7 @@ static class Evaluation
         }
         try
         {
-            return JsonNode.Parse(output[start..])?["Properties"] as JsonObject;
+            return JsonNode.Parse(output[start..]) as JsonObject;
         }
         catch (JsonException)
         {

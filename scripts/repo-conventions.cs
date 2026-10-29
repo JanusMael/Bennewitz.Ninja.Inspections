@@ -144,6 +144,7 @@ return verb switch
 int Check()
 {
     Documentation.Check(tree, config, findings);
+    Families.CheckReadmes(tree, config, findings);
     Workflows.CheckPublishing(tree, findings);
 
     if (offline)
@@ -226,6 +227,7 @@ void CheckProjects(bool props)
         Props.Check(projects, config, repoName, findings);
     }
     Families.CheckReferences(localRoot, projects, config, findings);
+    Families.CheckPackages(projects, config, findings);
     Grants.Check(localRoot, tree, projects, findings);
 }
 
@@ -540,6 +542,9 @@ sealed record Config(
             findings.Add(Finding.Note("repository.json", "\"trimming\" is no longer read; remove it. A repository trims when one of its projects sets a trimming property."));
         }
 
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? families = json["families"] is { } declared ? ParseFamilies(declared, pushed, findings) : null;
+        CheckBareTags(json["bareTags"], families, findings);
+
         return new Config(
             description,
             json["homepage"]?.GetValue<string>() ?? "",
@@ -548,7 +553,30 @@ sealed record Config(
             [.. Strings(json["content"]).Select(p => p.TrimEnd('/') + "/")],
             undocumented,
             propsExempt,
-            json["families"] is { } declared ? ParseFamilies(declared, pushed, findings) : null);
+            families);
+    }
+
+    /// <summary>
+    /// <c>"bareTags": "&lt;stem&gt;"</c> (plans/00011 decision 7): the family whose releases a grown
+    /// repository's bare <c>v…</c> tags were, before it had families. The release counts them as that
+    /// family's when it finds the previous tag its notes start from, so it must name a declared family.
+    /// </summary>
+    private static void CheckBareTags(JsonNode? node, IReadOnlyDictionary<string, IReadOnlyList<string>>? families, List<Finding> findings)
+    {
+        if (node is null)
+        {
+            return;
+        }
+        if (families is null)
+        {
+            findings.Add(Finding.Fail("families", "\"bareTags\" names the family whose releases the bare v… tags were, but there are no families: every release is a bare tag's. Remove it."));
+            return;
+        }
+        string stem = node is JsonValue value && value.TryGetValue(out string? text) ? text.Trim().ToLowerInvariant() : "";
+        if (!families.ContainsKey(stem))
+        {
+            findings.Add(Finding.Fail("families", $"\"bareTags\" is {node.ToJsonString()}, which is not a declared family; the families are {string.Join(", ", families.Keys)}."));
+        }
     }
 
     /// <summary>
@@ -1004,7 +1032,7 @@ static class Projects
         "IsContinuousIntegration", "IsPackable", "OutputType", "IsTestProject", "PackAsTool",
         "IsRoslynComponent", "PackageType", "Authors", "PackageLicenseExpression", "RepositoryUrl",
         "PackageReadmeFile", "DebugType", .. Trimming.Properties,
-        "AssemblyName", Grants.OptOut, "PackageId",
+        "AssemblyName", Grants.OptOut, "PackageId", "FamilyReadme", "AssemblyProduct",
     ];
 
     // What a Debug build emits as symbols: read from a second evaluation, since every other property
@@ -1232,15 +1260,7 @@ static class Families
             return;
         }
 
-        Dictionary<string, string> familyOf = new(StringComparer.OrdinalIgnoreCase);
-        foreach ((string family, IReadOnlyList<string> ids) in families)
-        {
-            foreach (string id in ids)
-            {
-                familyOf.TryAdd(id, family);
-            }
-        }
-
+        Dictionary<string, string> familyOf = ById(families);
         Dictionary<string, Evaluated> byPath = new(StringComparer.OrdinalIgnoreCase);
         foreach (Evaluated project in projects)
         {
@@ -1268,10 +1288,154 @@ static class Families
         }
     }
 
+    /// <summary>
+    /// Each family's README is <c>docs/&lt;stem&gt;.md</c> (plans/00011): it must be there, and link only
+    /// absolutely. It is packed as the README of each of the family's packages, a page on nuget.org,
+    /// where a relative link resolves against nuget.org and goes nowhere.
+    /// </summary>
+    /// <remarks>Read from the tree, so <c>check --repo</c> reaches it as well as a checkout.</remarks>
+    public static void CheckReadmes(Tree tree, Config? config, List<Finding> findings)
+    {
+        if (config?.Families is not { Count: > 0 } families)
+        {
+            return;
+        }
+
+        foreach (string family in families.Keys)
+        {
+            string path = Readme(family);
+            if (tree.Read(path) is not { } text || text.Trim().Length == 0)
+            {
+                findings.Add(Finding.Fail("families", $"The {family} family has no {path}. It is the family's README, packed as README.md into each of its packages: the page nuget.org shows for them."));
+                continue;
+            }
+            foreach ((int line, string target) in Links.Relative(text))
+            {
+                findings.Add(Finding.Fail("families", $"{path}:{line} links to \"{target}\", relatively. It is the {family} family's README on nuget.org, where a relative link goes nowhere: link absolutely, or to an #anchor on the page."));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Each of a family's packages names the family's README in <c>FamilyReadme</c>, which the root
+    /// props pack as its README.md, and carries the family's <c>AssemblyProduct</c> (plans/00011).
+    /// </summary>
+    /// <remarks>
+    /// ⛔ A package that names no README packs the repository's, so its nuget.org page is the wrong
+    /// one, and nothing else fails. The product is stamped into every assembly a version ships,
+    /// permanently. It is the stem without regard to case or separators: <c>XamlQuality</c> for
+    /// <c>xamlquality</c>, <c>AppServices</c> for <c>app-services</c>.
+    /// </remarks>
+    public static void CheckPackages(IReadOnlyList<Evaluated> projects, Config? config, List<Finding> findings)
+    {
+        if (config?.Families is not { Count: > 0 } families)
+        {
+            return;
+        }
+
+        Dictionary<string, string> familyOf = ById(families);
+        foreach (Evaluated project in projects)
+        {
+            if (FamilyOf(project, familyOf) is not { } family)
+            {
+                continue;
+            }
+
+            string readme = project.Value("FamilyReadme").Trim().Replace('\\', '/');
+            if (readme.Length == 0)
+            {
+                findings.Add(Finding.Fail("families", $"{project.Name}, of the {family} family, sets no FamilyReadme, so it packs the repository's README.md. Set it to {Readme(family)}, the family's."));
+            }
+            else if (readme != Readme(family))
+            {
+                findings.Add(Finding.Fail("families", $"{project.Name}, of the {family} family, has FamilyReadme \"{readme}\"; the family's is {Readme(family)}."));
+            }
+
+            string product = project.Value("AssemblyProduct");
+            if (!Bare(product).Equals(Bare(family), StringComparison.OrdinalIgnoreCase))
+            {
+                findings.Add(Finding.Fail("families", $"{project.Name}, of the {family} family, has AssemblyProduct \"{product}\"; a family's packages carry the family's, {family} without regard to case or separators, stamped into every assembly they ship."));
+            }
+        }
+    }
+
+    public static string Readme(string family) => $"docs/{family}.md";
+
+    private static string Bare(string name) => string.Concat(name.Where(char.IsLetterOrDigit));
+
+    private static Dictionary<string, string> ById(IReadOnlyDictionary<string, IReadOnlyList<string>> families)
+    {
+        Dictionary<string, string> familyOf = new(StringComparer.OrdinalIgnoreCase);
+        foreach ((string family, IReadOnlyList<string> ids) in families)
+        {
+            foreach (string id in ids)
+            {
+                familyOf.TryAdd(id, family);
+            }
+        }
+        return familyOf;
+    }
+
     private static string? FamilyOf(Evaluated project, Dictionary<string, string> familyOf) =>
         project.Value("IsPackable") == "true" && familyOf.TryGetValue(project.Value("PackageId"), out string? family) ? family : null;
 
     private static string Full(string path) => Path.GetFullPath(path.Replace('\\', '/')).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+}
+
+/// <summary>
+/// The relative links in a markdown document, each with its line: inline links and images,
+/// reference definitions (<c>[x]: target</c>), and HTML <c>href</c> and <c>src</c> attributes.
+/// </summary>
+/// <remarks>
+/// ⛔ Not inside fenced code or an inline code span: a link shown there as an example is text. A
+/// target with a scheme (<c>https:</c>, <c>mailto:</c>), one starting <c>//</c>, and an anchor within
+/// the page (<c>#…</c>) are absolute.
+/// </remarks>
+static class Links
+{
+    private static readonly Regex Fence = new(@"^ {0,3}(`{3,}|~{3,})");
+    private static readonly Regex CodeSpan = new(@"(`+).+?\1");
+    private static readonly Regex Inline = new(@"\]\(\s*(<[^>]*>|[^\s)]+)");
+    private static readonly Regex Definition = new(@"^ {0,3}\[[^\]]+\]:\s*(<[^>]*>|\S+)");
+    private static readonly Regex Attribute = new(@"\b(?:href|src)\s*=\s*(?:""([^""]*)""|'([^']*)'|([^\s""'>]+))", RegexOptions.IgnoreCase);
+    private static readonly Regex Absolute = new(@"^(?:[A-Za-z][A-Za-z0-9+.-]*:|//|#)");
+
+    public static IEnumerable<(int Line, string Target)> Relative(string markdown)
+    {
+        string[] lines = markdown.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        string? fence = null;
+        for (int i = 0; i < lines.Length; i++)
+        {
+            Match opening = Fence.Match(lines[i]);
+            if (fence is not null)
+            {
+                // A fence closes on a line of the same character, at least as long, and nothing else.
+                if (opening.Success && opening.Groups[1].Value[0] == fence[0] && opening.Groups[1].Length >= fence.Length
+                    && lines[i].Trim().Trim(fence[0]).Length == 0)
+                {
+                    fence = null;
+                }
+                continue;
+            }
+            if (opening.Success)
+            {
+                fence = opening.Groups[1].Value;
+                continue;
+            }
+
+            string text = CodeSpan.Replace(lines[i], "");
+            IEnumerable<string> targets = Inline.Matches(text).Select(m => m.Groups[1].Value)
+                .Concat(Definition.Matches(text).Select(m => m.Groups[1].Value))
+                .Concat(Attribute.Matches(text).Select(m => m.Groups[1].Value + m.Groups[2].Value + m.Groups[3].Value));
+            foreach (string target in targets.Select(t => t.Trim('<', '>').Trim()))
+            {
+                if (target.Length > 0 && !Absolute.IsMatch(target))
+                {
+                    yield return (i + 1, target);
+                }
+            }
+        }
+    }
 }
 
 static class Props
