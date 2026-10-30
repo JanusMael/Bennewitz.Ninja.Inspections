@@ -25,16 +25,16 @@ public sealed class LoadContextTests
     /// <remarks>
     /// ⛔ <b>The context is not collectible.</b> The runtime holds a collectible context by a weak
     /// handle, and nothing here holds this one, so a collection between the load and the scan
-    /// reclaims it: <c>GetLoadContext</c> then answers nothing, the scan resolves in the default
-    /// context, version two is not there, and the rule reports nothing. That failed CI once, on
-    /// macOS, on 2026-10-29, and passed when re-run; with the collection below and a collectible
-    /// context it fails every time. The collection stays, so each test proves the context outlives one.
-    /// It runs after <see cref="LoadDependentInItsOwnContext"/> has returned: inside it, the local
-    /// still holds the context, and a collection there reclaims nothing.
+    /// finalizes it and starts its unload: <c>GetLoadContext</c> still answers it, but every load
+    /// through it fails. That failed CI once, on macOS, on 2026-10-29, and passed when re-run; the
+    /// scan now throws on it, which <see cref="AnAssemblyWhoseContextIsUnloading_Throws"/> shows. The
+    /// collection stays, so each test proves the context outlives one. It runs after
+    /// <see cref="LoadDependentInItsOwnContext"/> has returned: inside it, the local still holds the
+    /// context, and a collection there reclaims nothing.
     /// </remarks>
-    private static Assembly LoadDependent()
+    private static Assembly LoadDependent(bool collectible = false)
     {
-        Assembly dependent = LoadDependentInItsOwnContext();
+        Assembly dependent = LoadDependentInItsOwnContext(collectible);
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
@@ -42,9 +42,9 @@ public sealed class LoadContextTests
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static Assembly LoadDependentInItsOwnContext()
+    private static Assembly LoadDependentInItsOwnContext(bool collectible)
     {
-        AssemblyLoadContext context = new("versioned");
+        AssemblyLoadContext context = new("versioned", collectible);
         context.Resolving += (_, name) =>
         {
             string candidate = Path.Combine(Folder, name.Name + ".dll");
@@ -79,5 +79,22 @@ public sealed class LoadContextTests
 
         Assert.Contains(result.Findings, f => f.Subject == "Dependent.Two");
         Assert.DoesNotContain(result.Skipped, s => s.Contains("AssemblyQuality.Fixtures.Versioned", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// ⛔ An assembly whose collectible context has started to unload: the scan throws, naming the
+    /// context, rather than record version two as a reference that would not load and report no
+    /// shadow, which is what it did before.
+    /// </summary>
+    [Fact]
+    public void AnAssemblyWhoseContextIsUnloading_Throws()
+    {
+        Assembly dependent = LoadDependent(collectible: true);
+
+        InvalidOperationException thrown = Assert.Throws<InvalidOperationException>(
+            () => new NamespaceShadowRule().Analyze(AssemblyScanContext.Of(dependent)));
+
+        Assert.Contains("'versioned'", thrown.Message, StringComparison.Ordinal);
+        Assert.Contains("Keep a reference to the context", thrown.Message, StringComparison.Ordinal);
     }
 }

@@ -184,10 +184,13 @@ that pairing can be assembled before it ships. In the provider's test project:
 ```
 
 Then load each consumer in an `AssemblyLoadContext` of its own that resolves the provider from the
-test's output, which is the source build, and scan the consumer:
+test's output, which is the source build, and scan the consumer. Keep the context alive until the
+scan has finished: a collectible one nothing holds unloads itself at the next garbage collection, and
+the rule then throws `InvalidOperationException` rather than report a scan that examined nothing. A
+context that is not collectible, as here, lives as long as the test process:
 
 ```csharp
-AssemblyLoadContext context = new("consumer", isCollectible: true);
+AssemblyLoadContext context = new("consumer");
 context.Resolving += (_, name) =>
 {
     string candidate = Path.Combine(AppContext.BaseDirectory, name.Name + ".dll");

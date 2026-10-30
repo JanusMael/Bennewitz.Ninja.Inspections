@@ -18,13 +18,13 @@ public sealed class FriendReferenceTests
     /// <summary>The consumer, loaded beside the provider in <paramref name="folder"/>, in a context of its own.</summary>
     /// <remarks>
     /// ⛔ <b>The context is not collectible</b>, and survives the collection below, for the reason
-    /// <c>LoadContextTests.LoadDependent</c> gives: a collectible context nothing holds can be
-    /// reclaimed before the rule resolves the consumer's references in it. The collection runs once
-    /// the loading method has returned, as there.
+    /// <c>LoadContextTests.LoadDependent</c> gives: a collectible context nothing holds starts to
+    /// unload at a collection, before the rule resolves the consumer's references in it. The
+    /// collection runs once the loading method has returned, as there.
     /// </remarks>
-    private static Assembly LoadConsumer(string folder)
+    private static Assembly LoadConsumer(string folder, bool collectible = false)
     {
-        Assembly consumer = LoadConsumerInItsOwnContext(folder);
+        Assembly consumer = LoadConsumerInItsOwnContext(folder, collectible);
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
@@ -32,10 +32,10 @@ public sealed class FriendReferenceTests
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static Assembly LoadConsumerInItsOwnContext(string folder)
+    private static Assembly LoadConsumerInItsOwnContext(string folder, bool collectible)
     {
         string root = Path.Combine(AppContext.BaseDirectory, folder);
-        AssemblyLoadContext context = new(folder);
+        AssemblyLoadContext context = new(folder, collectible);
         context.Resolving += (_, name) =>
         {
             string candidate = Path.Combine(root, name.Name + ".dll");
@@ -103,5 +103,20 @@ public sealed class FriendReferenceTests
         AssemblyRuleResult result = new FriendReferenceRule().Analyze(AssemblyScanContext.Of(orphan));
 
         Assert.Contains(result.Skipped, s => s.Contains("AssemblyQuality.Fixtures.Absent", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// ⛔ A consumer whose collectible context has started to unload: the rule throws, naming the
+    /// context, rather than skip the provider and report nothing.
+    /// </summary>
+    [Fact]
+    public void AConsumerWhoseContextIsUnloading_Throws()
+    {
+        Assembly consumer = LoadConsumer("friend-v2", collectible: true);
+
+        InvalidOperationException thrown = Assert.Throws<InvalidOperationException>(
+            () => new FriendReferenceRule().Analyze(AssemblyScanContext.Of(consumer)));
+
+        Assert.Contains("'friend-v2'", thrown.Message, StringComparison.Ordinal);
     }
 }

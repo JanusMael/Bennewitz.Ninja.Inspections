@@ -17,6 +17,12 @@ namespace Bennewitz.Ninja.AssemblyQuality;
 /// what a CONSUMER can see. Internals are free to be whatever they need to be; a rule that policed
 /// them would be enforcing style rather than contract.
 /// </para>
+/// <para>
+/// ⛔ <b>Hold the load context of every assembly in the scan until the scan has finished.</b> A
+/// rule resolves an assembly's references in the context it was loaded into, and a collectible
+/// context nothing holds unloads itself at the next collection; a rule that meets one throws
+/// <see cref="InvalidOperationException"/> rather than report a scan that compared against nothing.
+/// </para>
 /// </remarks>
 public sealed class AssemblyScanContext
 {
@@ -113,19 +119,21 @@ public sealed class AssemblyScanContext
     {
         HashSet<string> namespaces = new(StringComparer.Ordinal);
 
+        // ⛔ In the scanned assembly's own load context, never the default one: an assembly loaded
+        // beside a different version of a dependency sees that version, and the rule must answer for
+        // what it sees. Measured with LoadContextTests' version-two fixture.
+        AssemblyLoadContext context = AssemblyLoadContext.GetLoadContext(assembly) ?? AssemblyLoadContext.Default;
+
         foreach (AssemblyName reference in assembly.GetReferencedAssemblies())
         {
             Assembly referenced;
             try
             {
-                // ⛔ In the scanned assembly's own load context, never the default one: an assembly
-                // loaded beside a different version of a dependency sees that version, and the rule
-                // must answer for what it sees. Measured with LoadContextTests' version-two fixture.
-                referenced = (AssemblyLoadContext.GetLoadContext(assembly) ?? AssemblyLoadContext.Default)
-                    .LoadFromAssemblyName(reference);
+                referenced = context.LoadFromAssemblyName(reference);
             }
             catch (Exception ex) when (ex is FileNotFoundException or FileLoadException or BadImageFormatException)
             {
+                ThrowIfUnloading(context, assembly, ex);
                 skipped.Add($"{assembly.GetName().Name}: reference {reference.Name} {reference.Version} "
                     + $"would not load ({ex.GetType().Name}), so nothing it exports was compared against.");
                 continue;
@@ -182,6 +190,34 @@ public sealed class AssemblyScanContext
     /// </summary>
     internal static bool IsLoadFailure(Exception exception) =>
         exception is FileNotFoundException or FileLoadException or BadImageFormatException or TypeLoadException;
+
+    /// <summary>
+    /// Throws when <paramref name="exception"/> failed a load because <paramref name="context"/> is
+    /// unloading, rather than because the reference will not load.
+    /// </summary>
+    /// <remarks>
+    /// ⛔ <b>A collectible context nothing holds unloads itself.</b> The runtime keeps one by a weak
+    /// handle, so a collection finalizes it and starts its unload; <c>GetLoadContext</c> still answers
+    /// it, and every load through it then fails with <see cref="FileLoadException"/>, HRESULT
+    /// <c>0x80131509</c>. Recorded as a reference that would not load, that would hide the caller's
+    /// mistake behind a scan that compared against nothing, so it is thrown. Measured on .NET 10: the
+    /// same load through a non-collectible context resolves.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">The context is collectible and unloading.</exception>
+    internal static void ThrowIfUnloading(AssemblyLoadContext context, Assembly assembly, Exception exception)
+    {
+        if (context.IsCollectible && exception is FileLoadException { HResult: UnloadingHResult })
+        {
+            throw new InvalidOperationException(
+                $"{assembly.GetName().Name} was loaded into the collectible load context '{context.Name}', which "
+                + "is being unloaded, so nothing it references can be resolved. Keep a reference to the context "
+                + "until the scan has finished.",
+                exception);
+        }
+    }
+
+    /// <summary>COR_E_INVALIDOPERATION, which a load through an unloading context fails with.</summary>
+    private const int UnloadingHResult = unchecked((int)0x80131509);
 
     /// <summary>
     /// A record of one type a rule could not read, because something its members name will not load.
