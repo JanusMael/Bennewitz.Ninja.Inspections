@@ -176,6 +176,16 @@ Measured on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and Semi.Avalonia 12.1
 
 Measured by mutation on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and Semi.Avalonia 12.1.0.1, headless on Linux with Skia, not reproduced here.
 
+### One throw from `MeasureOverride` or `ArrangeOverride` stops all later layout in that window, a resize included
+
+**Symptom:** After a control's layout override throws once, nothing in its window is measured or arranged again. A control invalidated afterwards keeps its old size and place, the one that threw included, and resizing the window changes nothing. The exception reaches `Dispatcher.UnhandledException` once, so an application whose handler logs it and marks it handled carries on with a window that no longer lays out, and a log line is the only sign.
+
+**Cause:** Not read in the source. Measured: the layout pass that threw is the last one that window runs.
+
+**Fix:** Keep code that can fail on input out of `MeasureOverride`, `ArrangeOverride` and `Render`. Where an override must call out, catch at that boundary and log; a panel that tells its view model its bounds is the usual way in.
+
+Measured on Avalonia 12.1.3 and .NET 10.0.14, headless with headless drawing, on Linux and here on Windows 11, each case twice in its own process with the same result: a `StackPanel` in a 400×300 window held a control that throws `FileNotFoundException` once from `ArrangeOverride` and a control that counts its passes. Before the throw, invalidating the counting control arranged it again, 1 to 2. After it, neither control was arranged again: invalidating either, and widening the window to 500, left both at 2. The same with `MeasureOverride` throwing: neither control was measured or arranged again. Not checked in a running application on a real platform. Two more results, measured headless on Linux and not reproduced here: a window opened after the throw laid out normally, and an explicit `UpdateLayout()` on a control of the stuck window forced a pass; and a throw from `Render`, drawn with Skia, stopped that window drawing.
+
 ---
 
 ## Styling / theming
@@ -1101,6 +1111,62 @@ Measured on Avalonia 12.1.3 and Avalonia.Headless 12.1.3 with Skia, Semi.Avaloni
 ⚠ **A leftover can cost more than nothing.** In the case measured, a search box's view model kept the `IDataErrorInfo` of the WPF code it was ported from, and a subscription that raised `PropertyChanged` for the box's text again whenever validity changed, so that WPF would ask for the error again. Under Avalonia the re-raise drew nothing. It also ran inside Rx's `Throttle` delivery, which holds the throttle's lock on its timer's thread, and fed back into the `CombineLatest` above the throttle. A key typed at that moment took the `CombineLatest`'s lock and waited for the throttle's, while the delivery held the throttle's and waited for the `CombineLatest`'s. In the application that freezes the window; in its test suite it was a test host hanging with no message, which a stack dump from `dotnet-stack`, run through `dnx`, named. A fixture that forces the interleaving failed 3 runs of 3 before the re-raise and the interface were removed and passed 3 of 3 after, and the whole suite then ran 8 times without a stall, where it had stalled in 2 of 3 runs that morning. The deadlock is Rx's and the application's, not Avalonia's; it hid in a WPF idiom that silently does nothing. Measured on the same versions, not reproduced here.
 
 ⭐ **Candidate rule.** A type the compiled assemblies define that implements `IDataErrorInfo` is visible to a scan, and so is markup that names it as an `x:DataType`. A model shared with a front end that does ask, as WPF does, would be reported too.
+
+### A two-way binding whose `ConvertBack` throws writes the source type's default over the source, and does it again after every change
+
+**Symptom:** A view model value bound through a converter becomes `0`, or its type's default, as soon as the binding attaches, and again every time the view model changes it. The user's edit never reaches it. Nothing throws: Avalonia logs a `Binding` Warning for each failed conversion and nothing else.
+
+**Cause:** A converter whose `ConvertBack` throws `NotSupportedException` is the usual way of saying "one way only", and a target that binds two-way by default, such as `TextBox.Text`, does not know. Measured: when the target takes the converted value, the binding writes it back, `ConvertBack` throws, and the source ends up holding its type's default, which converts, is written back and fails again; the Warnings name `'3'` and then `'0'`. Which step writes the default was not read in the source.
+
+**Fix:** Say `Mode=OneWay` on the binding wherever the converter cannot convert back, or have `ConvertBack` return `BindingOperations.DoNothing`, which leaves the source alone. Both measured: the view model kept its value through an edit and took the next one it was given.
+
+Measured on Avalonia 12.1.3 and .NET 10.0.14, headless, on Linux and here on Windows 11, each case twice in its own process with the same result: a `TextBox` bound two-way to an `int` holding 3, through a converter whose `Convert` returns `ToString()` and whose `ConvertBack` throws. At binding time the view model's 3 became 0 and the box showed 0, with a Warning for `'3'` and another for `'0'`. Typing 5 left the view model at 0, with no validation error on the box. Setting the view model to 7 put it back to 0. With `Mode=OneWay`, and separately with a `ConvertBack` that returns `DoNothing`, both measured here only, the view model kept 3 through the edit and the box showed 7 when the view model was set to 7.
+
+⭐ **Candidate rule.** A binding that names a converter on a target property registered two-way by default, with no `Mode`, is visible to a markup scan, and whether the converter's `ConvertBack` does nothing but throw is visible in its IL. A converter that can convert back some values and throws on others it cannot see.
+
+### An exception inside a binding never reaches the application: a converter's is a Warning, a setter's a validation error or nothing
+
+**Symptom:** A converter that throws on one value blanks the target and recovers on the next value. A view model setter that throws under a two-way `TextBox.Text` binding shows the exception as a validation error on the box, and the view model keeps its old value. Under a two-way binding to a property that has no data validation, as most custom properties have none, the throw vanishes: the control shows the new value and the view model keeps the old one. In none of the three does `Dispatcher.UnhandledException` hear of it, and the code that set the value sees the call return normally.
+
+**Cause:** The binding catches the exception. Measured: a converter's goes to Avalonia's log as a `Binding` Warning; a setter's becomes a data validation error where the target property has data validation, and is dropped where it has none, with nothing in Avalonia's log above Verbose either way.
+
+**Fix:** Route Avalonia's log to the application's, as the first entry under *Logging* says, or a converter's failure is seen nowhere. Type-test and `TryParse` in converters, and answer `BindingOperations.DoNothing` for a value that cannot be shown. Never throw from a setter a binding writes to: validate first, with `INotifyDataErrorInfo` where the user should see why.
+
+Measured on Avalonia 12.1.3 and .NET 10.0.14, headless, on Linux and here on Windows 11, each case twice in its own process with the same result. A `TextBlock` bound to an `int` through a converter that throws `FormatException` on 1: the text read `v0`, went blank on 1 with the Warning `An error occurred binding Text to Value: Could not convert '1' (System.Int32) to 'System.String' using '…': thrown by the converter on 1`, and read `v2` on 2. A `TextBox` bound two-way to a string whose setter throws `ArgumentException` on `bad`: `HasErrors` true with the exception as its error, the view model kept `good`, and the next good value cleared the error and reached it. The same setter under a two-way binding to a `StyledProperty` registered with `BindingMode.TwoWay` on a plain `Control`: the control held `bad`, the view model `good`, and the only log line naming the value was the Verbose `Set Value to bad with priority LocalValue`.
+
+---
+
+## Dispatcher / exceptions
+
+### With no `Dispatcher.UnhandledException` handler the first throw from a posted action ends the application, and with one that marks it handled every UI-thread failure is a log line
+
+**Symptom:** Without a handler, one exception from an action on the UI thread closes the application: a `Post`, a layout pass, and, measured on Linux only, an `ObserveOn` the dispatcher or an async void method. With a handler that logs and sets `Handled`, the application lives on, and the feature that threw is dead with nothing on screen to say so.
+
+**Cause:** Measured: under `Dispatcher.UIThread.RunJobs()`, which headless tests pump, the exception escapes `RunJobs` to its caller and the next post still runs, so a headless suite does not show the application ending. Under `Dispatcher.UIThread.MainLoop`, which a running application is inside, it reaches `AppDomain.UnhandledException` with `IsTerminating` true and the process ends.
+
+**Fix:** Keep the handler: it is the difference between losing a feature and losing the application. Treat it as a reporter, not as error handling. Tell the user something failed, with a status line or a notice, and fix each site it reports.
+
+Measured on Avalonia 12.1.3 and .NET 10.0.14, headless, on Linux and here on Windows 11, each case twice in its own process with the same result: with no handler, a post that throws `InvalidOperationException` escaped `RunJobs`, a second post ran, and the same throw posted inside `MainLoop` ended the process, exit 134 on Linux and `0xE0434352` on Windows. With a handler marking it handled, a throwing post was logged and the next post ran, measured on Linux and not reproduced here; here, a throw from `ArrangeOverride` under such a handler was logged once and the process lived on, as the entry on layout overrides under *XAML / layout* says.
+
+### One throw from a `DispatcherTimer`'s `Tick` stops the timer for good, while `IsEnabled` reads true and `Dispatcher.UnhandledException` never hears of it
+
+**Symptom:** A periodic refresh, a poll or an autosave driven by a `DispatcherTimer` stops after its handler throws once. The timer still reads `IsEnabled` true. No `Dispatcher.UnhandledException` is raised, so an application that logs through that handler logs nothing. The exception surfaces only as `TaskScheduler.UnobservedTaskException`, at some later garbage collection.
+
+**Cause:** Not read in the source. That the exception arrives as an unobserved task's suggests the tick runs inside a task whose fault nothing observes; inferred, not read.
+
+**Fix:** Wrap every `Tick` handler's body in one `try`/`catch` that logs. The timer will not tell you.
+
+Measured on Avalonia 12.1.3 and .NET 10.0.14, headless, on Linux and here on Windows 11, each case twice in its own process: a 30 ms `DispatcherTimer` whose handler throws on its first tick ticked once in 600 ms of `MainLoop`, `IsEnabled` true afterwards; the same timer with a handler that never throws ticked 20 times on Linux and 14 to 19 times here, across four runs. The throwing timer's exception was reported only after a forced collection, as `TaskScheduler.UnobservedTaskException`; the control's run reported none. Not checked in a running application on a real platform.
+
+### `Dispatcher.InvokeAsync` is not `Post`: an operation that throws, never awaited, does not reach `Dispatcher.UnhandledException`
+
+**Symptom:** Work handed to the UI thread with `InvokeAsync` and not awaited fails with nothing in the log, even with a dispatcher handler in place. The exception surfaces only as `TaskScheduler.UnobservedTaskException`, at some later garbage collection.
+
+**Cause:** Inferred, not read in the source: `InvokeAsync` returns an operation whose task carries the exception, and nothing observes it, where a `Post` returns nothing to carry it, so its exception goes to `Dispatcher.UnhandledException`, as the first entry in this section says.
+
+**Fix:** Await the operation, or observe its task and log the fault. Use `Post` where the work truly runs on its own and the dispatcher's handler should see its failure.
+
+Measured on Avalonia 12.1.3 and .NET 10.0.14, headless, on Linux and here on Windows 11, each case twice in its own process with the same result: `InvokeAsync(Action)` and `InvokeAsync(Func<Task>)`, the second throwing after an `await Task.Yield()`, each throwing `InvalidOperationException` and never awaited. With a dispatcher handler installed, neither reached it; after a forced collection both arrived as `TaskScheduler.UnobservedTaskException`.
 
 ---
 
