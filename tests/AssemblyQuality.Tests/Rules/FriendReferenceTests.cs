@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using Bennewitz.Ninja.AssemblyQuality;
 using Bennewitz.Ninja.AssemblyQuality.Rules;
@@ -15,10 +16,26 @@ public sealed class FriendReferenceTests
     private const string Consumer = "AssemblyQuality.Fixtures.FriendConsumer";
 
     /// <summary>The consumer, loaded beside the provider in <paramref name="folder"/>, in a context of its own.</summary>
+    /// <remarks>
+    /// ⛔ <b>The context is not collectible</b>, and survives the collection below, for the reason
+    /// <c>LoadContextTests.LoadDependent</c> gives: a collectible context nothing holds can be
+    /// reclaimed before the rule resolves the consumer's references in it. The collection runs once
+    /// the loading method has returned, as there.
+    /// </remarks>
     private static Assembly LoadConsumer(string folder)
     {
+        Assembly consumer = LoadConsumerInItsOwnContext(folder);
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        return consumer;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static Assembly LoadConsumerInItsOwnContext(string folder)
+    {
         string root = Path.Combine(AppContext.BaseDirectory, folder);
-        AssemblyLoadContext context = new(folder, isCollectible: true);
+        AssemblyLoadContext context = new(folder);
         context.Resolving += (_, name) =>
         {
             string candidate = Path.Combine(root, name.Name + ".dll");

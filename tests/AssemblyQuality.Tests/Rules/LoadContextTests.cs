@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using Bennewitz.Ninja.AssemblyQuality;
 using Bennewitz.Ninja.AssemblyQuality.Rules;
@@ -21,9 +22,29 @@ public sealed class LoadContextTests
     private static readonly string Folder = Path.Combine(AppContext.BaseDirectory, "versioned");
 
     /// <summary>Dependent, loaded beside version two of its dependency, in a context of its own.</summary>
+    /// <remarks>
+    /// ⛔ <b>The context is not collectible.</b> The runtime holds a collectible context by a weak
+    /// handle, and nothing here holds this one, so a collection between the load and the scan
+    /// reclaims it: <c>GetLoadContext</c> then answers nothing, the scan resolves in the default
+    /// context, version two is not there, and the rule reports nothing. That failed CI once, on
+    /// macOS, on 2026-10-29, and passed when re-run; with the collection below and a collectible
+    /// context it fails every time. The collection stays, so each test proves the context outlives one.
+    /// It runs after <see cref="LoadDependentInItsOwnContext"/> has returned: inside it, the local
+    /// still holds the context, and a collection there reclaims nothing.
+    /// </remarks>
     private static Assembly LoadDependent()
     {
-        AssemblyLoadContext context = new("versioned", isCollectible: true);
+        Assembly dependent = LoadDependentInItsOwnContext();
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        return dependent;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static Assembly LoadDependentInItsOwnContext()
+    {
+        AssemblyLoadContext context = new("versioned");
         context.Resolving += (_, name) =>
         {
             string candidate = Path.Combine(Folder, name.Name + ".dll");
