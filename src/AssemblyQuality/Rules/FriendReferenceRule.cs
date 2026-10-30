@@ -189,6 +189,7 @@ public sealed class FriendReferenceRule : IAssemblyRule
             }
             catch (Exception ex) when (AssemblyScanContext.IsLoadFailure(ex))
             {
+                AssemblyScanContext.ThrowIfUnloading(loadContext, consumer, ex);
                 skipped.Add($"{consumerName}: reference {reference.Name} {reference.Version} would not load "
                     + $"({ex.GetType().Name}), so nothing referenced in it was examined.");
                 return null;
