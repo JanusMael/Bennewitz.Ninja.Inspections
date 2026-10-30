@@ -23,7 +23,9 @@ the rename. The first blank-version preflight failed with a 401: the policy stil
 which answers the question decision 20 left open. Edited to the new name, the preflight logged in
 (run `40933076378`), and the policy as the maintainer showed it names Inspections with a pattern per
 family.
-AssemblyQuality's and CodeQuality's own policies stay until each family's first release from here.
+AssemblyQuality's own policy went after its first release from here. CodeQuality's was deleted by the
+maintainer on 2026-10-30 without one: it named the archived CodeQuality repository, which can run no
+workflow, so it could never publish again, and decision 21 leaves CodeQuality nothing to release yet.
 
 Step 7 is done too, on 2026-10-29, by the maintainer's decisions of that day: AssemblyQuality and
 CodeQuality are archived, each with a final README commit pushed to its `main` that names this
@@ -35,7 +37,7 @@ What remains of the plan for this repository:
 
 | Step | What | Waits on |
 |---|---|---|
-| 9 | Each family's first release from here, when it next changes (decision 21: moving is not a reason to release). Each id read back from nuget.org's flat container with `RepositoryUrl` naming Inspections; the release's assets that family's ids alone. After AssemblyQuality's and CodeQuality's, the policy of the repository each left is deleted. **AssemblyQuality's is done**, `assemblyquality/v2026.4.1029`, below; its old policy was deleted by the maintainer the same day. A family's notes are written by `release-target.cs notes` since the sync below, so they no longer need replacing by hand | XamlQuality and CodeQuality: a change in that family |
+| 9 | Each family's first release from here, when it next changes (decision 21: moving is not a reason to release). Each id read back from nuget.org's flat container with `RepositoryUrl` naming Inspections; the release's assets that family's ids alone. After AssemblyQuality's and CodeQuality's, the policy of the repository each left is deleted. **AssemblyQuality's is done**, `assemblyquality/v2026.4.1029`, below; its old policy was deleted by the maintainer the same day. **CodeQuality's old policy is gone too**, deleted by the maintainer on 2026-10-30 ahead of its first release, as the Resume above says. A family's notes are written by `release-target.cs notes` since the sync below, so they no longer need replacing by hand | XamlQuality and CodeQuality: a change in that family |
 
 Each family releases alone, from a tag `<family>/vYYYY.Q.MMDD`; [docs/publishing.md](docs/publishing.md)
 is the runbook. Whether a family has anything to release is in its section below.
