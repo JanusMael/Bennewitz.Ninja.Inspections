@@ -79,6 +79,12 @@ claude plugin marketplace add JanusMael/Bennewitz.Ninja.Inspections
 claude plugin install drivable-ui@xamlquality
 ```
 
+## Exception resilience
+
+[docs/exception-resilience.md](docs/exception-resilience.md): where one exception from ordinary
+input silently kills a feature, vanishes, or ends the process, in plain .NET, System.Reactive and
+DynamicData, each shape measured, with its fix.
+
 ## Releases
 
 Each family releases alone, from a tag of its own: `xamlquality/vYYYY.Q.MMDD`,
