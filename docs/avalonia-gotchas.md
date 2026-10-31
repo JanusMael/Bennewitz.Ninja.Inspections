@@ -186,6 +186,16 @@ Measured by mutation on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and Semi.A
 
 Measured on Avalonia 12.1.3 and .NET 10.0.14, headless with headless drawing, on Linux and here on Windows 11, each case twice in its own process with the same result: a `StackPanel` in a 400×300 window held a control that throws `FileNotFoundException` once from `ArrangeOverride` and a control that counts its passes. Before the throw, invalidating the counting control arranged it again, 1 to 2. After it, neither control was arranged again: invalidating either, and widening the window to 500, left both at 2. The same with `MeasureOverride` throwing: neither control was measured or arranged again. Not checked in a running application on a real platform. Two more results, measured headless on Linux and not reproduced here: a window opened after the throw laid out normally, and an explicit `UpdateLayout()` on a control of the stuck window forced a pass; and a throw from `Render`, drawn with Skia, stopped that window drawing.
 
+### A `TextBlock`'s `LineHeight` centres the glyphs in the taller line; `LineSpacing` puts the extra below
+
+**Symptom:** Text given a `LineHeight` above its face's natural height to fit a row pitch sits lower in each line than expected, or higher than text laid out with `LineSpacing`. A comment that says `LineHeight` adds the extra below the glyphs is wrong.
+
+**Cause:** Measured, not read in the source: `LineHeight` makes each line box that tall and centres the glyphs in it, half the extra above the baseline and half below. `LineSpacing` adds its amount below each line, the last line included, and leaves the baseline where the face puts it. Either way the layout is as tall: each line grows by the extra.
+
+**Fix:** Choose by where the text should sit. `LineHeight` set to the pitch keeps each line's text centred in the pitch; `LineSpacing` set to the pitch less the natural height keeps it at the top of each line, as text at the natural height would be.
+
+Measured on Avalonia 12.1.3, headless with Skia drawing, on Linux in JetBrains Mono at 12 pt, a natural line of 15.84 with its baseline at 12.24: `LineHeight` 20 gave lines of 20 with the baseline at 14.32, 2.08 lower, half the 4.16 extra; `LineSpacing` 4.16 gave lines of 20 with the baseline still at 12.24, and five wrapped lines took 100. Here on Windows, each twice, a three-line `TextBlock` at 16 px in Consolas and in Cascadia Mono: `LineHeight` at the natural height plus 4 moved every baseline down by 2, from 13.25 to 15.25 in Consolas, and `LineSpacing` 4 left it at 13.25; both made each line 4 taller and the layout 12 taller.
+
 ---
 
 ## Styling / theming
@@ -609,7 +619,7 @@ Third container type, same rule, and **all four `ItemsSource`-bound ListBoxes ac
 
 ⚠ **An `ItemsControl` is not in this class and is deliberately not scanned.** It generates non-focusable `ContentPresenter`s, so the announced name comes from the focusable control inside the template. One app's search popup is an `ItemsControl` of `Button`s carrying an explicit `AutomationProperties.Name`, which is why the *same view-model* was broken in one app and correct in the other — a per-app difference no view-model test can see.
 
-⭐ **Checked by [`BNXQ1009`](../README.md#rules)**, for a `ListBoxItem` and a `ComboBoxItem` as for a `TabItem`. ⚠ A `Style` whose selector is `ListBoxItem` alone does not reach a `ComboBoxItem`, although one derives from the other, because a type selector matches exactly: write `:is(ListBoxItem)` or `ComboBoxItem`. Measured on 12.1.3.
+⭐ **Checked by [`BNXQ1009`](../README.md#rules)**, for a `ListBoxItem` and a `ComboBoxItem` as for a `TabItem`. ⚠ A `Style` whose selector is `ListBoxItem` alone does not reach a `ComboBoxItem`, although one derives from the other, because a type selector matches exactly: write `:is(ListBoxItem)` or `ComboBoxItem`. Measured on 12.1.3. ⚠ So a type selector naming `Control` matches no real control at all, every one being a subclass: in a `Grid`'s `Styles`, `Control.x` setting `VerticalAlignment` to `Top` left a `TextBlock` with the class at `Stretch`, where `:is(Control).x` and `TextBlock.x` set it. Measured on 12.1.3 headless on Linux, in a row template where such a style had matched nothing since a port, and here on Windows, each twice.
 
 ---
 
