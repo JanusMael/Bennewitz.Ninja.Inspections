@@ -305,6 +305,7 @@ records which types are public and which stay internal.
 | `docs/ai-drivable-ui.md` | The method for a desktop UI an agent can drive and verify, begun in a WPF-to-Avalonia port. This is its one living copy; the port points here instead of keeping its own |
 | `docs/ai-drivable-ui/` | The tools and journals the guide links to, moved from that port |
 | `docs/ai-drivable-ui/plugin/` | The guide condensed into the `drivable-ui` skill, served as a Claude Code plugin through `.claude-plugin/marketplace.json` at the root |
+| `docs/exception-resilience.md` | Measured exception shapes in plain .NET, System.Reactive and DynamicData: where one exception kills a feature, vanishes or ends the process, and the fix. The Avalonia shapes stay in the gotchas |
 | `docs/publishing.md` | Trusted publishing, the version rule, and verifying a release against the feed |
 
 The gotchas document lives beside the rules on purpose. An entry that can be checked mechanically is
