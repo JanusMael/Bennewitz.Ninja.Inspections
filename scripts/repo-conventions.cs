@@ -38,6 +38,8 @@
 // Exit codes: 0 conforms, 1 findings, 2 usage or an error that stopped the run.
 
 using System.Diagnostics;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -1032,7 +1034,7 @@ static class Projects
         "IsContinuousIntegration", "IsPackable", "OutputType", "IsTestProject", "PackAsTool",
         "IsRoslynComponent", "PackageType", "Authors", "PackageLicenseExpression", "RepositoryUrl",
         "PackageReadmeFile", "DebugType", .. Trimming.Properties,
-        "AssemblyName", Grants.OptOut, "PackageId", "FamilyReadme", "AssemblyProduct",
+        "AssemblyName", Grants.OptOut, "PackageId", "FamilyReadme", "AssemblyProduct", "ProjectAssetsFile",
     ];
 
     // What a Debug build emits as symbols: read from a second evaluation, since every other property
@@ -1235,6 +1237,151 @@ static class Trimming
     /// <summary>The reasons for a finding: the first three, and how many more.</summary>
     public static string Describe(IReadOnlyList<string> reasons) =>
         string.Join("; ", reasons.Take(3)) + (reasons.Count > 3 ? $"; and {reasons.Count - 3} more" : "");
+}
+
+/// <summary>
+/// The other side of the trimming enforcement (plans/00008 step 3): in a repository that trims, each
+/// <c>Bennewitz.Ninja.*</c> package a library or an app takes, transitive ones included, carries
+/// <c>[assembly: AssemblyMetadata("IsTrimmable", "True")]</c> in every assembly it adds to the build.
+/// </summary>
+/// <remarks>
+/// ⛔ <c>TrimMode=partial</c> trims only the assemblies that carry it, so an unmarked family package
+/// is silently left whole and its trim warnings are never raised. Read from the project's
+/// <c>project.assets.json</c> and each assembly's metadata, loading nothing. A package that adds no
+/// assembly, as an analyzer or an MSBuild package does, has nothing to trim.
+/// </remarks>
+static class TrimmablePackages
+{
+    private const string Prefix = "Bennewitz.Ninja.";
+
+    // Each assembly is read once, however many projects take its package.
+    private static readonly Dictionary<string, bool?> Marked = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The problem with a project's restore graph, or null when each family package in it is trimmable.</summary>
+    public static string? Problem(string assetsFile, IReadOnlyList<string> trimmedBy)
+    {
+        string trims = $"and the repository trims ({Trimming.Describe(trimmedBy)})";
+        JsonObject? assets = null;
+        try
+        {
+            assets = File.Exists(assetsFile) ? JsonNode.Parse(File.ReadAllText(assetsFile)) as JsonObject : null;
+        }
+        catch (JsonException)
+        {
+        }
+        if (assets is null)
+        {
+            return $"has no readable restore graph{(assetsFile.Length > 0 ? " at " + assetsFile : "")}, so its {Prefix}* packages cannot be checked, {trims}.";
+        }
+
+        string folder = (assets["packageFolders"] as JsonObject)?.Select(f => f.Key).FirstOrDefault() ?? "";
+        JsonObject libraries = assets["libraries"] as JsonObject ?? new JsonObject();
+        SortedSet<string> unmarked = new(StringComparer.OrdinalIgnoreCase);
+        SortedSet<string> unread = new(StringComparer.OrdinalIgnoreCase);
+        foreach (KeyValuePair<string, JsonNode?> target in assets["targets"] as JsonObject ?? new JsonObject())
+        {
+            foreach (KeyValuePair<string, JsonNode?> package in target.Value as JsonObject ?? new JsonObject())
+            {
+                if (!package.Key.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase) || Text(package.Value?["type"]) != "package")
+                {
+                    continue;
+                }
+                string path = Text(libraries[package.Key]?["path"]);
+                string name = package.Key.Replace('/', ' ');
+                foreach (KeyValuePair<string, JsonNode?> asset in package.Value?["runtime"] as JsonObject ?? new JsonObject())
+                {
+                    // An empty folder's placeholder: the package adds no assembly for this framework.
+                    if (Path.GetFileName(asset.Key) == "_._")
+                    {
+                        continue;
+                    }
+                    switch (IsMarked(Path.Combine(folder, path, asset.Key)))
+                    {
+                        case false:
+                            unmarked.Add(name);
+                            break;
+                        case null:
+                            unread.Add($"{name} ({asset.Key})");
+                            break;
+                    }
+                }
+            }
+        }
+
+        if (unmarked.Count == 0 && unread.Count == 0)
+        {
+            return null;
+        }
+        List<string> problems = [];
+        if (unmarked.Count > 0)
+        {
+            problems.Add($"takes {string.Join(", ", unmarked)}, without IsTrimmable");
+        }
+        if (unread.Count > 0)
+        {
+            problems.Add($"takes {string.Join(", ", unread)}, whose assembly could not be read");
+        }
+        return $"{string.Join("; ", problems)}, {trims}: every {Prefix}* package a library or an app takes, transitive ones included, must be trimmable. Take a version that is.";
+    }
+
+    /// <summary>Whether the assembly carries IsTrimmable; null when it cannot be read.</summary>
+    private static bool? IsMarked(string file)
+    {
+        if (Marked.TryGetValue(file, out bool? known))
+        {
+            return known;
+        }
+
+        bool? marked = null;
+        try
+        {
+            using FileStream stream = File.OpenRead(file);
+            using PEReader pe = new(stream);
+            if (pe.HasMetadata)
+            {
+                MetadataReader reader = pe.GetMetadataReader();
+                marked = false;
+                foreach (CustomAttributeHandle handle in reader.GetAssemblyDefinition().GetCustomAttributes())
+                {
+                    CustomAttribute attribute = reader.GetCustomAttribute(handle);
+                    if (!IsAssemblyMetadata(reader, attribute.Constructor))
+                    {
+                        continue;
+                    }
+                    // The attribute's blob: a prolog of 1, then its two string arguments, key and value.
+                    BlobReader value = reader.GetBlobReader(attribute.Value);
+                    if (value.ReadUInt16() == 1 && value.ReadSerializedString() == "IsTrimmable")
+                    {
+                        marked = string.Equals(value.ReadSerializedString(), "True", StringComparison.OrdinalIgnoreCase);
+                        break;
+                    }
+                }
+            }
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or BadImageFormatException)
+        {
+        }
+        Marked[file] = marked;
+        return marked;
+    }
+
+    private static bool IsAssemblyMetadata(MetadataReader reader, EntityHandle constructor)
+    {
+        if (constructor.Kind != HandleKind.MemberReference)
+        {
+            return false;
+        }
+        EntityHandle parent = reader.GetMemberReference((MemberReferenceHandle)constructor).Parent;
+        if (parent.Kind != HandleKind.TypeReference)
+        {
+            return false;
+        }
+        TypeReference type = reader.GetTypeReference((TypeReferenceHandle)parent);
+        return reader.StringComparer.Equals(type.Name, "AssemblyMetadataAttribute")
+            && reader.StringComparer.Equals(type.Namespace, "System.Reflection");
+    }
+
+    private static string Text(JsonNode? node) => node is JsonValue value && value.TryGetValue(out string? text) ? text ?? "" : "";
 }
 
 /// <summary>
@@ -1538,6 +1685,14 @@ static class Props
             yield return ("Trimming", trimmedBy.Count == 0 || (Value(p, "IsTrimmable") == "true" && Value(p, "EnableTrimAnalyzer") == "true")
                 ? null
                 : $"is not trimmable, and the repository trims ({Trimming.Describe(trimmedBy)}): every library needs IsTrimmable and EnableTrimAnalyzer, as the template's src/Directory.Build.props sets them.");
+        }
+
+        // The other side (plans/00008 step 3): what a library or an app takes from the family is trimmed
+        // with it. A test runs untrimmed, a tool on the installed framework and an analyzer in the
+        // compiler, so their restore graphs owe nothing.
+        if (role is "library" or "app")
+        {
+            yield return ("TrimmablePackages", trimmedBy.Count == 0 ? null : TrimmablePackages.Problem(Value(p, "ProjectAssetsFile"), trimmedBy));
         }
 
         if (role is not ("library" or "tool"))
