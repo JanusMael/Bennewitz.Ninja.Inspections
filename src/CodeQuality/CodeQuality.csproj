@@ -16,7 +16,7 @@
     <AssemblyProduct>CodeQuality</AssemblyProduct>
     <FamilyReadme>docs/codequality.md</FamilyReadme>
     <AssemblyName>CodeQuality</AssemblyName>
-    <Description>Roslyn analyzers for the shape of a .NET library's source: namespace segments that shadow a referenced root namespace, implementation types leaking into the public surface, and cancellation tokens a caller can leave out. The source-side companion to Bennewitz.Ninja.AssemblyQuality.</Description>
+    <Description>Roslyn analyzers for the shape of a .NET library's source: namespace segments that shadow a referenced root namespace, implementation types leaking into the public surface, cancellation tokens a caller can leave out, and System.Reactive calls where one exception ends the process or vanishes. The source-side companion to Bennewitz.Ninja.AssemblyQuality.</Description>
     <PackageTags>analyzers roslyn code-quality static-analysis api-design</PackageTags>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
