@@ -10,7 +10,7 @@ binding — are in [avalonia-gotchas.md](avalonia-gotchas.md), under *Dispatcher
 *Bindings / view-model* and *XAML / layout*.
 
 **Measured on** Windows 11 (10.0.26300), .NET 10.0.14 (SDK 10.0.403), System.Reactive 6.1.0 and
-DynamicData 9.4.33, 2026-10-31. Each case threw once, ran in its own process, and ran twice, with the same
+DynamicData 9.4.33, 2026-10-31 and 2026-11-01. Each case threw once, ran in its own process, and ran twice, with the same
 outcome both times. Every case installs handlers that print a line when
 `AppDomain.UnhandledException` or `TaskScheduler.UnobservedTaskException` fires, and a case that expects
 the second forces a garbage collection first. So:
@@ -43,7 +43,7 @@ A throw goes to whoever called the code that threw. That one fact predicts most 
 | `Subscribe`, delivering a value a `ReplaySubject` or `Replay` holds, or a `BehaviorSubject`'s behind an operator | **swallowed**: nothing reports it, and the subscription is dead |
 | Rx's default scheduler, `ThreadPoolScheduler`, `NewThreadScheduler`, an `EventLoopScheduler` | the process ends |
 | The task pool: `TaskPoolScheduler`, `Task.Run`, a task nobody awaits, `ContinueWith` | unobserved until a garbage collection finalises the task |
-| A `System.Threading.Timer`, `ThreadPool.QueueUserWorkItem`, a `Thread`, a finalizer, `Process.OutputDataReceived`, async void with no synchronisation context | the process ends |
+| A `System.Threading.Timer`, `ThreadPool.QueueUserWorkItem`, a `Thread`, a finalizer, `Process.OutputDataReceived`, `ErrorDataReceived` and `Exited`, async void with no synchronisation context | the process ends |
 | A `System.Timers.Timer` | swallowed; the timer keeps ticking |
 | A `FileSystemWatcher` | Windows: the process ends. Linux: the watcher's `Error` event, and the watcher goes silent |
 
@@ -89,7 +89,7 @@ sample of each shape.
 | A semaphore taken without try/finally | DEAD: every later caller waits | none |
 | A busy flag reset without finally | DEAD: the feature is skipped | none |
 | A `FileSystemWatcher` handler | Windows: ENDS. Linux: DEAD, told only to `Error` | none |
-| A `Process` output handler | ENDS | none |
+| A `Process` event handler | ENDS | none |
 | A finalizer | ENDS | none |
 | A cancellation callback | thrown into whoever cancels | none |
 
@@ -423,23 +423,31 @@ completed half a second later, and `CurrentCount` read 0.
 
 ### A `FileSystemWatcher` handler that throws ends the process on Windows, and silences the watcher on Linux
 
-**Symptom:** On Windows, the application closes when a watched file appears. On Linux, it stops noticing
-files, and nothing says so.
+**Symptom:** On Windows, the application closes when a watched file appears, changes, goes or is renamed.
+On Linux, it stops noticing files, and nothing says so.
 
-**Measured** with a `Created` handler that threw on the first of three files, each written 400 ms apart:
+**Measured** with a handler for `Created`, `Changed`, `Deleted` or `Renamed`, each in a case of its own,
+that threw on the first of three files, each created, appended to, deleted or renamed 400 ms apart. All
+four events behaved alike:
 
 | Platform | What happened |
 |---|---|
 | Windows 11, .NET 10.0.14 | the handler ran on a thread-pool thread, and the process ended |
 | Linux (Ubuntu 26.04.1 under WSL 2), .NET 10.0.13 | the exception went to the watcher's **`Error` event**, and the watcher raised **nothing for the second or third file**, with `EnableRaisingEvents` still true |
 
-The control, the same watcher with a handler that never throws, saw all three files on both.
+The control for each event, the same watcher with a handler that never throws, saw all three files on
+both.
 
 **Fix:** A try/catch that logs, inside every handler. Subscribe to `Error`, and rebuild the watcher there.
 
-### A `Process` output handler that throws ends the process
+### A `Process` event handler that throws ends the process
 
-**Measured:** A throw in `OutputDataReceived` ended the process. `Exited` was not measured.
+**Measured:** A throw in `OutputDataReceived`, in `ErrorDataReceived` or in `Exited` ended the process, on
+Windows and on Linux. Each handler ran on a thread-pool thread, and each control, a handler that never
+throws, saw every line or the exit.
+
+`WaitForExit` raises `Exited` itself, on its caller's thread, when the event has not been raised yet: a
+throw from the handler then reaches whoever called `WaitForExit`, as measured on both platforms.
 
 **Fix:** A try/catch that logs, inside the handler.
 

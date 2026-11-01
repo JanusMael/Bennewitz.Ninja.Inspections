@@ -393,8 +393,9 @@ template already leaves it out.
 - **QuailTail's exception catalogue, decided by the developer on 2026-10-31.** The shapes that are not
   Avalonia's, its Rx, DynamicData, task, timer, thread, event, teardown and `Lazy` shapes, are in a
   document of their own here, `docs/exception-resilience.md`, each claim measured again here on Windows
-  before it landed, in PR #114. Its scanner is not taken: a plan turns the catalogue into
-  CodeQuality rules, held to the scanner's self-test corpus of 70 expected sites and 22 safe forms.
+  before it landed, in PR #114. Its scanner is not taken: plan 00005, approved on 2026-11-01, turns
+  the catalogue into CodeQuality rules, with the scanner's self-test corpus of 70 expected sites and 22
+  safe forms, and QuailTail's own sites, as fixtures written here; under *CodeQuality* below.
   `Microsoft.VisualStudio.Threading.Analyzers` is measured on one repository first, and adopted or not
   family-wide after that. The `ConvertBack` candidate went on the rule backlog above.
 
@@ -694,6 +695,7 @@ JanusMael/Bennewitz.Ninja.CodeQuality.
 | Published | `2026.3.928`, released 2026-09-28 and verified from the feed, its tag now `codequality/v2026.3.928`. `BNCQ1001`, `BNCQ1002` and `BNCQ1004`; each rule's help link resolves to its section of the archived repository's README |
 | Not yet released | Nothing of its own since `2026.3.928`. The move, under *Merged into Inspections* above |
 | Next release | On the maintainer's word, from a `codequality/vYYYY.Q.MMDD` tag, once the family has a change of its own |
+| In progress | [Plan 00005](plans/00005-codequality-exception-rules.md), approved 2026-11-01 in PR #115: six rules for the exception shapes a compiler can see, `BNCQ1005` to `BNCQ1009` and `BNCQ3001`. Step 2 done in PR #116: `FileSystemWatcher` `Changed`, `Deleted` and `Renamed`, and `Process.ErrorDataReceived` and `Exited`, measured on Windows and under WSL 2, each case twice with a control, all five as their entries in `docs/exception-resilience.md` now say, so all five join `BNCQ1009`. A first `Exited` probe called `WaitForExit`, which raises the event on its own caller's thread, and was rerun without it; the entry records that too. Next, step 3: the Rx rules |
 
 ### Decisions
 
@@ -708,7 +710,7 @@ where a row says otherwise.
 | Scaffolding | Generated with `bbpkg`, adapted to an analyzer, released, and only then upstreamed to Bennewitz.Ninja.Templates as a third template beside `bbpkg` and `bbavalonia` | The shape is proved by a release before it is copied |
 | First rules | Source-side counterparts of `BNAQ1004`, `BNAQ1001` (opt-in: a policy, not a defect) and `BNAQ1002` (with a transitive member walk). Not `BNAQ1003` | A forbidden use site at compile time is `Microsoft.CodeAnalysis.BannedApiAnalyzers`' job already |
 | Rule IDs | Prefix `BNCQ`: `BN` plus the product's initials, the family scheme. Once one ID ships, the prefix never changes. Each rule's README section links its `BNAQ` counterpart, and AssemblyQuality's README links back | One flat namespace of IDs across every analyzer a project loads |
-| Rule numbers | **Mirror `BNAQ`**: `BNCQ1004` is `BNAQ1004`'s counterpart. `BNCQ1003` is reserved. Decided by the maintainer in this repository's first session | A consumer who knows one rule knows the other |
+| Rule numbers | **Mirror `BNAQ`**: `BNCQ1004` is `BNAQ1004`'s counterpart. `BNCQ1003` is reserved. Decided by the maintainer in this repository's first session. **Since 2026-11-01**, plan 00005 decision 2: a rule with no counterpart takes the next free number, a rule about Avalonia the next from `BNCQ3001`, and a rule's section names its counterpart, if it has one; the documents say so with step 3 | A consumer who knows one rule knows the other. `BNAQ1005` and `BNAQ1006` have no source counterpart, so a shared number no longer promises one |
 | Where a rule comes from | `helpLinkUri` (its README section), `Category` `Bennewitz.Ninja.CodeQuality`, and the package id, not a longer ID | |
 | Roslyn pin | **`4.14.0`**, matching AutoVersioning. Decided by the maintainer in this repository's first session | Since `BNCQ1002` reads extension-block receivers, 4.14 is also the oldest the rules can use: the members it reads first appear there, and `4.13.0` cannot compile them. Before that change they built and passed on `4.0.1`, `4.4.0`, `4.8.0` and `4.14.0`, and `3.11.0` could not compile them. The suite also passes against `5.9.0`. A consumer needs Visual Studio 2022 17.14 or a .NET 9.0.3xx SDK. Measured on SDK `8.0.425` (Roslyn 4.11): `CS9057`, the analyzer is skipped, and the build succeeds |
 | Extension blocks in one build | Read through the members Roslyn 4.14 declares on `ITypeSymbol`, not a second build for Roslyn 5. Decided by the maintainer on 2026-09-25 | Measured: those members survive in 5.9 beside the new `INamedTypeSymbol` pair, and the shipped 4.14 build reads receivers correctly inside the .NET 10 compiler. Dual `roslynX.Y` folders, measured working with CommunityToolkit.Mvvm on SDKs 9 and 10, are for an API the pin lacks entirely |
