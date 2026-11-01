@@ -43,9 +43,10 @@ trim-safe.
 
 ## CodeQuality
 
-Roslyn analyzers for the same defects in the source, reported at the line while it is typed. Each
-`BNCQ` rule is the compile-time counterpart of the `BNAQ` rule with its number, so `BNCQ1004` finds
-what `BNAQ1004` would find after the build.
+Roslyn analyzers for the source, reported at the line while it is typed. Three are the compile-time
+counterparts of `BNAQ` rules and carry their numbers, so `BNCQ1004` finds what `BNAQ1004` would find
+after the build. The others report what only the source shows, such as the System.Reactive calls
+where one exception ends the process or vanishes.
 
 ```bash
 dotnet add package Bennewitz.Ninja.CodeQuality

@@ -23,7 +23,7 @@ version line and releases.
 
 Each family's README is its rules catalog and its packages' nuget.org page: each package packs its
 family's file as `README.md` (`FamilyReadme` in its csproj). The root [`README.md`](README.md) is the
-overview. `BNCQ` rules are the compile-time counterparts of the `BNAQ` rules of the same number.
+overview. A `BNCQ` rule with a `BNAQ` counterpart carries its number; its README section says which.
 
 The repository grew from Bennewitz.Ninja.XamlQuality, renamed; AssemblyQuality's and CodeQuality's
 histories were imported whole, their tags renamed `assemblyquality/v…` and `codequality/v…`, and
@@ -608,11 +608,12 @@ describes each rule for a consumer; this section covers how to change them.
 
 ### What this family is
 
-`Bennewitz.Ninja.CodeQuality`: Roslyn analyzers for the shape of a .NET library's source, each the
-compile-time counterpart of a Bennewitz.Ninja.AssemblyQuality rule that reads the shipped assembly,
-with the same number. It ships one package, `Bennewitz.Ninja.CodeQuality`, consumed as a
-development dependency by any C# project whose compiler is Roslyn `RoslynVersion` (in
-`Directory.Packages.props`) or later. [docs/codequality.md](docs/codequality.md) describes each rule
+`Bennewitz.Ninja.CodeQuality`: Roslyn analyzers for the shape of a .NET library's source. Some are
+the compile-time counterparts of Bennewitz.Ninja.AssemblyQuality rules that read the shipped
+assembly, with their numbers; the others report what only the source shows, such as the
+System.Reactive calls where one exception ends the process. It ships one package,
+`Bennewitz.Ninja.CodeQuality`, consumed as a development dependency by any C# project whose compiler
+is Roslyn `RoslynVersion` (in `Directory.Packages.props`) or later. [docs/codequality.md](docs/codequality.md) describes each rule
 for a consumer; this section covers how to change them.
 
 ### Invariants
@@ -636,9 +637,10 @@ for a consumer; this section covers how to change them.
 ### Checklists
 
 **Adding a rule**
-1. Its number is its `BNAQ` counterpart's, or the next free number for a rule with no counterpart.
-   `BNCQ1003` stays reserved. The code is written here: analyzers the maintainer wrote for another
-   project may be read for ideas and traps, but none of their code, names, IDs or links is copied.
+1. Its number is its `BNAQ` counterpart's, or the next free number for a rule with no counterpart,
+   and for a rule about Avalonia the next free number from `BNCQ3001`. `BNCQ1003` stays reserved.
+   The code is written here: analyzers the maintainer wrote for another project may be read for
+   ideas and traps, but none of their code, names, IDs or links is copied.
 2. `src/CodeQuality/Rules/<Name>Analyzer.cs`, internal and sealed, deriving from
    `ScopedAnalyzer<TScope>`. The gate returns null wherever the rule has nothing to compare against.
    The descriptor takes its category and help link from `Catalog`.
@@ -648,9 +650,10 @@ for a consumer; this section covers how to change them.
    control in scope that is not. Make the gate return null and watch the firing tests fail; force
    it open and watch the inert test fail; then put the gate back. A test that never failed proves
    nothing.
-5. Its `### BNCQ####` section in `docs/codequality.md`, linking the counterpart; regenerate the table.
-6. Its entry in `PROGRESS.md`, and a line in the counterpart's section of `docs/assemblyquality.md`
-   linking back.
+5. Its `### BNCQ####` section in `docs/codequality.md`, naming its counterpart, if it has one;
+   regenerate the table.
+6. Its entry in `PROGRESS.md`, and, for a rule with a counterpart, a line in the counterpart's section
+   of `docs/assemblyquality.md` linking back.
 
 **Raising the Roslyn pin:** only for an API the rules cannot do without. Measure the lowest version
 that builds and passes the tests, set `RoslynVersion`, and change the compiler named in

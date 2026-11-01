@@ -13,9 +13,11 @@ namespace Bennewitz.Ninja.CodeQuality;
 /// shipped the prefix never changes, because every rename breaks a consumer's suppressions.
 /// </para>
 /// <para>
-/// ⭐ <b>A rule's number is its AssemblyQuality counterpart's.</b> <c>BNCQ1004</c> finds at compile
-/// time what <c>BNAQ1004</c> finds on the shipped assembly, so a consumer who knows one knows the
-/// other. <c>BNCQ1003</c> is reserved: a forbidden use site is
+/// ⭐ <b>A rule with an AssemblyQuality counterpart carries its number; the rest take the next free
+/// one.</b> <c>BNCQ1004</c> finds at compile time what <c>BNAQ1004</c> finds on the shipped assembly.
+/// A rule with no counterpart takes the next free number, and a rule about Avalonia the next from
+/// <c>BNCQ3001</c>, so a number promises nothing on its own: a rule's section names its counterpart,
+/// if it has one. <c>BNCQ1003</c> is reserved: a forbidden use site is
 /// <c>Microsoft.CodeAnalysis.BannedApiAnalyzers</c>' job already.
 /// </para>
 /// </remarks>

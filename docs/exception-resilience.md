@@ -146,6 +146,9 @@ subscription was dead. A one-shot action scheduled on it failed alone, and the n
 pool scheduler otherwise. Then guard the handler, because the pool only turns ENDS into DEAD and SILENT. Do
 not leave `scheduler ?? Scheduler.Default` as the production default.
 
+⭐ **Checked by [`BNCQ1005`](codequality.md#bncq1005)**, off until enabled: each operator above called
+with no scheduler. A scheduler that was chosen, `Scheduler.Default` included, is not reported.
+
 ### A source that replays at subscription swallows a throw on the held value
 
 **Symptom:** A subscription made at construction never runs past its first value, and nothing says why.
@@ -194,6 +197,9 @@ no more**: three polls in 600 ms. The other subscriber saw 1, 2 and 3, and nothi
 
 **Fix:** Catch only the producer's own work (the read), outside the `OnNext` call. Never call `OnNext`
 inside a try whose catch carries on.
+
+⭐ **Checked by [`BNCQ1007`](codequality.md#bncq1007)**: the `OnNext` of the observer
+`Observable.Create` hands its delegate, in a try whose catch can carry on.
 
 ### A DynamicData lambda's throw goes to whoever wrote to the cache
 
@@ -279,6 +285,10 @@ body in one try/catch that logs.
 **Fix:** Use APIs that take `Func<Task>` and await it: an async command that awaits and logs, `Task.Run`
 rather than `StartNew`, and in Rx `SelectMany` with `Observable.FromAsync` in place of an async
 `Subscribe` or `Select`.
+
+⭐ **Checked by [`BNCQ1006`](codequality.md#bncq1006)** for System.Reactive's operators: an async
+delegate given to `Subscribe`, `Do` or `Finally`, and a `Select` whose tasks nothing awaits. The
+other void delegates are `Microsoft.VisualStudio.Threading.Analyzers`' ground.
 
 ### A task nobody awaits reports its failure only when a collection finalises it
 

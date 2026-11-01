@@ -1,11 +1,14 @@
 # Bennewitz.Ninja.CodeQuality
 
 Roslyn analyzers for the shape of a .NET library's source: a namespace segment that shadows a
-referenced root namespace, an implementation type leaking into the public surface, and a
-cancellation token a caller can leave out. Each rule is the compile-time counterpart of a
+referenced root namespace, an implementation type leaking into the public surface, a cancellation
+token a caller can leave out, and the System.Reactive calls where one exception ends the process or
+vanishes. Three rules are the compile-time counterparts of
 [Bennewitz.Ninja.AssemblyQuality](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/docs/assemblyquality.md)
-rule that reads the shipped assembly, and carries the same number: `BNCQ1004` finds while you type
-what `BNAQ1004` finds after the build.
+rules that read the shipped assembly, and carry their numbers: `BNCQ1004` finds while you type what
+`BNAQ1004` finds after the build. A rule with no counterpart takes the next free number, and a rule
+about Avalonia the next from `BNCQ3001`, so the rules about a framework you may not use stand apart.
+A rule's section names its counterpart, if it has one.
 
 ## Install
 
@@ -27,6 +30,9 @@ where warnings are errors.
 | [`BNCQ1001`](#bncq1001) | off | A visible method lets the caller leave the cancellation token out |
 | [`BNCQ1002`](#bncq1002) | on | A type from a leak-prone namespace appears in the visible surface |
 | [`BNCQ1004`](#bncq1004) | on | A namespace segment shadows the root namespace of a referenced assembly |
+| [`BNCQ1005`](#bncq1005) | off | A System.Reactive time operator is given no scheduler |
+| [`BNCQ1006`](#bncq1006) | on | An async delegate is given to a System.Reactive operator that does not await it |
+| [`BNCQ1007`](#bncq1007) | on | A producer built by Observable.Create catches what OnNext throws |
 <!-- END GENERATED RULES -->
 
 The table is rendered from the analyzers' own descriptors, and a test fails if it drifts.
@@ -137,6 +143,98 @@ Two fixes, not one. Where namespaces follow the assembly name, renaming only the
 that convention, so the fix there renames assembly and namespace together, `.Avalonia` to
 `.AvaloniaUI`. The package id takes no part in name resolution and may keep the word. Inert in a
 compilation whose references declare no visible namespace.
+
+### BNCQ1005
+
+**A System.Reactive time operator is given no scheduler.** Off by default. No counterpart.
+
+`Throttle`, `Sample`, `Interval`, `Timer`, `Delay`, `Buffer` and `Window` by time, and `Timeout`,
+deliver on Rx's default scheduler when they are given none. A throw there has no caller to go back
+to, so it ends the process, and an `onError` does not stop that. `Timeout` with no `onError` ends it
+with no code of yours throwing at all. The rule reports the call, at the operator's name, when its
+overload takes a `TimeSpan` or a `DateTimeOffset` and no `IScheduler`. What was measured is in
+[the time operator's entry](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/docs/exception-resilience.md#a-time-operator-with-no-scheduler-ends-the-process-on-a-throw-even-with-an-onerror)
+of `docs/exception-resilience.md`.
+
+The fix is to pass a scheduler: the UI scheduler for work that touches the view, a pool scheduler
+otherwise. Then guard the handler, because a pool scheduler turns the ending into a subscription
+that dies silently.
+
+Only the operators measured to deliver on the scheduler are named: `Replay`, `Skip` and `Take` by
+time are not. A scheduler you chose, `Scheduler.Default` included, is not reported either. It ends
+the process on a throw too, but choosing one is not a defect the rule can see.
+
+The finding is the shape, and whether a throw can follow is decided by what runs downstream. On a
+real application's code, three of its five findings had nothing downstream that could throw on real
+input, and two ended the process. So it is off until you turn it on in `.editorconfig`:
+
+```ini
+[*.cs]
+dotnet_diagnostic.BNCQ1005.severity = warning
+```
+
+Inert in a compilation that cannot name `System.Reactive.Linq.Observable`.
+
+### BNCQ1006
+
+**An async delegate is given to a System.Reactive operator that does not await it.** No counterpart.
+
+`Subscribe`, `Do` and `Finally` take an `Action`, so an async lambda given to one is async void: its
+exception is rethrown on the thread it resumed on, and off a UI thread that ends the process. An
+async `Select` makes each value a task nobody awaits, and a failure in one goes unobserved. The rule
+reports an async lambda or anonymous method given to a void delegate parameter of System.Reactive's
+`Observable` or `ObservableExtensions`, at its `async` keyword, and a `Select` whose selector returns
+`Task` or `Task<T>`, at its name. What was measured is in
+[the async lambda's entry](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/docs/exception-resilience.md#an-async-lambda-given-where-a-void-delegate-is-expected-is-async-void)
+of `docs/exception-resilience.md`.
+
+The fix is `SelectMany` with `Observable.FromAsync`, which awaits the work and carries its failure to
+`onError`, or a synchronous handler:
+
+```csharp
+source.SelectMany(value => Observable.FromAsync(() => SaveAsync(value)))
+    .Subscribe(_ => { }, error => log.Error(error));
+```
+
+A `Select` whose tasks go straight to `Concat`, `Merge` or `Switch` is not reported: those take an
+observable of tasks and await each. An async lambda given to any other void delegate is
+`Microsoft.VisualStudio.Threading.Analyzers`' VSTHRD101, and an async void method passed as a method
+group is its VSTHRD100, at the method, so neither is reported here. Inert in a compilation that
+cannot name `System.Reactive.Linq.Observable`.
+
+### BNCQ1007
+
+**A producer built by Observable.Create catches what OnNext throws.** No counterpart.
+
+A subscriber's throw comes out of `OnNext` after Rx has disposed the producer's subscription. A catch
+around the call swallows that failure, and the producer carries on for nobody: every subscriber of a
+shared source stops, and nothing says why. The rule reports the `OnNext` of the observer
+`Observable.Create` hands its delegate, followed into the lambdas and local functions written inside
+it, when the call sits in a try block whose catch can carry on: its end can be reached, or it
+continues a loop. What was measured is in
+[the producer's entry](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/docs/exception-resilience.md#a-producer-that-catches-its-subscribers-throws-talks-to-a-dead-observer)
+of `docs/exception-resilience.md`.
+
+The fix is to catch only the producer's own work, and call `OnNext` outside the try:
+
+```csharp
+string text;
+try
+{
+    text = File.ReadAllText(path);
+}
+catch (IOException error)
+{
+    observer.OnError(error);
+    return Disposable.Empty;
+}
+
+observer.OnNext(text);
+```
+
+A catch that rethrows, returns or breaks out is not reported. Neither is a catch around a
+`Subject`'s `OnNext`: there it is a guard, and the subject's other subscribers kept every value. Inert
+in a compilation that cannot name `System.Reactive.Linq.Observable`.
 
 ## Licence
 
