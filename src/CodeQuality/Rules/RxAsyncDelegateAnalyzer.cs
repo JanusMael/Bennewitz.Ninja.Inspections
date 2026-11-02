@@ -81,7 +81,7 @@ internal sealed class RxAsyncDelegateAnalyzer : ScopedAnalyzer<RxAsyncDelegateAn
         foreach (IArgumentOperation argument in invocation.Arguments)
         {
             if (argument.Parameter?.Type is INamedTypeSymbol { TypeKind: TypeKind.Delegate, DelegateInvokeMethod.ReturnsVoid: true }
-                && Reactive.Function(argument.Value) is { Symbol.IsAsync: true } function)
+                && Calls.Function(argument.Value) is { Symbol.IsAsync: true } function)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     Rule,
@@ -97,7 +97,7 @@ internal sealed class RxAsyncDelegateAnalyzer : ScopedAnalyzer<RxAsyncDelegateAn
         {
             context.ReportDiagnostic(Diagnostic.Create(
                 Rule,
-                Reactive.NameOf(invocation),
+                Calls.NameOf(invocation),
                 "This 'Select' makes each value a task nobody awaits, so a failure in one goes unobserved and the subscription never hears of it"));
         }
     }

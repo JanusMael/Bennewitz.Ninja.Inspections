@@ -332,6 +332,10 @@ task held both, and nothing reported the second.
 
 **Fix:** One try/catch around the whole callback body, logging.
 
+⭐ **Checked by [`BNCQ1009`](codequality.md#bncq1009)**, off until enabled, with every timer, thread,
+watcher, process and finalizer entry below: a body not wholly inside one try/catch that takes
+everything.
+
 ### A `System.Timers.Timer` swallows a throw from `Elapsed` and keeps ticking
 
 **Measured:** A 50 ms timer with two `Elapsed` handlers, the first throwing on its second call. No handler
@@ -340,11 +344,15 @@ handler ran 11 times and **the second ran 10**, the tick that threw being the on
 
 **Fix:** A try/catch that logs, inside every `Elapsed` handler. The timer will never tell you.
 
+⭐ **Checked by [`BNCQ1009`](codequality.md#bncq1009).**
+
 ### A throw on a `Thread` or a thread-pool work item ends the process
 
 **Measured:** A throw ended the process, from a `new Thread` and from `ThreadPool.QueueUserWorkItem`.
 
 **Fix:** A try/catch that logs, at the top of the thread's method or the work item.
+
+⭐ **Checked by [`BNCQ1009`](codequality.md#bncq1009).**
 
 ---
 
@@ -421,6 +429,9 @@ completed half a second later, and `CurrentCount` read 0.
 
 **Fix:** `try { … } finally { gate.Release(); }`, or a releaser in a `using`.
 
+⭐ **Checked by [`BNCQ1008`](codequality.md#bncq1008)**: a `SemaphoreSlim`, `Semaphore`, `Mutex`,
+`Monitor` or `ReaderWriterLockSlim` released outside a `finally` in a body that takes it.
+
 ### A busy flag reset without finally stays set
 
 **Measured:** One throw left `busy` true, and every later refresh was skipped.
@@ -450,6 +461,8 @@ both.
 
 **Fix:** A try/catch that logs, inside every handler. Subscribe to `Error`, and rebuild the watcher there.
 
+⭐ **Checked by [`BNCQ1009`](codequality.md#bncq1009)**, for the four events above.
+
 ### A `Process` event handler that throws ends the process
 
 **Measured:** A throw in `OutputDataReceived`, in `ErrorDataReceived` or in `Exited` ended the process, on
@@ -461,8 +474,13 @@ throw from the handler then reaches whoever called `WaitForExit`, as measured on
 
 **Fix:** A try/catch that logs, inside the handler.
 
+⭐ **Checked by [`BNCQ1009`](codequality.md#bncq1009)**, for the three events above.
+
 ### A finalizer that throws ends the process
 
 **Measured:** A throw from a finalizer ended the process at the collection that ran it.
 
 **Fix:** Never throw from a finalizer.
+
+⭐ **Checked by [`BNCQ1009`](codequality.md#bncq1009)**: a finalizer whose body is not wholly inside
+one try/catch.

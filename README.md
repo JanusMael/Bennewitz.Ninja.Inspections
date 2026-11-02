@@ -45,8 +45,8 @@ trim-safe.
 
 Roslyn analyzers for the source, reported at the line while it is typed. Three are the compile-time
 counterparts of `BNAQ` rules and carry their numbers, so `BNCQ1004` finds what `BNAQ1004` would find
-after the build. The others report what only the source shows, such as the System.Reactive calls
-where one exception ends the process or vanishes.
+after the build. The others report what only the source shows: the System.Reactive calls,
+callbacks and gates where one exception ends the process, vanishes or leaves a feature shut.
 
 ```bash
 dotnet add package Bennewitz.Ninja.CodeQuality

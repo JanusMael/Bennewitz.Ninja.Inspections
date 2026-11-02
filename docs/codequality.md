@@ -2,8 +2,8 @@
 
 Roslyn analyzers for the shape of a .NET library's source: a namespace segment that shadows a
 referenced root namespace, an implementation type leaking into the public surface, a cancellation
-token a caller can leave out, and the System.Reactive calls where one exception ends the process or
-vanishes. Three rules are the compile-time counterparts of
+token a caller can leave out, and the System.Reactive calls, callbacks and gates where one exception
+ends the process, vanishes or leaves a feature shut. Three rules are the compile-time counterparts of
 [Bennewitz.Ninja.AssemblyQuality](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/docs/assemblyquality.md)
 rules that read the shipped assembly, and carry their numbers: `BNCQ1004` finds while you type what
 `BNAQ1004` finds after the build. A rule with no counterpart takes the next free number, and a rule
@@ -33,6 +33,9 @@ where warnings are errors.
 | [`BNCQ1005`](#bncq1005) | off | A System.Reactive time operator is given no scheduler |
 | [`BNCQ1006`](#bncq1006) | on | An async delegate is given to a System.Reactive operator that does not await it |
 | [`BNCQ1007`](#bncq1007) | on | A producer built by Observable.Create catches what OnNext throws |
+| [`BNCQ1008`](#bncq1008) | on | A gate taken in a body is released outside a finally clause |
+| [`BNCQ1009`](#bncq1009) | off | A callback no caller catches is not wholly inside a try/catch |
+| [`BNCQ3001`](#bncq3001) | off | An Avalonia DispatcherTimer's Tick handler is not wholly inside a try/catch |
 <!-- END GENERATED RULES -->
 
 The table is rendered from the analyzers' own descriptors, and a test fails if it drifts.
@@ -235,6 +238,117 @@ observer.OnNext(text);
 A catch that rethrows, returns or breaks out is not reported. Neither is a catch around a
 `Subject`'s `OnNext`: there it is a guard, and the subject's other subscribers kept every value. Inert
 in a compilation that cannot name `System.Reactive.Linq.Observable`.
+
+### BNCQ1008
+
+**A gate taken in a body is released outside a finally clause.** No counterpart.
+
+One throw between taking a gate and releasing it leaves the gate taken, and every later caller
+waits for good. The rule reports a release outside a `finally` clause in a body that takes the same
+field, local or parameter: `SemaphoreSlim` (`Wait`, `WaitAsync`, `Release`), `Semaphore`
+(`WaitOne`, `Release`), `Mutex` (`WaitOne`, `ReleaseMutex`), `Monitor` (`Enter`, `TryEnter`,
+`Exit`, on the object passed) and `ReaderWriterLockSlim` (its `Enter`, `TryEnter` and `Exit`
+methods). What was measured is in
+[the semaphore's entry](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/docs/exception-resilience.md#a-semaphore-taken-without-tryfinally-stays-taken)
+of `docs/exception-resilience.md`.
+
+The fix is to release it in the `finally` of a try that starts once it is taken:
+
+```csharp
+await gate.WaitAsync();
+try
+{
+    Save();
+}
+finally
+{
+    gate.Release();
+}
+```
+
+Each lambda, anonymous method and local function is a body of its own, so a gate taken in a method
+and released by a continuation it schedules is not reported: the release belongs to the
+continuation, and nothing in the method could put it in a `finally`. Inert in a compilation that can
+name none of the five types.
+
+### BNCQ1009
+
+**A callback no caller catches is not wholly inside a try/catch.** Off by default. No counterpart.
+
+Nothing above these callbacks catches, so a throw in one goes where nobody can handle it:
+
+| Callback | A throw there |
+|---|---|
+| A `System.Threading.Timer` callback, a `Thread`'s start, a `ThreadPool.QueueUserWorkItem` callback | ends the process |
+| A `Process` `OutputDataReceived`, `ErrorDataReceived` or `Exited` handler | ends the process |
+| A finalizer | ends the process, at the collection that runs it |
+| A `FileSystemWatcher` `Created`, `Changed`, `Deleted` or `Renamed` handler | ends the process on Windows, and silences the watcher on Linux |
+| A `System.Timers.Timer` `Elapsed` handler | is swallowed for good: the timer keeps ticking and nothing reports it |
+
+The rule reports such a body when it is not wholly inside one try statement whose catch takes
+`Exception`, or everything, with no filter and not ending in a `throw`. It reads a lambda, an
+anonymous method, and a method group naming a method or local function written in the same
+compilation; a method from a reference is not opened. An empty body is not reported. What was
+measured is in the timer, thread, watcher, process and finalizer entries of
+[`docs/exception-resilience.md`](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/docs/exception-resilience.md#timers-and-threads).
+
+The fix is one try/catch that logs, around the whole body:
+
+```csharp
+watcher.Created += (_, e) =>
+{
+    try
+    {
+        Load(e.FullPath);
+    }
+    catch (Exception error)
+    {
+        log.Error(error, "Could not load {Path}", e.FullPath);
+    }
+};
+```
+
+The body is judged as written. A body that only posts to a dispatcher, or calls a method that
+catches for itself, is still reported, because the rule cannot see what a call throws; suppress it
+there, with the reason. Only the callbacks measured to end the process or swallow the throw are
+read. A `DispatcherTimer`'s `Tick` is Avalonia's, and [`BNCQ3001`](#bncq3001)'s.
+
+So the finding is the shape, and on the family's repositories and a real application's code, 12 of
+its 13 findings could not throw on real input; the one that could was a probe that throws on
+purpose. It is off until you turn it on in `.editorconfig`, which is worth doing where these
+callbacks do real work:
+
+```ini
+[*.cs]
+dotnet_diagnostic.BNCQ1009.severity = warning
+```
+
+Inert in a compilation that can name none of the six types.
+
+### BNCQ3001
+
+**An Avalonia DispatcherTimer's Tick handler is not wholly inside a try/catch.** Off by default. No
+counterpart.
+
+One throw from a `Tick` handler stops the timer for good. `IsEnabled` still reads true,
+`Dispatcher.UnhandledException` never hears of it, and the exception surfaces only as an unobserved
+task's, at some later garbage collection. The rule reports a handler given by `Tick +=` or to the
+constructor that takes one, judged as [`BNCQ1009`](#bncq1009) judges a body. `DispatcherTimer.Run`
+and `RunOnce` were not measured, and are not read. What was measured is in
+[the `DispatcherTimer` entry](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/docs/avalonia-gotchas.md#one-throw-from-a-dispatchertimers-tick-stops-the-timer-for-good-while-isenabled-reads-true-and-dispatcherunhandledexception-never-hears-of-it)
+of `docs/avalonia-gotchas.md`.
+
+The fix is one try/catch that logs, around the whole body. On the family's repositories and a real
+application's code the rule reported one handler, and it could not throw on real input, so it is off
+until you turn it on in `.editorconfig`:
+
+```ini
+[*.cs]
+dotnet_diagnostic.BNCQ3001.severity = warning
+```
+
+The rules about Avalonia are numbered from `BNCQ3001`, so they stand apart from the rest. Inert in a
+compilation that cannot name `Avalonia.Threading.DispatcherTimer`.
 
 ## Licence
 
