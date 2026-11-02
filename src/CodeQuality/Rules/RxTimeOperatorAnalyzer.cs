@@ -106,7 +106,7 @@ internal sealed class RxTimeOperatorAnalyzer : ScopedAnalyzer<RxTimeOperatorAnal
         {
             context.ReportDiagnostic(Diagnostic.Create(
                 Rule,
-                Reactive.NameOf(invocation),
+                Calls.NameOf(invocation),
                 method.Name,
                 method.Name == "Timeout" ? ", and with no onError so does Timeout's own TimeoutException" : string.Empty));
         }

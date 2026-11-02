@@ -76,7 +76,7 @@ internal sealed class RxProducerCatchAnalyzer : ScopedAnalyzer<RxProducerCatchAn
 
         foreach (IArgumentOperation argument in invocation.Arguments)
         {
-            if (Reactive.Function(argument.Value) is not { } producer
+            if (Calls.Function(argument.Value) is not { } producer
                 || producer.Symbol.Parameters.Length == 0
                 || !SymbolEqualityComparer.Default.Equals(producer.Symbol.Parameters[0].Type.OriginalDefinition, scope.Observer))
             {
@@ -90,7 +90,7 @@ internal sealed class RxProducerCatchAnalyzer : ScopedAnalyzer<RxProducerCatchAn
                     && SymbolEqualityComparer.Default.Equals(reference.Parameter, observer)
                     && CaughtAndCarriedOn(onNext, producer.Syntax))
                 {
-                    context.ReportDiagnostic(Diagnostic.Create(Rule, Reactive.NameOf(onNext)));
+                    context.ReportDiagnostic(Diagnostic.Create(Rule, Calls.NameOf(onNext)));
                 }
             }
         }
