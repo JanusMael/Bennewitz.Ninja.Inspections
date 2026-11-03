@@ -29,11 +29,11 @@ namespace Bennewitz.Ninja.CodeQuality.Rules;
 /// choosing one would be a policy no measurement makes.
 /// </para>
 /// <para>
-/// ⚠ <b>Off until a consumer turns it on</b>, with <c>dotnet_diagnostic.BNCQ1005.severity = warning</c>
-/// in <c>.editorconfig</c>. The finding is the shape, and whether a throw can follow is decided by
-/// what runs downstream. Judged on a real application's code, three of its five sites had nothing
-/// downstream that could throw on real input, and two ended the process; plans/00005 decision 3
-/// ships a rule whose findings are mostly safe off by default.
+/// ⚠ <b>On by default, though most findings on real code were safe.</b> The finding is the shape,
+/// and whether a throw can follow is decided by what runs downstream: on a real application's code,
+/// three of its five sites had nothing downstream that could throw on real input, and two ended the
+/// process. The developer chose on 2026-11-03 to catch the shape everywhere and suppress the safe
+/// sites, over plans/00005 decision 3's count.
 /// </para>
 /// <para>
 /// ⛔ <b>Inert where System.Reactive is not referenced.</b> A compilation that cannot name
@@ -61,8 +61,8 @@ internal sealed class RxTimeOperatorAnalyzer : ScopedAnalyzer<RxTimeOperatorAnal
         messageFormat: "'{0}' is given no scheduler, so it delivers on Rx's default scheduler, where a throw in anything after it ends the process, an onError notwithstanding{1}. Pass an IScheduler: the UI scheduler for work that touches the view, a pool scheduler otherwise.",
         Catalog.Category,
         DiagnosticSeverity.Warning,
-        isEnabledByDefault: false,
-        description: "Throttle, Sample, Interval, Timer, Delay, Buffer and Window by time, and Timeout, called with no IScheduler, deliver on Rx's default scheduler. A throw there has no caller to go back to, so it ends the process, and an onError does not stop that. Timeout with no onError ends it with no user code throwing at all. Off by default: on a real application's code most findings had nothing downstream that could throw.",
+        isEnabledByDefault: true,
+        description: "Throttle, Sample, Interval, Timer, Delay, Buffer and Window by time, and Timeout, called with no IScheduler, deliver on Rx's default scheduler. A throw there has no caller to go back to, so it ends the process, and an onError does not stop that. Timeout with no onError ends it with no user code throwing at all.",
         helpLinkUri: Catalog.HelpLink(Id));
 
     /// <inheritdoc />

@@ -30,12 +30,12 @@ where warnings are errors.
 | [`BNCQ1001`](#bncq1001) | off | A visible method lets the caller leave the cancellation token out |
 | [`BNCQ1002`](#bncq1002) | on | A type from a leak-prone namespace appears in the visible surface |
 | [`BNCQ1004`](#bncq1004) | on | A namespace segment shadows the root namespace of a referenced assembly |
-| [`BNCQ1005`](#bncq1005) | off | A System.Reactive time operator is given no scheduler |
+| [`BNCQ1005`](#bncq1005) | on | A System.Reactive time operator is given no scheduler |
 | [`BNCQ1006`](#bncq1006) | on | An async delegate is given to a System.Reactive operator that does not await it |
 | [`BNCQ1007`](#bncq1007) | on | A producer built by Observable.Create catches what OnNext throws |
 | [`BNCQ1008`](#bncq1008) | on | A gate taken in a body is released outside a finally clause |
-| [`BNCQ1009`](#bncq1009) | off | A callback no caller catches is not wholly inside a try/catch |
-| [`BNCQ3001`](#bncq3001) | off | An Avalonia DispatcherTimer's Tick handler is not wholly inside a try/catch |
+| [`BNCQ1009`](#bncq1009) | on | A callback no caller catches is not wholly inside a try/catch |
+| [`BNCQ3001`](#bncq3001) | on | An Avalonia DispatcherTimer's Tick handler is not wholly inside a try/catch |
 <!-- END GENERATED RULES -->
 
 The table is rendered from the analyzers' own descriptors, and a test fails if it drifts.
@@ -149,7 +149,7 @@ compilation whose references declare no visible namespace.
 
 ### BNCQ1005
 
-**A System.Reactive time operator is given no scheduler.** Off by default. No counterpart.
+**A System.Reactive time operator is given no scheduler.** No counterpart.
 
 `Throttle`, `Sample`, `Interval`, `Timer`, `Delay`, `Buffer` and `Window` by time, and `Timeout`,
 deliver on Rx's default scheduler when they are given none. A throw there has no caller to go back
@@ -169,14 +169,8 @@ the process on a throw too, but choosing one is not a defect the rule can see.
 
 The finding is the shape, and whether a throw can follow is decided by what runs downstream. On a
 real application's code, three of its five findings had nothing downstream that could throw on real
-input, and two ended the process. So it is off until you turn it on in `.editorconfig`:
-
-```ini
-[*.cs]
-dotnet_diagnostic.BNCQ1005.severity = warning
-```
-
-Inert in a compilation that cannot name `System.Reactive.Linq.Observable`.
+input, and two ended the process. Where nothing downstream can throw, suppress the finding there,
+with the reason. Inert in a compilation that cannot name `System.Reactive.Linq.Observable`.
 
 ### BNCQ1006
 
@@ -273,7 +267,7 @@ name none of the five types.
 
 ### BNCQ1009
 
-**A callback no caller catches is not wholly inside a try/catch.** Off by default. No counterpart.
+**A callback no caller catches is not wholly inside a try/catch.** No counterpart.
 
 Nothing above these callbacks catches, so a throw in one goes where nobody can handle it:
 
@@ -313,22 +307,13 @@ catches for itself, is still reported, because the rule cannot see what a call t
 there, with the reason. Only the callbacks measured to end the process or swallow the throw are
 read. A `DispatcherTimer`'s `Tick` is Avalonia's, and [`BNCQ3001`](#bncq3001)'s.
 
-So the finding is the shape, and on the family's repositories and a real application's code, 12 of
-its 13 findings could not throw on real input; the one that could was a probe that throws on
-purpose. It is off until you turn it on in `.editorconfig`, which is worth doing where these
-callbacks do real work:
-
-```ini
-[*.cs]
-dotnet_diagnostic.BNCQ1009.severity = warning
-```
-
-Inert in a compilation that can name none of the six types.
+So the finding is the shape: on the family's repositories and a real application's code, 12 of its
+13 findings could not throw on real input, and the one that could was a probe that throws on
+purpose. Inert in a compilation that can name none of the six types.
 
 ### BNCQ3001
 
-**An Avalonia DispatcherTimer's Tick handler is not wholly inside a try/catch.** Off by default. No
-counterpart.
+**An Avalonia DispatcherTimer's Tick handler is not wholly inside a try/catch.** No counterpart.
 
 One throw from a `Tick` handler stops the timer for good. `IsEnabled` still reads true,
 `Dispatcher.UnhandledException` never hears of it, and the exception surfaces only as an unobserved
@@ -339,15 +324,8 @@ and `RunOnce` were not measured, and are not read. What was measured is in
 of `docs/avalonia-gotchas.md`.
 
 The fix is one try/catch that logs, around the whole body. On the family's repositories and a real
-application's code the rule reported one handler, and it could not throw on real input, so it is off
-until you turn it on in `.editorconfig`:
-
-```ini
-[*.cs]
-dotnet_diagnostic.BNCQ3001.severity = warning
-```
-
-The rules about Avalonia are numbered from `BNCQ3001`, so they stand apart from the rest. Inert in a
+application's code the rule reported one handler, which could not throw on real input; suppress such
+a finding there, with the reason. The rules about Avalonia are numbered from `BNCQ3001`, so they stand apart from the rest. Inert in a
 compilation that cannot name `Avalonia.Threading.DispatcherTimer`.
 
 ## Licence

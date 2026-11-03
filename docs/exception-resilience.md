@@ -146,7 +146,7 @@ subscription was dead. A one-shot action scheduled on it failed alone, and the n
 pool scheduler otherwise. Then guard the handler, because the pool only turns ENDS into DEAD and SILENT. Do
 not leave `scheduler ?? Scheduler.Default` as the production default.
 
-⭐ **Checked by [`BNCQ1005`](codequality.md#bncq1005)**, off until enabled: each operator above called
+⭐ **Checked by [`BNCQ1005`](codequality.md#bncq1005)**: each operator above called
 with no scheduler. A scheduler that was chosen, `Scheduler.Default` included, is not reported.
 
 ### A source that replays at subscription swallows a throw on the held value
@@ -332,9 +332,8 @@ task held both, and nothing reported the second.
 
 **Fix:** One try/catch around the whole callback body, logging.
 
-⭐ **Checked by [`BNCQ1009`](codequality.md#bncq1009)**, off until enabled, with every timer, thread,
-watcher, process and finalizer entry below: a body not wholly inside one try/catch that takes
-everything.
+⭐ **Checked by [`BNCQ1009`](codequality.md#bncq1009)**, with every timer, thread, watcher, process
+and finalizer entry below: a body not wholly inside one try/catch that takes everything.
 
 ### A `System.Timers.Timer` swallows a throw from `Elapsed` and keeps ticking
 

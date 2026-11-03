@@ -1168,7 +1168,7 @@ Measured on Avalonia 12.1.3 and .NET 10.0.14, headless, on Linux and here on Win
 
 Measured on Avalonia 12.1.3 and .NET 10.0.14, headless, on Linux and here on Windows 11, each case twice in its own process: a 30 ms `DispatcherTimer` whose handler throws on its first tick ticked once in 600 ms of `MainLoop`, `IsEnabled` true afterwards; the same timer with a handler that never throws ticked 20 times on Linux and 14 to 19 times here, across four runs. The throwing timer's exception was reported only after a forced collection, as `TaskScheduler.UnobservedTaskException`; the control's run reported none. Not checked in a running application on a real platform.
 
-⭐ **Checked by [`BNCQ3001`](codequality.md#bncq3001)**, in Bennewitz.Ninja.CodeQuality and off until enabled: a `Tick` handler, given by `+=` or to the constructor, whose body is not wholly inside one `try`/`catch` that takes everything.
+⭐ **Checked by [`BNCQ3001`](codequality.md#bncq3001)**, in Bennewitz.Ninja.CodeQuality: a `Tick` handler, given by `+=` or to the constructor, whose body is not wholly inside one `try`/`catch` that takes everything.
 
 ### `Dispatcher.InvokeAsync` is not `Post`: an operation that throws, never awaited, does not reach `Dispatcher.UnhandledException`
 
