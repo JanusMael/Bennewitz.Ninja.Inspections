@@ -31,10 +31,10 @@ namespace Bennewitz.Ninja.CodeQuality.Rules;
 /// An empty body is not reported. What guarded means is in <see cref="Callbacks"/>.
 /// </para>
 /// <para>
-/// ⚠ <b>Off until a consumer turns it on</b>, with <c>dotnet_diagnostic.BNCQ1009.severity = warning</c>
-/// in <c>.editorconfig</c>. Judged on the family's repositories and a real application's code, 12 of
-/// its 13 findings could not throw on real input, and the one that could was a probe that throws on
-/// purpose; plans/00005 decision 3 ships a rule whose findings are mostly safe off by default.
+/// ⚠ <b>On by default, though most findings on real code were safe.</b> Judged on the family's
+/// repositories and a real application's code, 12 of its 13 findings could not throw on real input,
+/// and the one that could was a probe that throws on purpose. The developer chose on 2026-11-03 to
+/// catch the shape everywhere and suppress the safe sites, over plans/00005 decision 3's count.
 /// </para>
 /// <para>
 /// ⛔ <b>Inert where none of the types is in reach.</b> A compilation that can name none of
@@ -56,8 +56,8 @@ internal sealed class UnguardedCallbackAnalyzer : ScopedAnalyzer<UnguardedCallba
         messageFormat: "{0} runs where no caller catches, and {1}. Put the whole body inside one try/catch that logs.",
         Catalog.Category,
         DiagnosticSeverity.Warning,
-        isEnabledByDefault: false,
-        description: "Nothing above a System.Threading.Timer callback, a thread's start, a thread-pool work item, a Process event handler or a finalizer catches: a throw there ends the process. A FileSystemWatcher handler's throw ends it on Windows and silences the watcher on Linux, and a System.Timers.Timer swallows an Elapsed handler's throw for good. One try/catch that logs, around the whole body, is the fix. Off by default: on real code most bodies it reports could not throw.",
+        isEnabledByDefault: true,
+        description: "Nothing above a System.Threading.Timer callback, a thread's start, a thread-pool work item, a Process event handler or a finalizer catches: a throw there ends the process. A FileSystemWatcher handler's throw ends it on Windows and silences the watcher on Linux, and a System.Timers.Timer swallows an Elapsed handler's throw for good. One try/catch that logs, around the whole body, is the fix.",
         helpLinkUri: Catalog.HelpLink(Id));
 
     /// <inheritdoc />

@@ -4,9 +4,8 @@ using Microsoft.CodeAnalysis;
 namespace CodeQuality.Tests.Rules;
 
 /// <summary>
-/// BNCQ1005 is off until enabled; enabled, it fires on each measured time operator called with no
-/// scheduler, and on nothing given a scheduler, nothing that waits on no timer, and no operator that
-/// was not measured.
+/// BNCQ1005 fires on each measured time operator called with no scheduler, and on nothing given a
+/// scheduler, nothing that waits on no timer, and no operator that was not measured.
 /// </summary>
 public sealed class RxTimeOperatorTests
 {
@@ -137,14 +136,6 @@ public sealed class RxTimeOperatorTests
             }
             """);
 
-    /// <summary>What a consumer writes to turn the rule on.</summary>
-    private const string Enabled = """
-        root = true
-
-        [*.cs]
-        dotnet_diagnostic.BNCQ1005.severity = warning
-        """;
-
     private const string Throttled = """
         using System;
         using System.Reactive.Linq;
@@ -156,26 +147,16 @@ public sealed class RxTimeOperatorTests
         """;
 
     /// <summary>
-    /// Off until enabled: on a real application's code most findings had nothing downstream that
-    /// could throw, so plans/00005 decision 3 ships the rule off.
+    /// On by default, as a warning, by the developer's decision of 2026-11-03.
     /// </summary>
     /// <remarks>
     /// ⚠ On a plain compilation, not the testing framework, which enables every diagnostic of the
-    /// analyzer under test.
+    /// analyzer under test and so cannot show the default.
     /// </remarks>
     [Fact]
-    public async Task Until_enabled_a_time_operator_without_a_scheduler_is_not_reported()
+    public async Task By_default_a_time_operator_without_a_scheduler_is_a_warning()
     {
         Plain.Run run = await Plain.Analyze(new RxTimeOperatorAnalyzer(), Throttled, await Rx.References());
-
-        Assert.Empty(run.Errors);
-        Assert.Empty(run.Diagnostics);
-    }
-
-    [Fact]
-    public async Task Enabled_in_editorconfig_a_time_operator_without_a_scheduler_is_reported()
-    {
-        Plain.Run run = await Plain.Analyze(new RxTimeOperatorAnalyzer(), Throttled, await Rx.References(), Enabled);
 
         Assert.Empty(run.Errors);
         Diagnostic finding = Assert.Single(run.Diagnostics);
@@ -374,8 +355,8 @@ public sealed class RxTimeOperatorTests
             }
             """;
 
-        Plain.Run inert = await Plain.Analyze(new RxTimeOperatorAnalyzer(), Source, await Plain.Net80(), Enabled);
-        Plain.Run control = await Plain.Analyze(new RxTimeOperatorAnalyzer(), Source, await Rx.References(), Enabled);
+        Plain.Run inert = await Plain.Analyze(new RxTimeOperatorAnalyzer(), Source, await Plain.Net80());
+        Plain.Run control = await Plain.Analyze(new RxTimeOperatorAnalyzer(), Source, await Rx.References());
 
         Assert.Equal(0, inert.Registrations);
         Assert.Empty(inert.Diagnostics);

@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis;
 namespace CodeQuality.Tests.Rules;
 
 /// <summary>
-/// BNCQ1009 is off until enabled; enabled, it fires on each measured callback whose body is not wholly inside one try/catch that takes
+/// BNCQ1009 fires on each measured callback whose body is not wholly inside one try/catch that takes
 /// everything, and on no guarded body, no empty one, no unmeasured callback and no body it cannot read.
 /// </summary>
 public sealed class UnguardedCallbackTests
@@ -313,14 +313,6 @@ public sealed class UnguardedCallbackTests
             }
             """);
 
-    /// <summary>What a consumer writes to turn the rule on.</summary>
-    private const string Enabled = """
-        root = true
-
-        [*.cs]
-        dotnet_diagnostic.BNCQ1009.severity = warning
-        """;
-
     private const string Unguarded = """
         using System.Threading;
 
@@ -331,26 +323,16 @@ public sealed class UnguardedCallbackTests
         """;
 
     /// <summary>
-    /// Off until enabled: on real code most bodies it reports could not throw, so plans/00005
-    /// decision 3 ships the rule off.
+    /// On by default, as a warning, by the developer's decision of 2026-11-03.
     /// </summary>
     /// <remarks>
     /// ⚠ On a plain compilation, not the testing framework, which enables every diagnostic of the
-    /// analyzer under test.
+    /// analyzer under test and so cannot show the default.
     /// </remarks>
     [Fact]
-    public async Task Until_enabled_an_unguarded_callback_is_not_reported()
+    public async Task By_default_an_unguarded_callback_is_a_warning()
     {
         Plain.Run run = await Plain.Analyze(new UnguardedCallbackAnalyzer(), Unguarded, await Plain.Net80());
-
-        Assert.Empty(run.Errors);
-        Assert.Empty(run.Diagnostics);
-    }
-
-    [Fact]
-    public async Task Enabled_in_editorconfig_an_unguarded_callback_is_reported()
-    {
-        Plain.Run run = await Plain.Analyze(new UnguardedCallbackAnalyzer(), Unguarded, await Plain.Net80(), Enabled);
 
         Assert.Empty(run.Errors);
         Diagnostic finding = Assert.Single(run.Diagnostics);
@@ -385,8 +367,8 @@ public sealed class UnguardedCallbackTests
             }
             """;
 
-        Plain.Run inert = await Plain.Analyze(new UnguardedCallbackAnalyzer(), Source, [], Enabled);
-        Plain.Run control = await Plain.Analyze(new UnguardedCallbackAnalyzer(), Source, await Plain.Net80(), Enabled);
+        Plain.Run inert = await Plain.Analyze(new UnguardedCallbackAnalyzer(), Source, []);
+        Plain.Run control = await Plain.Analyze(new UnguardedCallbackAnalyzer(), Source, await Plain.Net80());
 
         Assert.Equal(0, inert.Registrations);
         Assert.Empty(inert.Diagnostics);

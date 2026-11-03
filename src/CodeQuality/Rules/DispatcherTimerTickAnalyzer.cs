@@ -24,10 +24,10 @@ namespace Bennewitz.Ninja.CodeQuality.Rules;
 /// they are not read. What guarded means is in <see cref="Callbacks"/>.
 /// </para>
 /// <para>
-/// ⚠ <b>Off until a consumer turns it on</b>, with <c>dotnet_diagnostic.BNCQ3001.severity = warning</c>
-/// in <c>.editorconfig</c>. On the family's repositories and a real application's code it reported
-/// one handler, which could not throw on real input; plans/00005 decision 3 ships a rule whose
-/// findings are mostly safe off by default.
+/// ⚠ <b>On by default, though its one finding on real code was safe.</b> On the family's
+/// repositories and a real application's code it reported one handler, which could not throw on real
+/// input. The developer chose on 2026-11-03 to catch the shape everywhere and suppress the safe
+/// sites, over plans/00005 decision 3's count.
 /// </para>
 /// <para>
 /// ⭐ <b>An Avalonia rule, so its number is from <c>BNCQ3001</c></b>: a project that does not use
@@ -51,8 +51,8 @@ internal sealed class DispatcherTimerTickAnalyzer : ScopedAnalyzer<INamedTypeSym
         messageFormat: "One throw from this Tick handler stops the timer for good, while IsEnabled reads true and Dispatcher.UnhandledException never hears of it. Put the whole body inside one try/catch that logs.",
         Catalog.Category,
         DiagnosticSeverity.Warning,
-        isEnabledByDefault: false,
-        description: "An Avalonia DispatcherTimer whose Tick handler throws once stops ticking for good. IsEnabled still reads true, Dispatcher.UnhandledException is not raised, and the exception surfaces only as an unobserved task's at a later garbage collection. One try/catch that logs, around the whole body, is the fix. Off by default: the one handler it reported on real code could not throw.",
+        isEnabledByDefault: true,
+        description: "An Avalonia DispatcherTimer whose Tick handler throws once stops ticking for good. IsEnabled still reads true, Dispatcher.UnhandledException is not raised, and the exception surfaces only as an unobserved task's at a later garbage collection. One try/catch that logs, around the whole body, is the fix.",
         helpLinkUri: Catalog.HelpLink(Id));
 
     /// <inheritdoc />

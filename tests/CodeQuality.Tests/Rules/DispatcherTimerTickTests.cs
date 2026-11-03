@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis;
 namespace CodeQuality.Tests.Rules;
 
 /// <summary>
-/// BNCQ3001 is off until enabled; enabled, it fires on an Avalonia <c>DispatcherTimer</c>'s <c>Tick</c> handler that is not wholly
+/// BNCQ3001 fires on an Avalonia <c>DispatcherTimer</c>'s <c>Tick</c> handler that is not wholly
 /// inside one try/catch, given by <c>+=</c> or to the constructor, and on nothing guarded or empty.
 /// </summary>
 public sealed class DispatcherTimerTickTests
@@ -117,14 +117,6 @@ public sealed class DispatcherTimerTickTests
             }
             """);
 
-    /// <summary>What a consumer writes to turn the rule on.</summary>
-    private const string Enabled = """
-        root = true
-
-        [*.cs]
-        dotnet_diagnostic.BNCQ3001.severity = warning
-        """;
-
     private const string Unguarded = """
         using System;
         using Avalonia.Threading;
@@ -136,26 +128,16 @@ public sealed class DispatcherTimerTickTests
         """;
 
     /// <summary>
-    /// Off until enabled: the one handler it reported on real code could not throw, so plans/00005
-    /// decision 3 ships the rule off.
+    /// On by default, as a warning, by the developer's decision of 2026-11-03.
     /// </summary>
     /// <remarks>
     /// ⚠ On a plain compilation, not the testing framework, which enables every diagnostic of the
-    /// analyzer under test.
+    /// analyzer under test and so cannot show the default.
     /// </remarks>
     [Fact]
-    public async Task Until_enabled_an_unguarded_Tick_handler_is_not_reported()
+    public async Task By_default_an_unguarded_Tick_handler_is_a_warning()
     {
         Plain.Run run = await Plain.Analyze(new DispatcherTimerTickAnalyzer(), Unguarded, await AvaloniaReferences.References());
-
-        Assert.Empty(run.Errors);
-        Assert.Empty(run.Diagnostics);
-    }
-
-    [Fact]
-    public async Task Enabled_in_editorconfig_an_unguarded_Tick_handler_is_reported()
-    {
-        Plain.Run run = await Plain.Analyze(new DispatcherTimerTickAnalyzer(), Unguarded, await AvaloniaReferences.References(), Enabled);
 
         Assert.Empty(run.Errors);
         Diagnostic finding = Assert.Single(run.Diagnostics);
@@ -190,8 +172,8 @@ public sealed class DispatcherTimerTickTests
             }
             """;
 
-        Plain.Run inert = await Plain.Analyze(new DispatcherTimerTickAnalyzer(), Source, await Plain.Net80(), Enabled);
-        Plain.Run control = await Plain.Analyze(new DispatcherTimerTickAnalyzer(), Source, await AvaloniaReferences.References(), Enabled);
+        Plain.Run inert = await Plain.Analyze(new DispatcherTimerTickAnalyzer(), Source, await Plain.Net80());
+        Plain.Run control = await Plain.Analyze(new DispatcherTimerTickAnalyzer(), Source, await AvaloniaReferences.References());
 
         Assert.Equal(0, inert.Registrations);
         Assert.Empty(inert.Diagnostics);
