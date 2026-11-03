@@ -8,6 +8,12 @@
     <PackageVersion Include="Bennewitz.Ninja.AutoVersioning" Version="2026.3.916" />
   </ItemGroup>
 
+  <ItemGroup Label="Analysis">
+    <!-- Microsoft.VisualStudio.Threading.Analyzers, for two of its rules; Directory.Build.props
+         says which and turns the rest off. -->
+    <PackageVersion Include="Microsoft.VisualStudio.Threading.Analyzers" Version="18.12.1" />
+  </ItemGroup>
+
   <ItemGroup Label="Tool">
     <!-- The CLI face only. ⛔ The rules LIBRARY takes no package reference at all, and that is a
          contract rather than an accident: a quality analyser that drags dependencies into a
