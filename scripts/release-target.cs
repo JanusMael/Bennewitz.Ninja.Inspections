@@ -224,10 +224,10 @@ string[] FamilyProjects(string key, string[] ids)
         throw new Refused($"`dotnet sln {solutions[0]} list` failed: {listed.Trim()}");
     }
 
+    string[] projects = [.. listed.Split('\n').Select(l => l.Trim()).Where(l => l.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))];
     Dictionary<string, List<string>> byId = new(StringComparer.OrdinalIgnoreCase);
-    foreach (string project in listed.Split('\n').Select(l => l.Trim()).Where(l => l.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)))
+    foreach ((string project, int exit, string output) in Evaluation.All(repository, projects, "-getProperty:PackageId", "-getProperty:IsPackable"))
     {
-        (int exit, string output) = Shell.Run("dotnet", repository, "msbuild", project, "-p:Configuration=Release", "-getProperty:PackageId", "-getProperty:IsPackable");
         JsonObject? properties = exit == 0 ? Evaluation.Properties(output) : null;
         if (properties is null)
         {
@@ -438,38 +438,37 @@ static class ReleaseNotes
     public static IEnumerable<string> OwnPaths(string repository, string[] projects)
     {
         HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
-        Queue<string> pending = new(projects.Select(p => Path.GetFullPath(Path.Combine(repository, p))));
-        // The family's own projects are dequeued first; whatever follows was reached by reference.
-        int roots = projects.Length;
-        while (pending.Count > 0)
+        // A level at a time, each level's projects evaluated together: the family's own projects
+        // first, then whatever they reference, and so on.
+        string[] level = [.. projects.Select(p => Path.GetFullPath(Path.Combine(repository, p))).Where(seen.Add)];
+        bool isRoot = true;
+        while (level.Length > 0)
         {
-            string project = pending.Dequeue();
-            bool isRoot = roots-- > 0;
-            if (!seen.Add(project))
+            List<string> next = [];
+            foreach ((string project, int exit, string output) in Evaluation.All(repository, level, "-getProperty:IsPackable", "-getItem:ProjectReference"))
             {
-                continue;
-            }
-
-            (int exit, string output) = Shell.Run("dotnet", repository, "msbuild", project, "-p:Configuration=Release", "-getProperty:IsPackable", "-getItem:ProjectReference");
-            JsonObject? evaluated = exit == 0 ? Evaluation.Json(output) : null;
-            if (evaluated is null)
-            {
-                throw new Refused($"{project} could not be evaluated, so the paths of its family's notes are unknown: {output.Trim()}");
-            }
-            if (!isRoot && Evaluation.Text(evaluated["Properties"]?["IsPackable"]) == "true")
-            {
-                continue;
-            }
-
-            yield return Path.GetRelativePath(repository, Path.GetDirectoryName(project)!).Replace('\\', '/');
-            foreach (JsonNode? reference in evaluated["Items"]?["ProjectReference"]?.AsArray() ?? [])
-            {
-                string path = Evaluation.Text(reference?["FullPath"]);
-                if (path.Length > 0)
+                JsonObject? evaluated = exit == 0 ? Evaluation.Json(output) : null;
+                if (evaluated is null)
                 {
-                    pending.Enqueue(Path.GetFullPath(path));
+                    throw new Refused($"{project} could not be evaluated, so the paths of its family's notes are unknown: {output.Trim()}");
+                }
+                if (!isRoot && Evaluation.Text(evaluated["Properties"]?["IsPackable"]) == "true")
+                {
+                    continue;
+                }
+
+                yield return Path.GetRelativePath(repository, Path.GetDirectoryName(project)!).Replace('\\', '/');
+                foreach (JsonNode? reference in evaluated["Items"]?["ProjectReference"]?.AsArray() ?? [])
+                {
+                    string path = Evaluation.Text(reference?["FullPath"]);
+                    if (path.Length > 0 && seen.Add(path = Path.GetFullPath(path)))
+                    {
+                        next.Add(path);
+                    }
                 }
             }
+            level = [.. next];
+            isRoot = false;
         }
     }
 
@@ -640,6 +639,18 @@ static class Evaluation
     }
 
     public static string Text(JsonNode? node) => node is JsonValue value && value.TryGetValue(out string? text) ? text ?? "" : "";
+
+    /// <summary>
+    /// <c>dotnet msbuild -p:Configuration=Release</c> with <paramref name="queries"/> on each project,
+    /// in the order given. The evaluations run together: each is a process of its own that spends most
+    /// of a second starting, so one after another they cost a release a second a project.
+    /// </summary>
+    public static (string Project, int ExitCode, string Output)[] All(string repository, string[] projects, params string[] queries) =>
+        [.. projects.AsParallel().AsOrdered().Select(project =>
+        {
+            (int exit, string output) = Shell.Run("dotnet", repository, ["msbuild", project, "-p:Configuration=Release", .. queries]);
+            return (project, exit, output);
+        })];
 }
 
 static class Shell

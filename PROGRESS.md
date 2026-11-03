@@ -42,16 +42,25 @@ What remains of the plan for this repository:
 Each family releases alone, from a tag `<family>/vYYYY.Q.MMDD`; [docs/publishing.md](docs/publishing.md)
 is the runbook. Whether a family has anything to release is in its section below.
 
-**Synced to Bennewitz.Ninja.Templates `2026.4.1031`** on 2026-10-31: `repo-conventions.cs` and
-`assert-packages.cs` are that release's, and `release-target.cs` was already. Before it, to
-`2026.4.1029` on 2026-10-29, Templates' `plans/00011` step 5. The scripts are that release's: a family's GitHub release notes are its own commits since its
-previous tag, from `release-target.cs notes`, and it is marked "Latest" unless a tag of any family is
-newer. `"bareTags": "xamlquality"` makes the bare `v…` tags XamlQuality's earlier releases, so its
-first family release starts from `v2026.4.1026`. `check` now fails a family without its README, a
-relative link in one, and a package whose `FamilyReadme` or `AssemblyProduct` is not its family's;
-`assert-packages --family` compares each packed README with `docs/<family>.md`. The root props' README
-items are the template's, by the maintainer's decision: a packable project without `FamilyReadme`
-would pack the root README rather than fail with `NU5039`, and `check` fails it first.
+**Synced to Bennewitz.Ninja.Templates `2026.4.1103`** on 2026-11-03. `repo-conventions.cs` is that
+release's, which also checks that markdown is checked out as LF; the root `.gitattributes` already
+does. `release-target.cs` is that release's too: it evaluates a level's projects together, and
+`projects --family` names the same projects for all three families as the `2026.4.1031` copy did, in
+4 to 7 s where that took 14 to 17. `Microsoft.VisualStudio.Threading.Analyzers` `18.12.1` is
+referenced privately, with only `VSTHRD101` and `VSTHRD110` on: the family's decision of 2026-11-03,
+taken on the DiffView measurement below. Neither reports anything here, and no packed nuspec gains a
+dependency. Build, 978 of 978 tests, pack, `assert-packages`, `check`, which conforms, and
+`tools/real-code.cs` pass on Windows. No family's package changes.
+
+The syncs before it, to `2026.4.1031` and to `2026.4.1029` (Templates' `plans/00011` step 5), brought
+the scripts as they stand: a family's GitHub release notes are its own commits since its previous
+tag, from `release-target.cs notes`, and it is marked "Latest" unless a tag of any family is newer.
+`"bareTags": "xamlquality"` makes the bare `v…` tags XamlQuality's earlier releases, so its first
+family release starts from `v2026.4.1026`. `check` fails a family without its README, a relative
+link in one, and a package whose `FamilyReadme` or `AssemblyProduct` is not its family's;
+`assert-packages --family` compares each packed README with `docs/<family>.md`. The root props'
+README items are the template's, by the maintainer's decision: a packable project without
+`FamilyReadme` would pack the root README rather than fail with `NU5039`, and `check` fails it first.
 
 ## Merged into Inspections (2026-10-26)
 
@@ -399,7 +408,7 @@ template already leaves it out.
   *CodeQuality* below. `Microsoft.VisualStudio.Threading.Analyzers` was measured on DiffView on
   2026-11-02, the "VSTHRD on DiffView" row under *CodeQuality*: no defect among its findings. The
   developer decided on 2026-11-03 to adopt it family-wide with only `VSTHRD101` and `VSTHRD110` on,
-  a Templates change still to come. The `ConvertBack` candidate went on
+  which Templates `2026.4.1103` carries and this repository has synced to. The `ConvertBack` candidate went on
   the rule backlog above.
 
 - **A theme audit check for a key a theme's controls read only through its own aliases, held (the
