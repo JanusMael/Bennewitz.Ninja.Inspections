@@ -33,10 +33,10 @@ repository above the README as it was, kept whole because released versions link
 sections. CodeQuality#3, its one open issue, asked for conventions this repository already carries,
 and was closed as done rather than transferred. Neither has an open issue or pull request.
 
-ScopedEditors and DiffView moved into `Bennewitz.Ninja.AppKit` on 2026-11-06. `docs/avalonia-gotchas.md`
-links there now. `tools/real-code/inputs.json` keeps both old repository URLs on purpose: the commits
-it pins were rewritten by the import, so they exist only in the archived repositories, which can
-still be cloned.
+ScopedEditors moved into `Bennewitz.Ninja.AppKit` on 2026-11-06. `docs/avalonia-gotchas.md` links
+there now. `tools/real-code/inputs.json` keeps its old repository URL on purpose: the commit it pins
+was rewritten by the import, so it exists only in the archived repository, which can still be cloned.
+DiffView stays in Bennewitz.Ninja.DiffView, which is not archived, so its input is unchanged.
 
 What remains of the plan for this repository:
 
