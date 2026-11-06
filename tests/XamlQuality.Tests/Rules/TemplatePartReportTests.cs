@@ -110,6 +110,35 @@ public sealed class TemplatePartReportTests
         Assert.EndsWith("## Not read\n\nNothing.\n", report, StringComparison.Ordinal);
     }
 
+    /// <summary>A control whose code declares no part shows what its theme declares, marks nothing missing, and is looked up by nothing.</summary>
+    [Fact]
+    public void AThemedControlWithNoPartsInItsCode_ListsItsThemesParts()
+    {
+        TemplatePartReading reading = new(
+            [new ControlTemplateParts("Plain", [], [], [new ThemeParts("Plain.axaml", 3, [new DeclaredPart("PART_Face", "Border", "Face")])])],
+            []);
+
+        string report = reading.ToMarkdown();
+
+        Assert.Contains("## `Plain`\n\nTheme: `Plain.axaml`, line 3.\n\n| Part | Element | AutomationId | Constant | Looked up by |\n", report, StringComparison.Ordinal);
+        Assert.Contains("| `PART_Face` | `Border` | `Face` |  | — |\n", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("**missing**", report.Split("## `Plain`")[1], StringComparison.Ordinal);
+    }
+
+    /// <summary>A section with no part to list says so, rather than drawing a table with no rows.</summary>
+    [Fact]
+    public void AControlWithNoPartAnywhere_SaysSo_AndDrawsNoTable()
+    {
+        TemplatePartReading reading = new(
+            [new ControlTemplateParts("Plain", [], [], [new ThemeParts("Plain.axaml", 3, [])])],
+            []);
+
+        string report = reading.ToMarkdown();
+
+        Assert.Contains("## `Plain`\n\nTheme: `Plain.axaml`, line 3.\n\nNo part is declared or looked up.\n\n## Not read\n", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("| Part |", report, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// A code span holds whatever a name or an id holds: a generic type's arity mark, a backtick at either end, a pipe, and
     /// a line break, which reads as a space, so a heading stays one span and a row one line.

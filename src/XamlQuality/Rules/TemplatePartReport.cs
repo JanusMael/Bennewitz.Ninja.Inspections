@@ -81,6 +81,13 @@ internal static class TemplatePartReport
                 break;
         }
 
+        List<string> rows = RowsOf(control);
+        if (rows.Count == 0)
+        {
+            sb.Append("No part is declared or looked up.\n\n");
+            return;
+        }
+
         List<string> header = ["Part"];
         for (int index = 1; index <= themes.Count; index++)
         {
@@ -94,7 +101,7 @@ internal static class TemplatePartReport
         Row(sb, header.Select(_ => "---"));
 
         HashSet<string> wanted = new([.. control.Constants, .. control.Lookups.Select(lookup => lookup.Part)], StringComparer.Ordinal);
-        foreach (string part in RowsOf(control))
+        foreach (string part in rows)
         {
             List<string> cells = [Code(part)];
             foreach (ThemeParts theme in themes)

@@ -16,14 +16,14 @@ public sealed class PartsRunnerTests : IDisposable
         Directory.Delete(_root, recursive: true);
     }
 
-    private void Theme(string folder, string part)
+    private void Theme(string folder, string part, string target = "Gauge")
     {
         Directory.CreateDirectory(Path.Combine(_root, folder));
         File.WriteAllText(
-            Path.Combine(_root, folder, "Gauge.axaml"),
+            Path.Combine(_root, folder, $"{target}.axaml"),
             "<ResourceDictionary xmlns=\"https://github.com/avaloniaui\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
             + " xmlns:f=\"clr-namespace:Fixtures\">\n"
-            + $"<ControlTheme x:Key=\"k\" TargetType=\"f:Gauge\"><Setter Property=\"Template\"><ControlTemplate><Border Name=\"{part}\" />"
+            + $"<ControlTheme x:Key=\"k\" TargetType=\"f:{target}\"><Setter Property=\"Template\"><ControlTemplate><Border Name=\"{part}\" />"
             + "</ControlTemplate></Setter></ControlTheme>\n</ResourceDictionary>");
     }
 
@@ -60,6 +60,50 @@ public sealed class PartsRunnerTests : IDisposable
         Assert.Equal(["first/themes/Gauge.axaml:2", "second/themes/Gauge.axaml:2"], gauge.Themes.Select(theme => $"{theme.File}:{theme.Line}"));
         Assert.Equal(["PART_Needle"], gauge.Themes[0].Declared.Select(part => part.Name));
         Assert.Empty(reading.Skipped);
+    }
+
+    /// <summary>
+    /// ⛔ A control whose code declares no part has an entry only in a folder that themes it, so the folders' readings do
+    /// not hold the same controls: it is read wherever that folder falls in the configuration, its themes from each
+    /// folder that has one, and nothing else moves.
+    /// </summary>
+    [Theory]
+    [InlineData("first", "second", "third")]
+    [InlineData("third", "second", "first")]
+    public void AControlSomeFoldersTheme_HasItsEntry_WhereverThoseFoldersFall(string one, string two, string three)
+    {
+        Theme("first", "PART_Needle");
+        Theme("second", "PART_Face", "Bezel");
+        Theme("third", "PART_Back", "Bezel");
+
+        TemplatePartReading reading = PartsRunner.Read(Config(one, two, three));
+
+        Assert.Equal(["Bezel", "Gauge"], reading.Controls.Select(control => control.Name));
+        ControlTemplateParts bezel = reading.Controls[0];
+        Assert.Empty(bezel.Constants);
+        Assert.Empty(bezel.Lookups);
+        Assert.Equal(["second/Bezel.axaml:2", "third/Bezel.axaml:2"], bezel.Themes.Select(theme => $"{theme.File}:{theme.Line}"));
+        Assert.Equal(["first/Gauge.axaml:2"], reading.Controls[1].Themes.Select(theme => $"{theme.File}:{theme.Line}"));
+        Assert.Empty(reading.Skipped);
+    }
+
+    /// <summary>
+    /// A name two types carry, which has no entry, is named where a theme targets it, so what a reading skips differs by
+    /// folder too: it is named once, however many folders theme it and wherever they fall.
+    /// </summary>
+    [Theory]
+    [InlineData("first", "second", "third")]
+    [InlineData("third", "second", "first")]
+    public void ANameTwoTypesCarry_IsNamedOnce_WhicheverFoldersThemeIt(string one, string two, string three)
+    {
+        Theme("first", "PART_Needle");
+        Theme("second", "PART_Face", "Pair");
+        Theme("third", "PART_Back", "Pair");
+
+        TemplatePartReading reading = PartsRunner.Read(Config(one, two, three));
+
+        Assert.Equal(["Gauge"], reading.Controls.Select(control => control.Name));
+        Assert.Equal("Pair", Assert.Single(reading.Skipped).Subject);
     }
 
     /// <summary>A folder inside another the configuration names, listed before it or after, or one named twice, is read once.</summary>
