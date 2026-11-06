@@ -63,25 +63,33 @@ public static class PartsRunner
             });
         }
 
-        // The controls, their constants and lookups, and what was not read come from the assemblies alone, so every
-        // folder's reading holds the same ones; only the themes differ.
-        TemplatePartReading first = readings[0];
-        return first with
-        {
-            Controls =
+        // A control's constants and lookups come from the assemblies alone, so it reads alike wherever it has an entry.
+        // What a folder's themes decide differs: a control whose code declares no part has an entry only in the folders
+        // that theme it, and a name two types share is named only where one does where no part was found.
+        return new TemplatePartReading(
             [
-                .. first.Controls.Select(control => control with
-                {
-                    Themes =
-                    [
-                        .. readings
-                            .SelectMany(reading => reading.Controls.Single(other => other.Name == control.Name).Themes)
-                            .OrderBy(theme => theme.File, StringComparer.Ordinal)
-                            .ThenBy(theme => theme.Line),
-                    ],
-                }),
+                .. readings
+                    .SelectMany(reading => reading.Controls)
+                    .GroupBy(control => control.Name, StringComparer.Ordinal)
+                    .OrderBy(control => control.Key, StringComparer.Ordinal)
+                    .Select(control => control.First() with
+                    {
+                        Themes =
+                        [
+                            .. control
+                                .SelectMany(entry => entry.Themes)
+                                .OrderBy(theme => theme.File, StringComparer.Ordinal)
+                                .ThenBy(theme => theme.Line),
+                        ],
+                    }),
             ],
-        };
+            [
+                .. readings
+                    .SelectMany(reading => reading.Skipped)
+                    .Distinct()
+                    .OrderBy(skip => skip.Subject, StringComparer.Ordinal)
+                    .ThenBy(skip => skip.Reason, StringComparer.Ordinal),
+            ]);
     }
 
     /// <summary>

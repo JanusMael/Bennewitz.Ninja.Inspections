@@ -16,6 +16,11 @@ namespace XamlQuality.Tests.ThemeAudit;
 /// that fails leaves the control unread, and the tests that expect nothing unread say so.
 /// </para>
 /// <para>
+/// <c>Fixtures.Bezel</c> declares and looks up nothing, and two types are named <c>Pair</c>, in <c>Fixtures</c> and
+/// <c>Fixtures.Other</c>, so what a markup folder themes can decide what its reading holds. <c>Bezel</c> sorts before
+/// <c>Gauge</c>, which has an entry in every folder's reading, so a merge that kept the order it met them in shows.
+/// </para>
+/// <para>
 /// ⚠ The tool loads it from its file and keeps it loaded until the process exits, so it is written once per run to a
 /// folder of its own, which the next run clears, and never to a test's own folder, which the test deletes.
 /// </para>
@@ -57,8 +62,13 @@ internal static class EmittedParts
             .GetType("Fixtures.GaugeBase", throwOnError: true)!;
 
         PersistedAssemblyBuilder fixture = new(new AssemblyName("PartsFixture"), typeof(object).Assembly);
-        TypeBuilder gauge = fixture.DefineDynamicModule("PartsFixture")
-            .DefineType("Fixtures.Gauge", TypeAttributes.Public | TypeAttributes.Class, baseType);
+        ModuleBuilder module = fixture.DefineDynamicModule("PartsFixture");
+        foreach (string partless in (string[])["Fixtures.Bezel", "Fixtures.Pair", "Fixtures.Other.Pair"])
+        {
+            module.DefineType(partless, TypeAttributes.Public | TypeAttributes.Class).CreateType();
+        }
+
+        TypeBuilder gauge = module.DefineType("Fixtures.Gauge", TypeAttributes.Public | TypeAttributes.Class, baseType);
         gauge.DefineDefaultConstructor(MethodAttributes.Public);
         gauge.DefineField("NeedlePart", typeof(string), FieldAttributes.Public | FieldAttributes.Static | FieldAttributes.Literal)
             .SetConstant("PART_Needle");

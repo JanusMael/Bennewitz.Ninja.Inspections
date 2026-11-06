@@ -23,11 +23,11 @@ namespace Bennewitz.Ninja.XamlQuality.Rules;
 /// and what was not read by subject, then reason.
 /// </para>
 /// </remarks>
-/// <param name="Controls">Every type the rule credits a part to, by name.</param>
+/// <param name="Controls">Every type the rule credits a part to, and every type the scan loaded that a theme targets, by name.</param>
 /// <param name="Skipped">
 /// What could not be read, and why: a type whose code could be read only in part, a type a scanned assembly defines that
-/// did not load, a name more than one top-level type the scan was given carries where parts were found in their code,
-/// and, when the scan was given no assemblies, that.
+/// did not load, a name more than one top-level type the scan was given carries where parts were found in their code or
+/// a theme targets it, and, when the scan was given no assemblies, that.
 /// </param>
 public sealed record TemplatePartReading(IReadOnlyList<ControlTemplateParts> Controls, IReadOnlyList<XamlSkip> Skipped)
 {
@@ -49,9 +49,10 @@ public sealed record TemplatePartReading(IReadOnlyList<ControlTemplateParts> Con
 /// ⚠ <b>Named as the rule names it</b>: by its simple name, the one a <c>ControlTheme</c>'s <c>TargetType</c> gives.
 /// A name more than one top-level type the scan was given carries is no entry, since the rule reads a theme's target by
 /// its name alone and cannot say which of them a theme is for; the reading names it in
-/// <see cref="TemplatePartReading.Skipped"/> instead, where parts were found in their code. An entry is usually a
-/// control; it is a helper where no control hands it the template its lookups are made on, since the rule then keeps
-/// those lookups as the helper's own, and names it in a skip when no theme targets it.
+/// <see cref="TemplatePartReading.Skipped"/> instead, where parts were found in their code or a theme targets it. An
+/// entry is usually a control; it is a helper where no control hands it the template its lookups are made on, since the
+/// rule then keeps those lookups as the helper's own, and names it in a skip when no theme targets it. A themed control
+/// whose code declares no part has an entry with no constants and no lookups: its themes' parts are the whole of it.
 /// </remarks>
 /// <param name="Name">The type's simple name.</param>
 /// <param name="Constants">Its <c>PART_</c> string constants, public or not, whether or not anything looks them up.</param>

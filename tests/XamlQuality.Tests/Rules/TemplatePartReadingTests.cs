@@ -420,18 +420,61 @@ public sealed class TemplatePartReadingTests : IDisposable
     }
 
     /// <summary>
-    /// A themed control that declares no part has no entry, since the rule credits it nothing, and a control with no
-    /// theme in the scan has an entry with no themes.
+    /// ⭐ A themed control whose code declares no part has an entry: its themes and what they declare, with no constants
+    /// and no lookups, so a reference built from the reading lists every themed control's parts. The rule, which has
+    /// nothing of it to check, still names it, and inspects nothing for it.
     /// </summary>
     [Fact]
-    public void AnEntryIsATypeWithParts_WhetherOrNotItIsThemed()
+    public void AThemedControlWithNoPartsInItsCode_HasAnEntry_WithItsThemesParts()
     {
-        Write("Partless.axaml", Dictionary(ThemeOf("t:PartlessPanel", "<Border Name=\"PART_Header\" />")));
+        Write("Partless.axaml", Dictionary(ThemeOf(
+            "t:PartlessPanel",
+            "<Border Name=\"PART_Header\" AutomationProperties.AutomationId=\"Head\" />")));
+        XamlScanContext scan = Scan();
+
+        ControlTemplateParts partless = Entry(TemplatePartRule.ReadParts(scan), nameof(PartlessPanel));
+        XamlRuleResult result = new TemplatePartRule().Analyze(scan);
+
+        Assert.Empty(partless.Constants);
+        Assert.Empty(partless.Lookups);
+        ThemeParts theme = Assert.Single(partless.Themes);
+        Assert.Equal("Partless.axaml", theme.File);
+        Assert.Equal([new DeclaredPart("PART_Header", "Border", "Head")], theme.Declared);
+        Assert.Empty(result.Findings);
+        Assert.Equal(0, result.Inspected);
+        XamlSkip skip = Assert.Single(result.Skipped, s => s.Subject == nameof(PartlessPanel));
+        Assert.Contains("no template part was found in its code", skip.Reason, StringComparison.Ordinal);
+    }
+
+    /// <summary>Such a control's every theme is in its entry, one that declares nothing among them.</summary>
+    [Fact]
+    public void AThemedControlWithNoPartsInItsCode_KeepsEveryTheme_ThoseThatDeclareNothingIncluded()
+    {
+        Write("A.axaml", Dictionary(ThemeOf("t:PartlessPanel", "<Border />")));
+        Write("B.axaml", Dictionary(ThemeOf("t:PartlessPanel", "<Border Name=\"PART_Header\" />")));
+
+        ControlTemplateParts partless = Entry(Read(), nameof(PartlessPanel));
+
+        Assert.Equal(["A.axaml", "B.axaml"], partless.Themes.Select(theme => theme.File));
+        Assert.Empty(partless.Themes[0].Declared);
+        Assert.Equal(["PART_Header"], partless.Themes[1].Declared.Select(part => part.Name));
+    }
+
+    /// <summary>
+    /// An entry is a type with parts, themed or not, or a themed type the scan loaded: a control with no theme in the scan
+    /// has an entry with no themes, a type with neither parts nor a theme has none, and neither has a theme for a type the
+    /// scan does not hold, which is a framework control's or another library's.
+    /// </summary>
+    [Fact]
+    public void AnEntryIsATypeWithParts_OrAThemedTypeTheScanLoaded()
+    {
+        Write("Other.axaml", Dictionary(ThemeOf("t:SomethingElse", "<Border Name=\"PART_Header\" />")));
 
         TemplatePartReading reading = Read();
 
-        Assert.DoesNotContain(reading.Controls, control => control.Name == nameof(PartlessPanel));
         Assert.Empty(Entry(reading, nameof(ProxyPanel)).Themes);
+        Assert.DoesNotContain(reading.Controls, control => control.Name == nameof(PartlessPanel));
+        Assert.DoesNotContain(reading.Controls, control => control.Name == "SomethingElse");
     }
 
     /// <summary>
@@ -453,17 +496,24 @@ public sealed class TemplatePartReadingTests : IDisposable
     }
 
     /// <summary>
-    /// The reading names a shared name only where parts were found in its types' code, lookups alone included: where
-    /// partless types share a name, the reading leaves nothing out.
+    /// The reading names a shared name where parts were found in its types' code, lookups alone included, or where a
+    /// theme targets it, as the rule does: where partless types share a name and nothing themes it, the reading leaves
+    /// nothing out, and a theme it has no entry for is never passed over in silence.
     /// </summary>
     [Fact]
-    public void ASharedName_IsNamedOnlyWherePartsWereFound()
+    public void ASharedName_IsNamedWherePartsWereFoundOrAThemeTargetsIt()
     {
         TemplatePartReading reading = Read();
 
         Assert.Single(reading.Skipped, s => s.Subject == "LookingTwin");
         Assert.DoesNotContain(reading.Controls, control => control.Name == "LookingTwin");
         Assert.DoesNotContain(reading.Skipped, s => s.Subject == "Twin");
+
+        Write("Twin.axaml", Dictionary(ThemeOf("t:Twin", "<Border Name=\"PART_Header\" />")));
+        reading = Read();
+
+        Assert.Single(reading.Skipped, s => s.Subject == "Twin");
+        Assert.DoesNotContain(reading.Controls, control => control.Name == "Twin");
     }
 
     // ── What could not be read ──────────────────────────────────────────────────
