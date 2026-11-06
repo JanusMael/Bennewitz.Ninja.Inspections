@@ -105,8 +105,8 @@ and the automation id. The rule's findings are exactly the constants and looked-
 not declare, so a parts reference built from the reading lists what the rule checked, in an order that
 compares as text. A constant nothing looks up, which a style selector may be all that needs, is listed
 apart from the lookups. A themed control whose code declares no part has an entry too, with its
-themes and no constants or lookups, so the reading lists every theme of a type the scan holds. A name
-two scanned types carry has no entry, and the reading's `Skipped` names it. A base class in an
+themes and no constants or lookups, which the rule has nothing to check on, so a reference lists the
+themes of the top-level, non-generic types the scan holds. A name two scanned types carry has no entry, and the reading's `Skipped` names it. A base class in an
 assembly the scan was not given is not read: pass the library that defines it to `WithAssemblies` as
 well.
 

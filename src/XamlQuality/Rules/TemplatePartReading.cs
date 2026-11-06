@@ -23,7 +23,7 @@ namespace Bennewitz.Ninja.XamlQuality.Rules;
 /// and what was not read by subject, then reason.
 /// </para>
 /// </remarks>
-/// <param name="Controls">Every type the rule credits a part to, and every type the scan loaded that a theme targets, by name.</param>
+/// <param name="Controls">Every type the rule credits a part to, and every top-level, non-generic type the scan loaded that a theme targets, by name.</param>
 /// <param name="Skipped">
 /// What could not be read, and why: a type whose code could be read only in part, a type a scanned assembly defines that
 /// did not load, a name more than one top-level type the scan was given carries where parts were found in their code or

@@ -152,6 +152,13 @@ Pull request and issue numbers in this section are this repository's own, from b
   theme's target by its name alone, so it cannot say which of the types a theme is for. It names each
   theme of the name in `Skipped`, and the reading names the name in its own `Skipped` where parts were
   found. Decision 7's list of what the reading's `Skipped` holds gains that kind.
+- Decision 5 made an entry only of a type the rule credits a part to, and left a themed control with
+  none to the rule's skip. Since PR #123, at DiffView's request and by the developer's decision of
+  2026-11-06, a top-level, non-generic type the scan loaded that a theme targets has an entry too, its
+  themes and no constants or lookups, so a reference built from the reading lists that theme. The rule
+  has nothing of it to check, and still names it in a skip. A theme for a nested or a generic type has
+  neither an entry nor a skip, in the reading or the rule, as before: a target's name does not give
+  either. Decision 7's list gains a shared name where a theme targets it.
 
 #### Where PR #84 departs from plan 00004
 
@@ -219,7 +226,7 @@ merges only, and both give a branch's commits new hashes, so a row cites its pul
 
 | Commit or PR | Change | Effect on a consumer |
 |---|---|---|
-| PR #123 | `TemplatePartRule.ReadParts`, at DiffView's request of 2026-11-01. A type the scan loaded that a theme targets has an entry whether or not its code declares a part: with none, it has its themes and what they declare, and no constants or lookups, where it had no entry and no skip, so a reference built from the reading left its theme out with nothing to say so. A name two scanned types carry is named in the reading's `Skipped` where a theme targets it as well as where parts were found, as the rule names it. `PartsRunner.Read` takes every markup folder's controls and skips, since a theme can now decide them. `BNXQ1003`'s findings, skips and `Inspected` are as they were | New entries in the reading and new sections in the parts report, one per such control, so a committed parts report changes once and is regenerated. A section with no part to list says so and draws no table. A consumer that took every entry to have a constant or a lookup finds some with neither. Over DiffView, by its request, `DiffStatusStrip` and `DiffPaneHeader` gain entries, with 14 and 6 parts; DiffView does not commit the report, and its plan 00030 reads them from the reading once a release carries this |
+| PR #123 | `TemplatePartRule.ReadParts`, at DiffView's request of 2026-11-01. A top-level, non-generic type the scan loaded that a theme targets has an entry whether or not its code declares a part: with none, it has its themes and what they declare, and no constants or lookups, where it had no entry and no skip, so a reference built from the reading left its theme out with nothing to say so. A name two scanned types carry is named in the reading's `Skipped` where a theme targets it as well as where parts were found, as the rule names it. `PartsRunner.Read` takes every markup folder's controls and skips, since a theme can now decide them. `BNXQ1003`'s findings, skips and `Inspected` are as they were | New entries in the reading and new sections in the parts report, one per such control, so a committed parts report changes once and is regenerated. A section with no part to list says so and draws no table. A consumer that took every entry to have a constant or a lookup finds some with neither. Over DiffView, by its request, `DiffStatusStrip` and `DiffPaneHeader` gain entries, with 14 and 6 parts; DiffView does not commit the report, and its plan 00030 reads them from the reading once a release carries this |
 
 ### Consumers inside the family
 

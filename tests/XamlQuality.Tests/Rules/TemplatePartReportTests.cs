@@ -125,7 +125,10 @@ public sealed class TemplatePartReportTests
         Assert.DoesNotContain("**missing**", report.Split("## `Plain`")[1], StringComparison.Ordinal);
     }
 
-    /// <summary>A section with no part to list says so, rather than drawing a table with no rows.</summary>
+    /// <summary>
+    /// A section with no part to list says so, rather than drawing a table with no rows, and says only that none was
+    /// found: a name built at runtime, or a method that could not be read, may hold one.
+    /// </summary>
     [Fact]
     public void AControlWithNoPartAnywhere_SaysSo_AndDrawsNoTable()
     {
@@ -135,7 +138,7 @@ public sealed class TemplatePartReportTests
 
         string report = reading.ToMarkdown();
 
-        Assert.Contains("## `Plain`\n\nTheme: `Plain.axaml`, line 3.\n\nNo part is declared or looked up.\n\n## Not read\n", report, StringComparison.Ordinal);
+        Assert.Contains("## `Plain`\n\nTheme: `Plain.axaml`, line 3.\n\nNo part was found.\n\n## Not read\n", report, StringComparison.Ordinal);
         Assert.DoesNotContain("| Part |", report, StringComparison.Ordinal);
     }
 

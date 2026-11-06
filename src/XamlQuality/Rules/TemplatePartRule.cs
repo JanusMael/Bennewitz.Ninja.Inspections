@@ -31,7 +31,7 @@ namespace Bennewitz.Ninja.XamlQuality.Rules;
 /// ⭐ <b>Its reading is public.</b> <see cref="ReadParts"/> returns what the rule reads: each control's
 /// constants, each lookup with the code that makes it, and the parts each of its themes declares.
 /// <see cref="Analyze"/> derives its findings from that same reading, so a parts reference a consumer
-/// builds from it lists exactly what the rule checked.
+/// builds from it lists what the rule checked, and the themes of a control it had nothing to check on.
 /// </para>
 /// <para>
 /// ⚠ <b>What the rule sees but cannot check is named in <see cref="XamlRuleResult.Skipped"/>.</b>
@@ -230,8 +230,9 @@ public sealed class TemplatePartRule : IXamlRule
     /// so.
     /// </para>
     /// <para>
-    /// ⚠ <b>An entry is every type the rule credits a part to, and every type the scan loaded that a theme targets</b>,
-    /// by the simple name a <c>ControlTheme</c>'s <c>TargetType</c> gives. That is a control, or a helper no control
+    /// ⚠ <b>An entry is every type the rule credits a part to, and every top-level, non-generic type the scan loaded
+    /// that a theme targets</b>, by the simple name a <c>ControlTheme</c>'s <c>TargetType</c> gives: a theme for a nested
+    /// or generic type names no type the rule knows, and is neither an entry nor a skip. That is a control, or a helper no control
     /// hands the template its lookups are made on, whose lookups the rule keeps as its own. A themed control whose code
     /// declares no part has an entry with its themes and no constants or lookups, so a reference built from the reading
     /// lists every such theme's parts; the rule has nothing of it to check, and names it in a skip. A name more than one
