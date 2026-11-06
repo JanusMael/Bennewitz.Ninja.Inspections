@@ -301,6 +301,38 @@ Avalonia 12.1.3, with the Fluent theme, from a driver that is per-monitor DPI aw
   the input was sent.
 - **Moving the pointer is input too.** Synthetic motion raised a tooltip, from `SetCursorPos` alone.
 
+**Driving a real desktop from SSH.** Each of these was measured on a real Windows desktop at 200% from a driver that is per-monitor aware V2 and
+injects with `SendInput`, started over Windows OpenSSH: Windows 10.0.26300, one 2560 × 1600 panel, pwsh
+7.6.9, .NET 10.0.14 and Avalonia 12.1.2, not reproduced here.
+
+- **A scheduled task can run a driven pass in the console session.** Give it a principal with
+  `-LogonType Interactive`, which stores no password, on a laptop `-AllowStartIfOnBatteries` too, and
+  unregister it in a `finally`. The script ran in the console session, `Process.SessionId` matching
+  `query user`, `GetDpiForMonitor` read 192, a full pass of clicks, drags, keys and tooltips exited 0,
+  and `LastTaskResult` carried the script's exit code. Take the account from
+  `[Security.Principal.WindowsIdentity]::GetCurrent().Name`: `$env:USERDOMAIN\$env:USERNAME` failed in
+  the SSH session with "No mapping between account names and security IDs was done". ⚠
+  `-WindowStyle Hidden` did not hide the task's console, why was not established: it was read visible
+  at 2372 × 1236, and once it held the foreground, so a task shows on the screen of whoever is at the
+  machine. `query user` over SSH is a read that cannot be seen there.
+- **`AppliedDPI` lags Settings, so it cannot say what scale a run is at.**
+  `HKCU\Control Panel\Desktop\WindowMetrics\AppliedDPI` read `0x90`, 150%, with the panel at 200% and
+  `GetDpiForMonitor` inside the session reading 192 at the same time, and read `0xC0` only after a restart, which fits
+  its being written at sign-in. The per-monitor `DpiValue` did move at once, from -2 to 0, but it is
+  relative to the panel's recommended scale, so it names no percentage. What held is `RenderScaling` as
+  the application reports it, which that pass went on to assert, or `GetDpiForMonitor` from inside the
+  session, which an SSH session is not in, so it cannot make that reading.
+- **The foreground lock can be effectively permanent, which matters to anything a task starts.**
+  `SPI_GETFOREGROUNDLOCKTIMEOUT` read 2,147,484 s on that machine, about 25 days, with 1,754 s of idle already past. So
+  the lock does not lapse, and an application a task starts should not expect the foreground. A window
+  over the application then refuses every click, if the driver checks what is under the pixel: a
+  full-screen window held the foreground from the first click on, every click and key was refused, and
+  nothing reached it. That run had called `Shell.Application.MinimizeAll` first, and what brought that
+  window back was not established. After a restart, with nothing else open, the same steps passed, and
+  the first injected click on an uncovered window is what activated it. Two small readings helped:
+  `GetLastInputInfo` inside the session says whether anyone is at the machine, and a minimised window can keep the foreground:
+  Settings held it, 237 × 39 at -32000, -32000.
+
 **Keep harness windows out of the person's way**: when a harness environment variable is set, the
 application parks its window against a screen edge and sends it to the bottom of the Z-order once it
 has a handle (`SetWindowPos(HWND_BOTTOM, NOMOVE|NOSIZE|NOACTIVATE)`), for **every** window it opens,

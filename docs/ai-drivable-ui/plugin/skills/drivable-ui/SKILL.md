@@ -52,7 +52,10 @@ every event and the run refused otherwise, never in an unattended sweep — keep
 count each harness by what it does, not by which helper it calls. Each guards every click against
 the window on top at its pixel and every key against what holds focus, opens a menu only once its
 window holds the foreground and raises nothing before clicking its item, and asserts a gesture's
-effect, never that its input was sent.
+effect, never that its input was sent. From SSH, a scheduled task with an interactive principal
+reaches the console session; its console showed despite `-WindowStyle Hidden`, and an application it
+starts should not expect the foreground. `AppliedDPI` lagged Settings, so read the scale from
+`RenderScaling`.
 
 ## 4. Write the check, then break it
 
