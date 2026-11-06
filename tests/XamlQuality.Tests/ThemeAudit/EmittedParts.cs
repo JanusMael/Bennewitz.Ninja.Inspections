@@ -16,8 +16,8 @@ namespace XamlQuality.Tests.ThemeAudit;
 /// that fails leaves the control unread, and the tests that expect nothing unread say so.
 /// </para>
 /// <para>
-/// <c>Fixtures.Bezel</c> declares and looks up nothing, and two types are named <c>Pair</c>, in <c>Fixtures</c> and
-/// <c>Fixtures.Other</c>, so what a markup folder themes can decide what its reading holds. <c>Bezel</c> sorts before
+/// <c>Fixtures.Bezel</c> declares and looks up nothing, and two types each are named <c>Pair</c> and <c>Couple</c>, in
+/// <c>Fixtures</c> and <c>Fixtures.Other</c>, so what a markup folder themes can decide what its reading holds. <c>Bezel</c> sorts before
 /// <c>Gauge</c>, which has an entry in every folder's reading, so a merge that kept the order it met them in shows.
 /// </para>
 /// <para>
@@ -63,7 +63,7 @@ internal static class EmittedParts
 
         PersistedAssemblyBuilder fixture = new(new AssemblyName("PartsFixture"), typeof(object).Assembly);
         ModuleBuilder module = fixture.DefineDynamicModule("PartsFixture");
-        foreach (string partless in (string[])["Fixtures.Bezel", "Fixtures.Pair", "Fixtures.Other.Pair"])
+        foreach (string partless in (string[])["Fixtures.Bezel", "Fixtures.Pair", "Fixtures.Other.Pair", "Fixtures.Couple", "Fixtures.Other.Couple"])
         {
             module.DefineType(partless, TypeAttributes.Public | TypeAttributes.Class).CreateType();
         }

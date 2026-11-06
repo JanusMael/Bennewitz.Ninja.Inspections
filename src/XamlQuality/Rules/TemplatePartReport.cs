@@ -84,7 +84,7 @@ internal static class TemplatePartReport
         List<string> rows = RowsOf(control);
         if (rows.Count == 0)
         {
-            sb.Append("No part is declared or looked up.\n\n");
+            sb.Append("No part was found.\n\n");
             return;
         }
 

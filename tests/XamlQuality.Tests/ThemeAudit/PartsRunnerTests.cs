@@ -106,6 +106,18 @@ public sealed class PartsRunnerTests : IDisposable
         Assert.Equal("Pair", Assert.Single(reading.Skipped).Subject);
     }
 
+    /// <summary>What was skipped keeps the reading's order, whichever folder each name came from.</summary>
+    [Fact]
+    public void WhatWasSkipped_IsOrdered_WhicheverFolderNamedIt()
+    {
+        Theme("first", "PART_Face", "Pair");
+        Theme("second", "PART_Back", "Couple");
+
+        TemplatePartReading reading = PartsRunner.Read(Config("first", "second"));
+
+        Assert.Equal(["Couple", "Pair"], reading.Skipped.Select(skip => skip.Subject));
+    }
+
     /// <summary>A folder inside another the configuration names, listed before it or after, or one named twice, is read once.</summary>
     [Fact]
     public void AFolderInsideAnotherOrNamedTwice_IsReadOnce()
