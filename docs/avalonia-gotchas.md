@@ -687,7 +687,7 @@ A host the view left unnamed copies down an empty string and stays unnamed — d
 
 ⚠ **A `NumericUpDown`'s spin buttons announced `Avalonia.Controls.PathIcon`** — same `ToString()` fallback as the `ItemsSource` container cases above, because Avalonia's default template gives them no name and their content is a `PathIcon`. Twelve of them in one application (Essentials, General, Sandbox, Backup / Restore) and six on another's Essentials page. **Fixed 2026-09-08.**
 
-This one cannot be fixed from a view, and no widening of the AXAML scan reaches it: the buttons exist only inside `ButtonSpinner`'s control template, so there is no element in any markup to annotate or to scan. They are named from the theme instead — `src/ScopedEditors.AvaloniaUI/Themes/AccessibilityNames.axaml` in [`Bennewitz.Ninja.ScopedEditors`](https://github.com/JanusMael/Bennewitz.Ninja.ScopedEditors), included by `SemiBundle.axaml`, which is the one line both apps' `App.axaml` already take from the shared library:
+This one cannot be fixed from a view, and no widening of the AXAML scan reaches it: the buttons exist only inside `ButtonSpinner`'s control template, so there is no element in any markup to annotate or to scan. They are named from the theme instead — `src/ScopedEditors.AvaloniaUI/Themes/AccessibilityNames.axaml` in [`Bennewitz.Ninja.AppKit`](https://github.com/JanusMael/Bennewitz.Ninja.AppKit), included by `SemiBundle.axaml`, which is the one line both apps' `App.axaml` already take from the shared library:
 
 ```xml
 <Style Selector="ButtonSpinner /template/ RepeatButton#PART_IncreaseButton">
@@ -1282,7 +1282,7 @@ Same caveat applies to any wrapper type that owns native resources via `IDisposa
 
 ## Trim safety
 
-The first two entries come from an application's trimmed Release publish. The rest are from the other side. A LIBRARY has no publish of its own, so its trim hazards surface in a consumer's build unless it goes looking for them itself. The `trim` job in [`Bennewitz.Ninja.ScopedEditors`](https://github.com/JanusMael/Bennewitz.Ninja.ScopedEditors/tree/main/trimcheck) is the worked example.
+The first two entries come from an application's trimmed Release publish. The rest are from the other side. A LIBRARY has no publish of its own, so its trim hazards surface in a consumer's build unless it goes looking for them itself. The `trim` job in [`Bennewitz.Ninja.AppKit`](https://github.com/JanusMael/Bennewitz.Ninja.AppKit/tree/main/trimcheck) is the worked example.
 
 ### `JsonArray.Add<T>(T)` is `RequiresUnreferencedCode` — cast to `JsonNode?`
 
