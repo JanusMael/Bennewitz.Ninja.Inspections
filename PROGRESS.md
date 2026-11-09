@@ -47,6 +47,12 @@ What remains of the plan for this repository:
 Each family releases alone, from a tag `<family>/vYYYY.Q.MMDD`; [docs/publishing.md](docs/publishing.md)
 is the runbook. Whether a family has anything to release is in its section below.
 
+**Synced to Bennewitz.Ninja.Templates `2026.4.1109`** on 2026-11-09. The scripts were already that
+release's; it moves AutoVersioning `2026.3.916` to `2026.4.1031`, whose diagnostics are `BNAV00` to
+`BNAV04` from `2026.3.928` on. xunit.v3 stays `3.2.2`, as below, and Avalonia `12.1.3`. Build with
+warnings as errors, 987 of 987 tests, pack, `assert-packages`, `check`, which conforms, and
+`tools/real-code.cs` pass on Windows. No family's package changes.
+
 **Synced to Bennewitz.Ninja.Templates `2026.4.1103`** on 2026-11-03. `repo-conventions.cs` is that
 release's, which also checks that markdown is checked out as LF; the root `.gitattributes` already
 does. `release-target.cs` is that release's too: it evaluates a level's projects together, and
