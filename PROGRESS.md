@@ -42,7 +42,7 @@ What remains of the plan for this repository:
 
 | Step | What | Waits on |
 |---|---|---|
-| 9 | Each family's first release from here, when it next changes (decision 21: moving is not a reason to release). Each id read back from nuget.org's flat container with `RepositoryUrl` naming Inspections; the release's assets that family's ids alone. After AssemblyQuality's and CodeQuality's, the policy of the repository each left is deleted. **AssemblyQuality's is done**, `assemblyquality/v2026.4.1029`, below; its old policy was deleted by the maintainer the same day. **CodeQuality's is done**, `codequality/v2026.4.1104`, in its Status below; its old policy had gone already, deleted by the maintainer on 2026-10-30 ahead of that release, as the Resume above says. A family's notes are written by `release-target.cs notes` since the sync below, so they no longer need replacing by hand | XamlQuality: a change in that family |
+| 9 | Each family's first release from here, when it next changes (decision 21: moving is not a reason to release). Each id read back from nuget.org's flat container with `RepositoryUrl` naming Inspections; the release's assets that family's ids alone. After AssemblyQuality's and CodeQuality's, the policy of the repository each left is deleted. **AssemblyQuality's is done**, `assemblyquality/v2026.4.1029`, below; its old policy was deleted by the maintainer the same day. **CodeQuality's is done**, `codequality/v2026.4.1104`, in its Status below; its old policy had gone already, deleted by the maintainer on 2026-10-30 ahead of that release, as the Resume above says. A family's notes are written by `release-target.cs notes` since the sync below, so they no longer need replacing by hand. **XamlQuality's is done**, `xamlquality/v2026.4.1109`, in its Status below; XamlQuality's policy was this repository's from the start, so none is left to delete | Nothing: every family has released from here |
 
 Each family releases alone, from a tag `<family>/vYYYY.Q.MMDD`; [docs/publishing.md](docs/publishing.md)
 is the runbook. Whether a family has anything to release is in its section below.
@@ -125,9 +125,9 @@ Pull request and issue numbers in this section are this repository's own, from b
 
 | | |
 |---|---|
-| Published | `2026.4.1026`: `Bennewitz.Ninja.XamlQuality`, `Bennewitz.Ninja.XamlQuality.ThemeAudit` and `Bennewitz.Ninja.XamlQuality.ThemeRuntime`, released 2026-10-26, called for by the developer that day for issue #92. What it changed for a consumer is in its [release notes](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/releases/tag/v2026.4.1026) |
-| `main` | carries one unreleased change, `BNXQ1003`'s reading of a themed control with no parts in its code, listed below |
-| Next release | Not scheduled; the developer calls for one, from an `xamlquality/vYYYY.Q.MMDD` tag; its notes, finding no earlier tag of the family, say it is the family's first. One release per calendar day |
+| Published | `2026.4.1109`, released 2026-11-09 on the maintainer's word, the family's first from here: tag `xamlquality/v2026.4.1109` on `827c54e`, after a blank-version preflight that logged in (run `42656351081`); release run `42656565927` pushed `Bennewitz.Ninja.XamlQuality`, `.ThemeAudit` and `.ThemeRuntime` alone, and its notes start at `v2026.4.1026`. It carries PR #123, `TemplatePartRule.ReadParts`'s entry for a themed control with no parts in its code, and the move, under *Merged into Inspections* above. Verified from the feed: the flat container lists all three, each served nuspec names Inspections at `827c54e`, every DLL is byte-identical to the GitHub release's assets, and from nuget.org alone the library and `ThemeRuntime` restore and `theme-audit` installs and runs. Before it, `2026.4.1026`, released 2026-10-26 under the bare tag `v2026.4.1026`, called for by the developer that day for issue #92: its [release notes](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/releases/tag/v2026.4.1026) |
+| `main` | Nothing unreleased |
+| Next release | On the developer's word, from an `xamlquality/vYYYY.Q.MMDD` tag; its notes start at the family's previous tag. One release per calendar day |
 | Order of work | The developer's order of 2026-10-15 is done: the brand catalogue's generator, as a `theme-audit` output, by [plan 00004](plans/00004-brand-catalogue.md), in PR #84 and PR #85, released in `2026.4.1026`. Replies and entries for other repositories go out as small pull requests from `main`. The shared mutation runner is taken on by the developer's decision of 2026-11-06, as a plan of its own, after plans 00005 and 00006, which are on local branches; its request is below |
 | What a release publishes | The family's ids, the three packages above, as `families` in `.github/repository.json` names them: `scripts/release-target.cs` resolves them from the tag, and `scripts/assert-packages.cs --family xamlquality` checks the pack against them. `packages.push` lists every family's ids, and `packages.local` is empty. XamlQuality gained `packages.push` in PR #94, step 2 of Templates' `plans/00009`; step 5 brought AssemblyQuality and CodeQuality here, under *Merged into Inspections* above |
 | Agent skill | `drivable-ui`, served from `main` as a Claude Code plugin since PR #47, by the developer's decision of 2026-09-29: `claude plugin marketplace add JanusMael/Bennewitz.Ninja.Inspections`, then `claude plugin install drivable-ui@xamlquality`. It is in neither package, so it ships on merge, not on a tag |
@@ -224,14 +224,17 @@ Pull request and issue numbers in this section are this repository's own, from b
 
 #### On `main`, not yet released
 
-Every change after the `v2026.4.1026` tag (`7fd3306`) that a consumer can see; this repository's own
-working documents are left out. A change that makes a rule stricter or adds API goes here with its
-effect on a consumer, so the release that carries it can say so. `main` takes squash and rebase
-merges only, and both give a branch's commits new hashes, so a row cites its pull request.
+Every change after the `xamlquality/v2026.4.1109` tag (`827c54e`) that a consumer can see; this
+repository's own working documents are left out. A change that makes a rule stricter or adds API goes
+here with its effect on a consumer, so the release that carries it can say so. `main` takes squash and
+rebase merges only, and both give a branch's commits new hashes, so a row cites its pull request.
 
-| Commit or PR | Change | Effect on a consumer |
-|---|---|---|
-| PR #123 | `TemplatePartRule.ReadParts`, at DiffView's request of 2026-11-01. A top-level, non-generic type the scan loaded that a theme targets has an entry whether or not its code declares a part: with none, it has its themes and what they declare, and no constants or lookups, where it had no entry and no skip, so a reference built from the reading left its theme out with nothing to say so. A name two scanned types carry is named in the reading's `Skipped` where a theme targets it as well as where parts were found, as the rule names it. `PartsRunner.Read` takes every markup folder's controls and skips, since a theme can now decide them. `BNXQ1003`'s findings, skips and `Inspected` are as they were | New entries in the reading and new sections in the parts report, one per such control, so a committed parts report changes once and is regenerated. A section with no part to list says so and draws no table. A consumer that took every entry to have a constant or a lookup finds some with neither. Over DiffView, by its request, `DiffStatusStrip` and `DiffPaneHeader` gain entries, with 14 and 6 parts; DiffView does not commit the report, and its plan 00030 reads them from the reading once a release carries this |
+Nothing yet. `2026.4.1109` carried the last row, PR #123: `TemplatePartRule.ReadParts` gives a
+themed control with no parts in its code an entry in the reading and a section in the parts report,
+so a committed parts report changes once and is regenerated, and a consumer that took every entry to
+have a constant or a lookup finds some with neither. DiffView asked for it on 2026-11-01; its plan
+00030 reads `DiffStatusStrip`'s and `DiffPaneHeader`'s entries from the reading now that a release
+carries it.
 
 ### Consumers inside the family
 
