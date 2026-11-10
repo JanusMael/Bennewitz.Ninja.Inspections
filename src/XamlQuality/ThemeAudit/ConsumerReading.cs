@@ -30,7 +30,16 @@ internal sealed record ConsumerDefinition(
     bool InApplicationStyles);
 
 /// <summary>One reference a consumer writes outside a preview, and the definition of its own key holding it, which it searches past.</summary>
-internal sealed record ConsumerReference(string Key, string File, ResourceDefinition? Past);
+/// <param name="Key">The key it reads.</param>
+/// <param name="File">The file it is written in.</param>
+/// <param name="Past">The definition of its own key holding it, which it searches past; <c>null</c> for none.</param>
+/// <param name="Dynamic">Whether it is a <c>DynamicResource</c>, which the application looks up under the variant asked.</param>
+/// <param name="Around">
+/// The display name of the theme dictionary around it, in its own file or the one theme dictionary its file is included
+/// under; <c>null</c> for none, where a static reference searches <c>Default</c> alone, as plans/00006 has a static read
+/// search.
+/// </param>
+internal sealed record ConsumerReference(string Key, string File, ResourceDefinition? Past, bool Dynamic, string? Around);
 
 /// <summary>A consumer's definitions and references, by plans/00007's decision 3.</summary>
 internal sealed record ConsumerReading(IReadOnlyList<ConsumerDefinition> Definitions, IReadOnlyList<ConsumerReference> References)
@@ -81,7 +90,7 @@ internal sealed record ConsumerReading(IReadOnlyList<ConsumerDefinition> Definit
                 bool preview = false;
                 bool first = true;
                 XElement? holder = null;
-                foreach ((_, string key) in ThemeReads.WrittenOn(element))
+                foreach ((bool dynamic, string key) in ThemeReads.WrittenOn(element))
                 {
                     if (first)
                     {
@@ -98,7 +107,8 @@ internal sealed record ConsumerReading(IReadOnlyList<ConsumerDefinition> Definit
                     ResourceDefinition? past = holder is not null && holder.Attribute(XamlNamespace + "Key")?.Value == key
                         ? byElement.GetValueOrDefault(holder)
                         : null;
-                    references.Add(new ConsumerReference(key, file, past));
+                    string? around = SlotOf(element) ?? (variants[file] is { Count: 1 } only && only.Single() is { } includedUnder ? includedUnder : null);
+                    references.Add(new ConsumerReference(key, file, past, dynamic, around));
                 }
             }
         }

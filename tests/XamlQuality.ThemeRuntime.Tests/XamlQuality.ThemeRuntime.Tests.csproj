@@ -27,6 +27,9 @@
     <PackageReference Include="Avalonia.Markup.Xaml.Loader" />
     <PackageReference Include="Avalonia.Skia" />
     <PackageReference Include="Avalonia.Themes.Simple" />
+    <!-- UnseenRedefinitionDrawnTests draws Semi's SolidButton with its palette key, then its token, redefined, by
+         plans/00007's decision 8: the case the check exists for. -->
+    <PackageReference Include="Semi.Avalonia" />
   </ItemGroup>
 
   <ItemGroup>

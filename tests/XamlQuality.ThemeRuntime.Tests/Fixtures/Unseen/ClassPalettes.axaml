@@ -1,0 +1,8 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:local="using:XamlQuality.ThemeRuntime.Tests">
+  <!-- ClassTheme.axaml's palette, held by its class in a theme dictionary: entry>ResourceInclude>theme-class. -->
+  <ResourceDictionary.ThemeDictionaries>
+    <local:UnseenOutsidePalette x:Key="Default" />
+  </ResourceDictionary.ThemeDictionaries>
+</ResourceDictionary>

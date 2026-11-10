@@ -1,0 +1,7 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Reads in a file merged into one a ResourceInclude puts in a theme dictionary: entry>theme-ResourceInclude>ResourceInclude. -->
+  <StaticResource x:Key="B3" ResourceKey="K3" />
+  <SolidColorBrush x:Key="B8" Color="{StaticResource K8}" />
+  <ControlTheme x:Key="T11" TargetType="Border" BasedOn="{StaticResource K11}" />
+</ResourceDictionary>

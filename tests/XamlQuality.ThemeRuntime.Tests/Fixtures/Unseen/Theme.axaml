@@ -1,0 +1,67 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- UnseenRedefinitionDrawnTests' theme, laid out as Fluent, Simple and Semi are, so that each kind of read plans/00007's
+       check draws is held here once: its holder and the route of includes from this entry to its file. Every key a read
+       finds inside the theme is defined here, on every read's chain; a key suffixed A is defined only under Dark, so a
+       read outside every theme dictionary searches the application for it. The theme's colour is #404040. -->
+  <Styles.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceInclude x:Key="Default" Source="Light.axaml" />
+        <ResourceInclude x:Key="Dark" Source="Dark.axaml" />
+      </ResourceDictionary.ThemeDictionaries>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="Controls.axaml" />
+        <ResourceInclude Source="Palettes.axaml" />
+        <ResourceDictionary>
+          <SolidColorBrush x:Key="Self" Color="#404040" />
+        </ResourceDictionary>
+        <MergeResourceInclude Source="Merged.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+
+      <SolidColorBrush x:Key="K1" Color="#404040" />
+      <SolidColorBrush x:Key="K2" Color="#404040" />
+      <SolidColorBrush x:Key="K3" Color="#404040" />
+      <Color x:Key="K4">#404040</Color>
+      <Color x:Key="K5">#404040</Color>
+      <Color x:Key="K6">#404040</Color>
+      <Color x:Key="K8">#404040</Color>
+      <ControlTheme x:Key="K9" TargetType="Border">
+        <Setter Property="Background" Value="#404040" />
+      </ControlTheme>
+      <ControlTheme x:Key="K10" TargetType="Border">
+        <Setter Property="Background" Value="#404040" />
+      </ControlTheme>
+      <ControlTheme x:Key="K11" TargetType="Border">
+        <Setter Property="Background" Value="#404040" />
+      </ControlTheme>
+      <SolidColorBrush x:Key="K12" Color="#404040" />
+      <SolidColorBrush x:Key="K13" Color="#404040" />
+      <SolidColorBrush x:Key="K14" Color="#404040" />
+      <SolidColorBrush x:Key="K15" Color="#404040" />
+
+      <!-- A finding and what to redefine instead: Token is read dynamically, by the style below, and aliases Base. -->
+      <SolidColorBrush x:Key="Base" Color="#404040" />
+      <StaticResource x:Key="Token" ResourceKey="Base" />
+
+      <!-- A dynamic read in a dictionary. -->
+      <Color x:Key="DynColour">#404040</Color>
+      <SolidColorBrush x:Key="DynBrush" Color="{DynamicResource DynColour}" />
+
+      <!-- An alias of its own key: Self passes itself to the merged dictionary above; SelfOut finds nothing in the theme. -->
+      <StaticResource x:Key="Self" ResourceKey="Self" />
+      <StaticResource x:Key="SelfUser" ResourceKey="Self" />
+      <StaticResource x:Key="SelfOut" ResourceKey="SelfOut" />
+      <StaticResource x:Key="SelfOutUser" ResourceKey="SelfOut" />
+
+      <!-- Read by the implicit theme a consumer's own may hide, or be based on, in ControlProbes.axaml. -->
+      <SolidColorBrush x:Key="Hidden" Color="#404040" />
+    </ResourceDictionary>
+  </Styles.Resources>
+
+  <Style Selector="Border.token">
+    <Setter Property="Background" Value="{DynamicResource Token}" />
+  </Style>
+
+  <StyleInclude Source="Styled.axaml" />
+</Styles>

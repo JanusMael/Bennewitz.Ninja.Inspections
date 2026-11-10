@@ -1,0 +1,28 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Reads in a file a StyleInclude's MergeResourceInclude reaches: entry>StyleInclude>MergeResourceInclude. -->
+  <ControlTheme x:Key="T10" TargetType="Border" BasedOn="{StaticResource K10}" />
+  <ControlTheme x:Key="T13" TargetType="Border">
+    <Setter Property="Background" Value="{StaticResource K13}" />
+  </ControlTheme>
+  <ControlTheme x:Key="T15" TargetType="ContentControl">
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{StaticResource K15}" />
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+  <!-- The same, of keys defined only under Dark. -->
+  <ControlTheme x:Key="T10A" TargetType="Border" BasedOn="{StaticResource K10A}" />
+  <ControlTheme x:Key="T13A" TargetType="Border">
+    <Setter Property="Background" Value="{StaticResource K13A}" />
+  </ControlTheme>
+  <ControlTheme x:Key="T15A" TargetType="ContentControl">
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{StaticResource K15A}" />
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+</ResourceDictionary>

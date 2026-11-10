@@ -1,0 +1,40 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:local="using:XamlQuality.ThemeRuntime.Tests">
+  <!-- Reads in a file two merged ResourceIncludes reach: entry>ResourceInclude>ResourceInclude. -->
+  <ControlTheme x:Key="{x:Type local:UnseenProbe}" TargetType="local:UnseenProbe">
+    <Setter Property="Background" Value="{StaticResource Hidden}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" />
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+  <StaticResource x:Key="B2" ResourceKey="K2" />
+  <ControlTheme x:Key="T9" TargetType="Border" BasedOn="{StaticResource K9}" />
+  <ControlTheme x:Key="T12" TargetType="Border">
+    <Setter Property="Background" Value="{StaticResource K12}" />
+  </ControlTheme>
+  <ControlTheme x:Key="T14" TargetType="ContentControl">
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{StaticResource K14}" />
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+  <!-- The same, of keys defined only under Dark. -->
+  <StaticResource x:Key="B2A" ResourceKey="K2A" />
+  <ControlTheme x:Key="T9A" TargetType="Border" BasedOn="{StaticResource K9A}" />
+  <ControlTheme x:Key="T12A" TargetType="Border">
+    <Setter Property="Background" Value="{StaticResource K12A}" />
+  </ControlTheme>
+  <ControlTheme x:Key="T14A" TargetType="ContentControl">
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{StaticResource K14A}" />
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+</ResourceDictionary>

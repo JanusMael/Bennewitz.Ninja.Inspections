@@ -315,9 +315,19 @@ internal static class UnseenCheck
                 Take(read);
             }
 
+            // A dynamic reference looks its key up under the variant asked; a static one, as plans/00006 has a static read
+            // search, under the variant of the theme dictionary around it, where the variant reaches that dictionary, or
+            // in Default alone, as drawn: a view's static reference to an entry only Dark holds applies nothing under Dark.
             foreach (ConsumerReference reference in _references)
             {
-                Count(Application.Find(reference.Key, variant, reference.Past));
+                if (reference.Dynamic)
+                {
+                    Count(Application.Find(reference.Key, variant, reference.Past));
+                }
+                else if (reference.Around is null || Application.Searched(variant).Contains(reference.Around, StringComparer.Ordinal))
+                {
+                    Count(Application.Find(reference.Key, reference.Around, reference.Past));
+                }
             }
 
             while (queue.TryDequeue(out (ResourceDefinition, ResourceNode) entry))

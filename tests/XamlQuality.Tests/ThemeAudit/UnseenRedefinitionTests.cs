@@ -457,6 +457,44 @@ public sealed class UnseenRedefinitionTests : IDisposable
     }
 
     [Fact]
+    public void Every_kind_the_check_decides_beyond_plan_00006s_is_drawn_by_a_case_whose_trait_names_it_and_held_by_the_compiled_theme()
+    {
+        // Plans/00007's decision 8: each kind of read DrawnKinds lists is drawn in XamlQuality.ThemeRuntime.Tests, the first
+        // four by plans/00006's DrawnColourTests, the rest by UnseenRedefinitionDrawnTests over its compiled theme.
+        string project = Path.Combine(FixturePaths.RepoRoot, "tests", "XamlQuality.ThemeRuntime.Tests");
+        string drawn = File.ReadAllText(Path.Combine(project, "UnseenRedefinitionDrawnTests.cs"));
+        string[] traits = [.. System.Text.RegularExpressions.Regex.Matches(drawn, "Trait\\(\"kind\", \"([^\"]+)\"\\)")
+            .Select(match => match.Groups[1].Value).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
+        string[] plan00005 = ["alias entry", "alias entry>class", "alias entry>theme-inline", "brush entry"];
+
+        Assert.Equal([.. UnseenCheck.DrawnKinds.Except(plan00005, StringComparer.Ordinal).Order(StringComparer.Ordinal)], traits);
+
+        string fixtures = Path.Combine(project, "Fixtures", "Unseen");
+        HashSet<string> held = [.. ThemeInventory.Build(new ThemeSource(Path.Combine(fixtures, "Theme.axaml"), fixtures)).Reading.Reads.Select(read => read.Kind)];
+        Assert.All(traits, kind => Assert.Contains(kind, held));
+    }
+
+    [Fact]
+    public void A_consumers_static_reference_outside_a_theme_dictionary_applies_only_what_Default_finds_and_a_dynamic_one_what_the_variant_does()
+    {
+        // As drawn: a view's {StaticResource} of an entry only Dark holds finds nothing under Dark, so the read it holds never runs.
+        Theme(controls: ButtonTheme, dark: "<StaticResource x:Key=\"DarkAlias\" ResourceKey=\"Primary\" />");
+        Consumer(["<SolidColorBrush x:Key=\"Primary\" Color=\"#FF00AA00\" />"], view: "<Button Background=\"{StaticResource DarkAlias}\" />");
+        Assert.Empty(Run().Unseen);
+
+        Consumer(["<SolidColorBrush x:Key=\"Primary\" Color=\"#FF00AA00\" />"], view: "<Button Background=\"{DynamicResource DarkAlias}\" />");
+        Assert.Equal(["Dark"], Assert.Single(Run().Unseen).Variants);
+
+        Consumer(["<SolidColorBrush x:Key=\"Primary\" Color=\"#FF00AA00\" />\n" + Slots(("Dark", "<StaticResource x:Key=\"Mine\" ResourceKey=\"DarkAlias\" />"))], view: null);
+        Assert.Equal(["Dark"], Assert.Single(Run().Unseen).Variants);
+
+        Consumer(["<SolidColorBrush x:Key=\"Primary\" Color=\"#FF00AA00\" />\n<ResourceDictionary>\n<ResourceDictionary.ThemeDictionaries>\n"
+                  + "<ResourceInclude x:Key=\"Dark\" Source=\"Mine.axaml\" />\n</ResourceDictionary.ThemeDictionaries>\n</ResourceDictionary>"], view: null);
+        Write("app/Mine.axaml", Dictionary("<StaticResource x:Key=\"Mine\" ResourceKey=\"DarkAlias\" />"));
+        Assert.Equal(["Dark"], Assert.Single(Run().Unseen).Variants);
+    }
+
+    [Fact]
     public void A_definition_a_nearer_theme_dictionary_of_the_variant_shadows_is_not_held_under_it()
     {
         // As a consumer's compat dictionary holds a key under Default and Dark, and the theme's own value under a
