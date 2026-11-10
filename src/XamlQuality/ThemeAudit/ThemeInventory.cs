@@ -271,7 +271,7 @@ public sealed class ThemeInventory
             ? null
             : new VariantInventory(baseOnly.Key, baseOnly.DisplayName, baseOnly.Namespaces, application);
 
-        ThemeReading reading = new(walk.Reads, walk.EntryFiles, walk.Scoped, walk.Entry, Path.GetFullPath(source.BaseDirectory));
+        ThemeReading reading = new(walk.Reads, walk.EntryUnresolved, walk.Scoped, walk.Entry, Path.GetFullPath(source.BaseDirectory));
         return new ThemeInventory(inventories, baseOnlyFallback, walk.Unresolved, walk.Files, inheritance, application, reading);
     }
 }
@@ -373,13 +373,19 @@ internal sealed class ResourceApplication(IReadOnlyList<ResourceNode> roots, IRe
 
     /// <summary>
     /// Whether <paramref name="found"/>, followed alias by alias where Avalonia follows it under <paramref name="variant"/>,
-    /// names <paramref name="key"/> on the way.
+    /// reads <paramref name="key"/> on the way: an alias of it, or a definition <paramref name="reads"/> says reads it, as a
+    /// gradient brush whose stop names it does.
     /// </summary>
-    public bool Reaches(Found found, string key, string variant)
+    public bool Reaches(Found found, string key, string variant, Func<Found, bool> reads)
     {
         HashSet<ResourceDefinition> building = Building();
         for (Found? step = found; step is { } current && building.Add(current.Definition);)
         {
+            if (reads(current))
+            {
+                return true;
+            }
+
             if (current.Definition.Value is not ResourceValue.Alias alias)
             {
                 return false;
@@ -504,7 +510,7 @@ internal sealed class ResourceApplication(IReadOnlyList<ResourceNode> roots, IRe
     /// The theme dictionaries a lookup under <paramref name="variant"/> searches, by display name: the variant and
     /// those it inherits, then <c>Default</c>; <c>Default</c> alone for none, or for <c>Default</c> itself.
     /// </summary>
-    private string[] Searched(string? variant)
+    public string[] Searched(string? variant)
     {
         return _searched.GetOrAdd(variant ?? ThemeInventory.DefaultVariant, static (name, inheritance) =>
         {

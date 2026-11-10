@@ -14,8 +14,8 @@ internal sealed record VariantId(string Key, string DisplayName, IReadOnlyDictio
 /// The raw material a <see cref="ThemeInventory"/> is built from: the variants the theme declares, the
 /// dictionary its entry is and each one the configuration merges after it, any include or code-behind
 /// reference that could not be resolved, and every file walked; and, by plans/00007, the theme's own reading:
-/// every reference the entry's walk met outside a preview, the files it reached, and the definitions a control
-/// theme, a style or a template holds.
+/// every reference the entry's walk met outside a preview, what that walk left unresolved, and the definitions a
+/// control theme, a style or a template holds.
 /// </summary>
 internal sealed record WalkResult(
     IReadOnlyList<VariantId> Variants,
@@ -24,7 +24,7 @@ internal sealed record WalkResult(
     IReadOnlyList<UnresolvedInclude> Unresolved,
     IReadOnlyList<string> Files,
     IReadOnlyList<ThemeRead> Reads,
-    IReadOnlySet<string> EntryFiles,
+    IReadOnlyList<UnresolvedInclude> EntryUnresolved,
     IReadOnlySet<ResourceDefinition> Scoped);
 
 /// <summary>
@@ -78,9 +78,6 @@ internal sealed class ResourceNode(ResourceNode? parent, string? variant, bool b
     /// continues the route of the one whose element entered it, though it is a root of its own.
     /// </summary>
     public string Route { get; init; } = "entry";
-
-    /// <summary>The references its own entries and elements write, by plans/00007; a merged file's are not the theme's.</summary>
-    public List<ThemeRead> Reads { get; } = [];
 
     /// <summary>The root of this node's chain.</summary>
     public ResourceNode Root
@@ -151,7 +148,7 @@ internal static class ThemeGraphWalker
         private readonly HashSet<string> _walked = new(StringComparer.Ordinal);
         private readonly List<string> _chain = [];
         private readonly List<ThemeRead> _reads = [];
-        private readonly HashSet<string> _entryFiles = new(StringComparer.Ordinal);
+        private readonly List<UnresolvedInclude> _entryUnresolved = [];
         private readonly HashSet<ResourceDefinition> _scoped = new(ReferenceEqualityComparer.Instance);
         private bool _inEntry;
         private int _quiet;
@@ -193,11 +190,6 @@ internal static class ThemeGraphWalker
 
                 if (document?.Root is { } documentRoot)
                 {
-                    if (_inEntry)
-                    {
-                        _entryFiles.Add(file);
-                    }
-
                     _chain.Add(file);
                     Process(documentRoot, file, node, context);
                     _chain.RemoveAt(_chain.Count - 1);
@@ -242,6 +234,10 @@ internal static class ThemeGraphWalker
             if (_quiet == 0)
             {
                 _unresolved.Add(unresolved);
+                if (_inEntry)
+                {
+                    _entryUnresolved.Add(unresolved);
+                }
             }
         }
 
@@ -325,9 +321,7 @@ internal static class ThemeGraphWalker
                 }
 
                 ResourceDefinition? held = holder is null ? null : _definitions.GetValueOrDefault((holder, context?.Key ?? string.Empty));
-                ThemeRead reference = new(key, dynamic, file, ThemeReads.LineOf(element), node, held, ThemeReads.HoldsOf(element, holder));
-                node.Reads.Add(reference);
-                _reads.Add(reference);
+                _reads.Add(new ThemeRead(key, dynamic, file, ThemeReads.LineOf(element), node, held, ThemeReads.HoldsOf(element, holder)));
             }
         }
 
@@ -487,7 +481,7 @@ internal static class ThemeGraphWalker
 
         public WalkResult ToResult(ResourceNode entry, IReadOnlyList<ResourceNode> merges)
         {
-            return new WalkResult([.. _variants.Values], entry, merges, _unresolved, _files, _reads, _entryFiles, _scoped);
+            return new WalkResult([.. _variants.Values], entry, merges, _unresolved, _files, _reads, _entryUnresolved, _scoped);
         }
     }
 }

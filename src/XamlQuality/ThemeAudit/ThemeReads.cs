@@ -49,13 +49,13 @@ internal sealed record ThemeRead(string Key, bool Dynamic, string File, int Line
 }
 
 /// <summary>
-/// A theme's own reading, by plans/00007: every reference its entry's walk met outside a preview, the files that walk
-/// reached, the definitions a control theme, a style or a template holds, the dictionary its entry is, and its base
-/// directory, below which the report writes its files.
+/// A theme's own reading, by plans/00007: every reference its entry's walk met outside a preview, what that walk left
+/// unresolved, which a file the configuration merges does not add to, the definitions a control theme, a style or a
+/// template holds, the dictionary its entry is, and its base directory, below which the report writes its files.
 /// </summary>
 internal sealed record ThemeReading(
     IReadOnlyList<ThemeRead> Reads,
-    IReadOnlySet<string> Files,
+    IReadOnlyList<UnresolvedInclude> Unresolved,
     IReadOnlySet<ResourceDefinition> Scoped,
     ResourceNode Entry,
     string BaseDirectory);

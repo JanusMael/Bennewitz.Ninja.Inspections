@@ -12,7 +12,8 @@ namespace Bennewitz.Ninja.XamlQuality.ThemeAudit;
 /// <param name="Key">The key the consumer redefines.</param>
 /// <param name="Variants">The display names of the variants it is redefined under, in the audit's order.</param>
 /// <param name="DefinedAt">
-/// Each file and line where the consumer defines it, with the variant of the theme dictionary holding it where one does,
+/// Each file and line where the consumer defines it with a value other than the theme's, in the nearest of the
+/// application's dictionaries that holds it under those variants, with the variant of the theme dictionary holding it where one does,
 /// written as the report writes them: the path below the directory it was read from, with <c>/</c>.
 /// </param>
 /// <param name="Reads">How many reads the theme has of it under those variants, each counted once by its file and line.</param>

@@ -15,7 +15,6 @@ namespace Bennewitz.Ninja.XamlQuality.ThemeAudit;
 /// The display name of the nearest theme dictionary around it, in its own file or along the consumer's files that include
 /// it; <c>null</c> where none holds it. A file included under two is read under both.
 /// </param>
-/// <param name="InSlot">Whether a theme dictionary holds it, in its own file or along the files that include it.</param>
 /// <param name="Held">
 /// Whether an application holding the consumer's files holds it: not among the resources of a control theme, a style a
 /// control theme holds or a template, and not inside a <c>Design.*</c> element.
@@ -27,7 +26,6 @@ internal sealed record ConsumerDefinition(
     string Shown,
     string Directory,
     IReadOnlyList<string?> Variants,
-    bool InSlot,
     bool Held,
     bool InApplicationStyles);
 
@@ -70,7 +68,6 @@ internal sealed record ConsumerReading(IReadOnlyList<ConsumerDefinition> Definit
                 string? slot = SlotOf(element);
                 IReadOnlyList<string?> held = slot is not null ? [slot] : [.. variants[file]];
                 definitions.Add(new ConsumerDefinition(key.Value, definition, shown + ":" + line, named, held,
-                    InSlot: slot is not null || held.Any(variant => variant is not null),
                     Held: !IsScoped(element) && !ThemeReads.InPreview(element),
                     InApplicationStyles: InApplicationStyles(element)));
             }
@@ -157,10 +154,9 @@ internal sealed record ConsumerReading(IReadOnlyList<ConsumerDefinition> Definit
                 string? target = null;
                 if (IncludeElements.Contains(element.Name.LocalName, StringComparer.Ordinal))
                 {
-                    if (element.Attribute("Source")?.Value.Trim() is { Length: > 0 } source
-                        && ResourceIncludeResolver.TryResolveSource(source, file, directory, null, out string resolved, out _))
+                    if (element.Attribute("Source")?.Value.Trim() is { Length: > 0 } source)
                     {
-                        target = resolved;
+                        target = Included(source, file, directory, known);
                     }
                 }
                 else if (!ambiguous.Contains(element.Name.LocalName) && byClass.TryGetValue(element.Name.LocalName, out string? classFile))
@@ -204,6 +200,39 @@ internal sealed record ConsumerReading(IReadOnlyList<ConsumerDefinition> Definit
             kv => kv.Key,
             kv => (IReadOnlySet<string?>)(kv.Value.Count > 0 ? kv.Value : new HashSet<string?> { null }),
             StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// The consumer's file an include's <paramref name="source"/> names: a path relative to the including file; else, for a
+    /// <c>/</c>-rooted or an <c>avares://</c> source, whose root is the consumer's own assembly and project, which no
+    /// configuration names, the one file of the consumer whose path ends with the source's; <c>null</c> for none or several.
+    /// </summary>
+    private static string? Included(string source, string file, string directory, IReadOnlySet<string> known)
+    {
+        if (ResourceIncludeResolver.TryResolveSource(source, file, directory, null, out string resolved, out _) && known.Contains(resolved))
+        {
+            return resolved;
+        }
+
+        string? path = null;
+        if (source.StartsWith("avares://", StringComparison.OrdinalIgnoreCase))
+        {
+            string rest = source["avares://".Length..];
+            int slash = rest.IndexOf('/', StringComparison.Ordinal);
+            path = slash >= 0 ? rest[slash..] : null;
+        }
+        else if (source.StartsWith('/'))
+        {
+            path = source;
+        }
+
+        if (path is null || path.Length < 2)
+        {
+            return null;
+        }
+
+        string[] matches = [.. known.Where(candidate => candidate.Replace('\\', '/').EndsWith(path, StringComparison.Ordinal))];
+        return matches.Length == 1 ? matches[0] : null;
     }
 
     /// <summary>The display name of the nearest theme dictionary around <paramref name="element"/> in its own file, or <c>null</c>.</summary>

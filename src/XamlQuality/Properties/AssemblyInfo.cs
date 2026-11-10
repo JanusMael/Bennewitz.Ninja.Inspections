@@ -18,7 +18,7 @@
 // ResourceApplication and Found, and plans/00007's readings and check: ThemeRead, ReadHolder,
 // ThemeReading, ReadReach, ThemeReads, ConsumerReading, ConsumerDefinition, ConsumerReference,
 // SameValue, UnseenCheck and UnseenResult, with ConsumerScan's init properties Reading and
-// NamesDirectories, ConsumerThemeFindings' UnseenExamined and UnseenRedefinition's ReadAt.
+// NamesDirectories, ThemeInventory's Reading, ConsumerThemeFindings' UnseenExamined and UnseenRedefinition's ReadAt.
 // ThemeAudit, the CLI face, reaches them through the grant.
 //
 // The test project asserts against the ported analysis directly, exactly as it did before the

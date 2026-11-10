@@ -345,8 +345,8 @@ read the theme has of it, and the keys to redefine instead, those the theme read
 Semi's `ButtonSolidPrimaryBackground` does; `ConsumerThemeFindings.Unseen` holds them for a test. A read counts where
 something applies or reads the entry holding it, and a definition a control theme, a template or a `Design.*` preview
 holds redefines nothing. What the audit cannot decide it names with why, in `ConsumerThemeFindings.UnseenNotDecided`:
-among others, a read that finds the key among the resources a control theme, a style or a template holds, and any
-redefinition under a theme whose walk left something unresolved. In that section a theme's file is written below its
+among others, a read that finds the key among the resources a control theme, a style or a template holds, and what
+would be a finding under a theme whose walk left something unresolved. In that section a theme's file is written below its
 `baseDirectory`, and a consumer's below the directory it was read from.
 
 **The parts report is the template parts reference a control library commits.** For each control it lists the
