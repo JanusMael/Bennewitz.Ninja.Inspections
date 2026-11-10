@@ -1,0 +1,14 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- A theme of its own for decision 5's first kind: a palette held by its class reads OutsideC, which its own chain
+       lacks, so it resolves the read against what the application holds when it is constructed, and throws where that is
+       nothing. Kept apart from Theme.axaml, which every other case loads. -->
+  <Styles.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="ClassPalettes.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+      <Color x:Key="OutsideC">#404040</Color>
+    </ResourceDictionary>
+  </Styles.Resources>
+</Styles>

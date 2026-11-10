@@ -1,0 +1,10 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:local="using:XamlQuality.ThemeRuntime.Tests">
+  <!-- Palettes as Semi's Tokens/_index.axaml holds them: one by its class, one by a ResourceInclude, each in a theme
+       dictionary of a file a merged ResourceInclude reaches. -->
+  <ResourceDictionary.ThemeDictionaries>
+    <local:UnseenPalette x:Key="Default" />
+    <ResourceInclude x:Key="Dark" Source="DarkPalette.axaml" />
+  </ResourceDictionary.ThemeDictionaries>
+</ResourceDictionary>

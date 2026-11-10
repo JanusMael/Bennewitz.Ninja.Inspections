@@ -453,7 +453,7 @@ public sealed class DrawnColourTests : IDisposable
     }
 
     /// <summary>The colour the centre of a window holding <paramref name="content"/> is drawn in, read from the frame Skia renders.</summary>
-    private static AuditColor Paint(Control content, ThemeVariant? variant)
+    internal static AuditColor Paint(Control content, ThemeVariant? variant)
     {
         Window window = new() { Width = 40, Height = 40, Content = content };
         if (variant is not null)

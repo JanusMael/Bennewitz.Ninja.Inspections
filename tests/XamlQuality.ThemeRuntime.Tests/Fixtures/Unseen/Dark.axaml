@@ -1,0 +1,21 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- The Dark theme dictionary, a file a ResourceInclude puts in a theme dictionary, merging another as Semi's
+       Themes/Dark/_index.axaml merges its control files; and the keys defined only under Dark. -->
+  <ResourceDictionary.MergedDictionaries>
+    <ResourceInclude Source="DarkProbes.axaml" />
+  </ResourceDictionary.MergedDictionaries>
+
+  <SolidColorBrush x:Key="K2A" Color="#404040" />
+  <Color x:Key="K4A">#404040</Color>
+  <ControlTheme x:Key="K9A" TargetType="Border">
+    <Setter Property="Background" Value="#404040" />
+  </ControlTheme>
+  <ControlTheme x:Key="K10A" TargetType="Border">
+    <Setter Property="Background" Value="#404040" />
+  </ControlTheme>
+  <SolidColorBrush x:Key="K12A" Color="#404040" />
+  <SolidColorBrush x:Key="K13A" Color="#404040" />
+  <SolidColorBrush x:Key="K14A" Color="#404040" />
+  <SolidColorBrush x:Key="K15A" Color="#404040" />
+</ResourceDictionary>

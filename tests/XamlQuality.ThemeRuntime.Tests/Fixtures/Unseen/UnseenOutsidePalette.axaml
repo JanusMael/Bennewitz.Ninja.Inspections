@@ -1,0 +1,6 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    x:Class="XamlQuality.ThemeRuntime.Tests.UnseenOutsidePalette">
+  <!-- BC reads OutsideC, which this palette's own chain lacks. -->
+  <SolidColorBrush x:Key="BC" Color="{StaticResource OutsideC}" />
+</ResourceDictionary>

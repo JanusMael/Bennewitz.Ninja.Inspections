@@ -1,0 +1,16 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- A file a MergeResourceInclude merges into the entry, as Fluent merges its resources: its own reads are
+       entry>MergeResourceInclude, and those in its inline theme dictionary entry>MergeResourceInclude>theme-inline.
+       Its theme dictionary is Light's, a key the entry's own theme dictionaries do not use: keyed Dark, it replaced the
+       entry's Dark include when merged, which Fluent, Simple and Semi never meet. -->
+  <ResourceDictionary.ThemeDictionaries>
+    <ResourceDictionary x:Key="Light">
+      <StaticResource x:Key="B1" ResourceKey="K1" />
+      <SolidColorBrush x:Key="B5" Color="{StaticResource K5}" />
+    </ResourceDictionary>
+  </ResourceDictionary.ThemeDictionaries>
+
+  <SolidColorBrush x:Key="B4" Color="{StaticResource K4}" />
+  <SolidColorBrush x:Key="B4A" Color="{StaticResource K4A}" />
+</ResourceDictionary>
