@@ -71,10 +71,9 @@ internal static class UnseenCheck
         ThemeReading reading = inventory.Reading;
         Pair pair = new(consumer, inventory);
         ResourceApplication application = pair.Application;
-        ResourceNode held = pair.Held;
         HashSet<ResourceNode> consumerNodes = pair.ConsumerNodes;
-        Dictionary<ResourceDefinition, ConsumerDefinition> byDefinition = pair.ByDefinition;
-        string[] keys = [.. byDefinition.Values.Select(definition => definition.Key).Where(key => !key.StartsWith('{')).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
+        ILookup<string, ConsumerDefinition> byKey = pair.Defined.Where(definition => !definition.Key.StartsWith('{')).ToLookup(definition => definition.Key, StringComparer.Ordinal);
+        string[] keys = [.. byKey.Select(group => group.Key).Order(StringComparer.Ordinal)];
 
         List<(string Key, string Variant, Verdict Verdict)> verdicts = [];
         int examined = 0;
@@ -82,12 +81,24 @@ internal static class UnseenCheck
         {
             Dictionary<ThemeRead, (ReadReach Reach, Found? Found)> taken = pair.Counted(variant);
             ILookup<string, ThemeRead> readsOf = taken.Keys.ToLookup(read => read.Key, StringComparer.Ordinal);
+            string[] searched = application.Searched(variant);
 
             foreach (string key in keys)
             {
-                if (application.FindIn(held, key, variant) is not { } found
-                    || application.FindIn(reading.Entry, key, variant) is not { } own
-                    || SameValue.As(found.Definition, own.Definition))
+                // The application holds the key from the nearest of its dictionaries that has it, the consumer's own entries
+                // before its theme dictionaries; every definition there whose value is not the theme's own redefines it, since
+                // which of them the application holds rests on an order of the consumer's files the audit does not know.
+                if (application.FindIn(pair.Held, key, variant) is not { } nearest
+                    || application.FindIn(inventory.Reading.Entry, key, variant) is not { } own)
+                {
+                    continue;
+                }
+
+                string? slot = nearest.Node.Variant;
+                ConsumerDefinition[] redefined = [.. byKey[key].Where(definition =>
+                    definition.Variants.Contains(slot, StringComparer.Ordinal)
+                    && !SameValue.As(definition.Definition, own.Definition))];
+                if (redefined.Length == 0)
                 {
                     continue;
                 }
@@ -105,15 +116,21 @@ internal static class UnseenCheck
                 {
                     (ReadReach reach, Found? target) = taken[read];
                     bool consumers = target is { } t && consumerNodes.Contains(t.Node);
-                    if (!read.Dynamic && !DrawnKinds.Contains(read.Kind))
+                    bool drawn = read.Dynamic || DrawnKinds.Contains(read.Kind);
+                    if (!drawn)
                     {
                         why.Add(UndrawnWhy + ": " + read.Kind);
-                        continue;
                     }
 
                     switch (reach)
                     {
                         case ReadReach.Dynamic or ReadReach.Application when consumers:
+                            // A read of a kind no drawing holds sees nothing the check can stand on.
+                            if (!drawn)
+                            {
+                                break;
+                            }
+
                             if (reach == ReadReach.Application && OrderDependentKinds.Contains(read.Kind))
                             {
                                 why.Add(OrderWhy);
@@ -138,15 +155,14 @@ internal static class UnseenCheck
                     continue;
                 }
 
-                ConsumerDefinition defined = byDefinition[found.Definition];
                 if (why.Count == 0)
                 {
-                    if (defined.InApplicationStyles)
+                    if (redefined.Any(definition => definition.InApplicationStyles))
                     {
                         why.Add(ApplicationStylesWhy);
                     }
 
-                    if (inventory.Unresolved.Count > 0)
+                    if (reading.Unresolved.Count > 0)
                     {
                         why.Add(UnresolvedWhy);
                     }
@@ -157,7 +173,7 @@ internal static class UnseenCheck
                     .Select(read => read.Key)
                     .Distinct(StringComparer.Ordinal)
                     .Where(other => inventory.Application.FindIn(reading.Entry, other, variant) is { } definition
-                                    && inventory.Application.Reaches(definition, key, variant))
+                                    && inventory.Application.Reaches(definition, key, variant, step => pair.HoldsRead(step, key)))
                     .Order(StringComparer.Ordinal)];
 
                 string[] readAt = [.. reads
@@ -168,7 +184,7 @@ internal static class UnseenCheck
                     .Select(at => at.Path + ":" + at.Line.ToString(System.Globalization.CultureInfo.InvariantCulture))];
 
                 string? reason = why.Count == 0 ? null : string.Join("; ", why.Distinct(StringComparer.Ordinal));
-                verdicts.Add((key, variant, new Verdict(reason, readAt, instead, Shown(defined, nameDirectories))));
+                verdicts.Add((key, variant, new Verdict(reason, readAt, instead, [.. redefined.Select(definition => Shown(definition, searched, nameDirectories))])));
             }
         }
 
@@ -225,7 +241,7 @@ internal static class UnseenCheck
                     into.Own.TryAdd(definition.Key, definition.Definition);
                 }
 
-                ByDefinition[definition.Definition] = definition;
+                Defined.Add(definition);
             }
 
             ConsumerNodes.Add(Held);
@@ -248,11 +264,17 @@ internal static class UnseenCheck
         /// <summary>That dictionary and its theme dictionaries.</summary>
         public HashSet<ResourceNode> ConsumerNodes { get; } = new(ReferenceEqualityComparer.Instance);
 
-        /// <summary>Each definition the application holds, with what the consumer's reading says of it.</summary>
-        public Dictionary<ResourceDefinition, ConsumerDefinition> ByDefinition { get; } = new(ReferenceEqualityComparer.Instance);
+        /// <summary>Each definition the application holds, in the order the consumer's files are read.</summary>
+        public List<ConsumerDefinition> Defined { get; } = [];
 
         /// <summary>The application, the consumer's definitions in its resources.</summary>
         public ResourceApplication Application { get; }
+
+        /// <summary>Whether the theme's definition <paramref name="found"/> holds a read of <paramref name="key"/>, an alias's or another's.</summary>
+        public bool HoldsRead(Found found, string key)
+        {
+            return _byHolder[(found.Definition, found.Node)].Any(read => read.Key == key);
+        }
 
         /// <summary>
         /// The reads that count under <paramref name="variant"/>, each with where it finds its key, by decision 2: those in an
@@ -330,11 +352,13 @@ internal static class UnseenCheck
     }
 
     /// <summary>Where the consumer defines a key, as the report writes it.</summary>
-    private static string Shown(ConsumerDefinition definition, bool nameDirectory)
+    private static string Shown(ConsumerDefinition definition, IReadOnlyList<string> searched, bool nameDirectory)
     {
-        string[] variants = [.. definition.Variants.OfType<string>()];
+        // Labelled with the variant of the theme dictionary that holds it under the variant searched, unless it is held outside one.
         string shown = nameDirectory ? definition.Directory + ": " + definition.Shown : definition.Shown;
-        return variants.Length == 0 ? shown : shown + " (" + string.Join(", ", variants) + ")";
+        return definition.Variants.Contains(null) || searched.FirstOrDefault(variant => definition.Variants.Contains(variant)) is not { } holding
+            ? shown
+            : shown + " (" + holding + ")";
     }
 
     /// <summary>One record per key and set of variants sharing a verdict, reads and keys to redefine instead; by key, then first variant.</summary>
@@ -347,7 +371,7 @@ internal static class UnseenCheck
             {
                 Verdict verdict = shared.First().Verdict;
                 string[] variants = [.. shared.Select(v => v.Variant).Distinct(StringComparer.Ordinal)];
-                string[] definedAt = [.. shared.Select(v => v.Verdict.DefinedAt).Distinct(StringComparer.Ordinal)];
+                string[] definedAt = [.. shared.SelectMany(v => v.Verdict.DefinedAt).Distinct(StringComparer.Ordinal)];
                 records.Add(new UnseenRedefinition(byKey.Key, variants, definedAt, verdict.ReadAt.Count, verdict.Instead, verdict.Why)
                 {
                     ReadAt = verdict.ReadAt,
@@ -374,7 +398,7 @@ internal static class UnseenCheck
     }
 
     /// <summary>One redefinition's answer under one variant.</summary>
-    private sealed record Verdict(string? Why, IReadOnlyList<string> ReadAt, IReadOnlyList<string> Instead, string DefinedAt);
+    private sealed record Verdict(string? Why, IReadOnlyList<string> ReadAt, IReadOnlyList<string> Instead, IReadOnlyList<string> DefinedAt);
 
     /// <summary>What variants must share to be one record: the verdict, the reads and the keys to redefine instead.</summary>
     private sealed class SharedVerdict : IEqualityComparer<Verdict>

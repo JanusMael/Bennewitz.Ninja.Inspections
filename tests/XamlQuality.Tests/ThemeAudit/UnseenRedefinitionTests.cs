@@ -129,7 +129,9 @@ public sealed class UnseenRedefinitionTests : IDisposable
         Theme(controls: ButtonTheme, light: ButtonAlias, dark: ButtonAlias);
         const string Redefined = "<SolidColorBrush x:Key=\"Primary\" Color=\"#FF00AA00\" />";
         Consumer(["<ControlTheme x:Key=\"Mine\" TargetType=\"Button\">\n<ControlTheme.Resources>\n" + Redefined + "\n</ControlTheme.Resources>\n</ControlTheme>"],
-            view: "<Design.PreviewWith>\n<Border>\n<Border.Resources>\n" + Redefined + "\n</Border.Resources>\n</Border>\n</Design.PreviewWith>");
+            view: "<StackPanel>\n<Design.PreviewWith>\n<Border>\n<Border.Resources>\n" + Redefined + "\n</Border.Resources>\n</Border>\n</Design.PreviewWith>\n"
+                  + "<ContentControl>\n<ContentControl.ContentTemplate>\n<DataTemplate>\n<Border>\n<Border.Resources>\n" + Redefined
+                  + "\n</Border.Resources>\n</Border>\n</DataTemplate>\n</ContentControl.ContentTemplate>\n</ContentControl>\n</StackPanel>");
         Assert.Equal(0, Run().UnseenExamined);
 
         Consumer();
@@ -154,6 +156,12 @@ public sealed class UnseenRedefinitionTests : IDisposable
         ConsumerThemeFindings app = Run(Merge);
         Assert.Equal(2, app.UnseenExamined);
         Assert.Empty(app.Unseen);
+
+        // A merged file's read that no keyed entry holds is not the theme's either.
+        Write("compat/Styles.axaml", "<Styles " + Namespaces + ">\n<Style Selector=\"Border\">\n<Setter Property=\"Background\" Value=\"{StaticResource Unused}\" />\n</Style>\n</Styles>");
+        ConsumerThemeFindings styles = Run(", \"merge\": [\"compat/Compat.axaml\", \"compat/Styles.axaml\"]");
+        Assert.Empty(styles.Unseen);
+        Assert.Empty(styles.UnseenNotDecided);
     }
 
     [Fact]
@@ -389,6 +397,192 @@ public sealed class UnseenRedefinitionTests : IDisposable
         Assert.Empty(unresolved.Unseen);
         Assert.All(unresolved.UnseenNotDecided, notDecided => Assert.Equal(UnseenCheck.UnresolvedWhy, notDecided.Why));
         Assert.Equal(2, unresolved.UnseenNotDecided.Count);
+    }
+
+    [Fact]
+    public void What_to_redefine_instead_takes_a_definition_that_reads_the_key_as_a_gradients_stop_does_and_reads_and_keys_are_in_order()
+    {
+        Theme(
+            controls: ButtonTheme + "\n<ControlTheme x:Key=\"Spinner\" TargetType=\"Button\">\n<Setter Property=\"Foreground\" Value=\"{DynamicResource Loading}\" />\n</ControlTheme>",
+            light: ButtonAlias + "\n<ConicGradientBrush x:Key=\"Loading\">\n<ConicGradientBrush.GradientStops>\n<GradientStop Offset=\"0\" Color=\"{StaticResource Blue}\" />\n"
+                   + "</ConicGradientBrush.GradientStops>\n</ConicGradientBrush>",
+            dark: ButtonAlias);
+        Consumer(["<Color x:Key=\"Blue\">#FF000000</Color>"], view: "<Button Theme=\"{StaticResource Spinner}\" />");
+
+        UnseenRedefinition light = Run().Unseen.Single(finding => finding.Variants.Contains("Light"));
+
+        AssertFinding(light, "Blue", ["Light"], ["App.axaml:3"], ["Themes/Light/Button.axaml:5", "Tokens/Light.axaml:3"], ["ButtonBackground", "Loading"]);
+    }
+
+    [Fact]
+    public void A_consumer_file_included_by_an_avares_source_or_by_its_class_as_a_theme_dictionary_is_read_under_that_variant()
+    {
+        Theme(
+            controls: ButtonTheme + "\n<ControlTheme x:Key=\"Fancy\" TargetType=\"Button\">\n<Setter Property=\"BorderBrush\" Value=\"{StaticResource Shade}\" />\n"
+                      + "<Setter Property=\"Foreground\" Value=\"{StaticResource Tint}\" />\n</ControlTheme>",
+            light: "<SolidColorBrush x:Key=\"Shade\" Color=\"#111111\" />\n<SolidColorBrush x:Key=\"Tint\" Color=\"#222222\" />",
+            dark: "<SolidColorBrush x:Key=\"Shade\" Color=\"#111111\" />\n<SolidColorBrush x:Key=\"Tint\" Color=\"#222222\" />");
+        Consumer(["<ResourceDictionary>\n<ResourceDictionary.ThemeDictionaries>\n<ResourceInclude x:Key=\"Dark\" Source=\"avares://App/Themes/DarkColors.axaml\" />\n"
+                  + "<local:LightColors x:Key=\"Light\" />\n</ResourceDictionary.ThemeDictionaries>\n</ResourceDictionary>"],
+            view: "<Button Theme=\"{StaticResource Fancy}\" />");
+        Write("app/Themes/DarkColors.axaml", Dictionary("<SolidColorBrush x:Key=\"Shade\" Color=\"#FFAA0000\" />"));
+        Write("app/Themes/LightColors.axaml", "<ResourceDictionary " + Namespaces + " x:Class=\"Fixture.LightColors\">\n<SolidColorBrush x:Key=\"Tint\" Color=\"#FF00AA00\" />\n</ResourceDictionary>");
+
+        ConsumerThemeFindings findings = Run();
+
+        Assert.Collection(findings.Unseen,
+            shade => AssertFinding(shade, "Shade", ["Dark"], ["Themes/DarkColors.axaml:2 (Dark)"], ["Controls/Button.axaml:6"], []),
+            tint => AssertFinding(tint, "Tint", ["Light"], ["Themes/LightColors.axaml:2 (Light)"], ["Controls/Button.axaml:7"], []));
+    }
+
+    [Fact]
+    public void Every_definition_the_application_holds_that_is_not_the_themes_own_is_named_and_one_held_outside_a_theme_dictionary_carries_no_variant()
+    {
+        Theme(controls: ButtonTheme, light: ButtonAlias, dark: ButtonAlias);
+        const string Differs = "<UserControl.Resources>\n<SolidColorBrush x:Key=\"Primary\" Color=\"#FF0000AA\" />\n</UserControl.Resources>";
+
+        Consumer(["<SolidColorBrush x:Key=\"Primary\" Color=\"{StaticResource Blue}\" />"], view: Differs);
+        Assert.Equal(["MainView.axaml:3"], Run().Unseen.SelectMany(finding => finding.DefinedAt).Distinct());
+
+        Consumer(["<SolidColorBrush x:Key=\"Primary\" Color=\"#FF00AA00\" />"], view: Differs);
+        Assert.Equal(["App.axaml:3", "MainView.axaml:3"], Run().Unseen.SelectMany(finding => finding.DefinedAt).Distinct());
+
+        Consumer(["<ResourceDictionary>\n<ResourceDictionary.MergedDictionaries>\n<ResourceInclude Source=\"Colors.axaml\" />\n</ResourceDictionary.MergedDictionaries>\n"
+                  + "<ResourceDictionary.ThemeDictionaries>\n<ResourceInclude x:Key=\"Dark\" Source=\"Colors.axaml\" />\n</ResourceDictionary.ThemeDictionaries>\n</ResourceDictionary>"],
+            view: null);
+        Write("app/Colors.axaml", Dictionary("<SolidColorBrush x:Key=\"Primary\" Color=\"#FF00AA00\" />"));
+        ConsumerThemeFindings both = Run();
+        Assert.Equal(["Light", "Dark"], both.Unseen.SelectMany(finding => finding.Variants));
+        Assert.All(both.Unseen, finding => Assert.Equal(["Colors.axaml:2"], finding.DefinedAt));
+    }
+
+    [Fact]
+    public void A_definition_a_nearer_theme_dictionary_of_the_variant_shadows_is_not_held_under_it()
+    {
+        // As a consumer's compat dictionary holds a key under Default and Dark, and the theme's own value under a
+        // high-contrast variant: the variant's lookup stops at its own slot and never reaches the others.
+        Theme(controls: ButtonTheme, light: ButtonAlias, dark: ButtonAlias);
+        Consumer(Slots(
+            ("Default", "<SolidColorBrush x:Key=\"Primary\" Color=\"#FF00AA00\" />"),
+            ("Dark", "<SolidColorBrush x:Key=\"Primary\" Color=\"{StaticResource Blue}\" />")));
+
+        ConsumerThemeFindings findings = Run();
+
+        UnseenRedefinition finding = Assert.Single(findings.Unseen);
+        Assert.Equal(["Light"], finding.Variants);
+        Assert.Equal(["App.axaml:6 (Default)"], finding.DefinedAt);
+    }
+
+    [Fact]
+    public void An_include_a_merged_file_leaves_unresolved_decides_nothing_about_the_theme()
+    {
+        Theme(controls: ButtonTheme, light: ButtonAlias, dark: ButtonAlias);
+        Write("compat/Compat.axaml", Dictionary(Merged("/Gone.axaml")));
+        Consumer("<SolidColorBrush x:Key=\"Primary\" Color=\"#FF00AA00\" />");
+
+        ConsumerThemeFindings findings = Run(", \"merge\": [\"compat/Compat.axaml\"]");
+
+        Assert.NotEmpty(findings.Theme.Inventory.Unresolved);
+        Assert.Empty(findings.UnseenNotDecided);
+        Assert.Equal(["Light", "Dark"], findings.Unseen.SelectMany(finding => finding.Variants));
+    }
+
+    [Fact]
+    public void A_theme_laid_out_as_Fluent_is_read_through_its_StyleInclude_and_its_MergeResourceIncludes()
+    {
+        Write("theme/Theme.axaml", "<Styles " + Namespaces + ">\n<Styles.Resources>\n<ResourceDictionary>\n<ResourceDictionary.MergedDictionaries>\n"
+                                   + "<MergeResourceInclude Source=\"/Accents.axaml\" />\n</ResourceDictionary.MergedDictionaries>\n</ResourceDictionary>\n</Styles.Resources>\n"
+                                   + "<StyleInclude Source=\"/Controls.axaml\" />\n</Styles>");
+        Write("theme/Accents.axaml", Dictionary("<ResourceDictionary.ThemeDictionaries>\n"
+                                                + "<ResourceDictionary x:Key=\"Default\">\n<Color x:Key=\"Accent\">#0078D7</Color>\n<SolidColorBrush x:Key=\"AccentBrush\" Color=\"{StaticResource Accent}\" />\n</ResourceDictionary>\n"
+                                                + "<ResourceDictionary x:Key=\"Dark\">\n<Color x:Key=\"Accent\">#4CC2FF</Color>\n<SolidColorBrush x:Key=\"AccentBrush\" Color=\"{StaticResource Accent}\" />\n</ResourceDictionary>\n"
+                                                + "</ResourceDictionary.ThemeDictionaries>"));
+        Write("theme/Controls.axaml", Dictionary("<ResourceDictionary.MergedDictionaries>\n<MergeResourceInclude Source=\"/Button.axaml\" />\n</ResourceDictionary.MergedDictionaries>"));
+        Write("theme/Button.axaml", Dictionary("<ControlTheme x:Key=\"{x:Type Button}\" TargetType=\"Button\">\n<Setter Property=\"Background\" Value=\"{DynamicResource AccentBrush}\" />\n"
+                                              + "<Setter Property=\"BorderBrush\" Value=\"{StaticResource Accent}\" />\n</ControlTheme>"));
+        Consumer("<Color x:Key=\"Accent\">#FF00AA00</Color>");
+
+        ConsumerThemeFindings findings = Run();
+
+        Assert.Empty(findings.UnseenNotDecided);
+        Assert.Collection(findings.Unseen,
+            light => AssertFinding(light, "Accent", ["Light"], ["App.axaml:3"], ["Accents.axaml:5", "Button.axaml:4"], ["AccentBrush"]),
+            dark => AssertFinding(dark, "Accent", ["Dark"], ["App.axaml:3"], ["Accents.axaml:9", "Button.axaml:4"], ["AccentBrush"]));
+    }
+
+    [Fact]
+    public void A_definition_from_a_second_directory_or_a_tokens_entry_is_named_with_its_directory()
+    {
+        Theme(controls: ButtonTheme, light: ButtonAlias, dark: ButtonAlias);
+        Consumer();
+        Write("lib/Colors.axaml", Dictionary("<SolidColorBrush x:Key=\"Primary\" Color=\"#FF00AA00\" />"));
+        Assert.Equal(["lib: Colors.axaml:2"], Run(paths: "\"app\", \"lib\"").Unseen.SelectMany(finding => finding.DefinedAt).Distinct());
+
+        Write("tokens/Tokens.axaml", Dictionary("<SolidColorBrush x:Key=\"Primary\" Color=\"#FF00AA00\" />"));
+        Assert.Equal(["tokens: Tokens.axaml:2"],
+            Run(consumer: ", \"tokens\": { \"entry\": \"tokens/Tokens.axaml\" }").Unseen.SelectMany(finding => finding.DefinedAt).Distinct());
+    }
+
+    [Fact]
+    public void An_element_with_other_attributes_or_any_reference_is_a_redefinition_whatever_else_it_shares()
+    {
+        Theme(
+            controls: ButtonTheme + "\n<ControlTheme x:Key=\"Pill\" TargetType=\"Button\" BasedOn=\"{StaticResource {x:Type Button}}\" />",
+            light: ButtonAlias + "\n<Thickness x:Key=\"Pad\">4</Thickness>",
+            dark: ButtonAlias + "\n<Thickness x:Key=\"Pad\">4</Thickness>");
+        Consumer(
+            "<Thickness xmlns:note=\"urn:note\" x:Key=\"Pad\" note:Why=\"spacing\">4</Thickness>",
+            "<ControlTheme x:Key=\"Pill\" TargetType=\"Button\" BasedOn=\"{StaticResource {x:Type Button}}\" />");
+
+        Assert.Equal(4, Run().UnseenExamined);
+    }
+
+    [Fact]
+    public void What_is_not_decided_is_listed_with_why_and_the_section_follows_the_undefined_keys()
+    {
+        Theme(
+            controls: ButtonTheme + "\n<ControlTheme x:Key=\"Fancy\" TargetType=\"Button\">\n<ControlTheme.Resources>\n<SolidColorBrush x:Key=\"Glyph\" Color=\"#000000\" />\n"
+                      + "</ControlTheme.Resources>\n<Setter Property=\"Foreground\" Value=\"{StaticResource Glyph}\" />\n</ControlTheme>",
+            light: ButtonAlias,
+            dark: ButtonAlias);
+        Consumer(["<SolidColorBrush x:Key=\"Glyph\" Color=\"#FFFFFFFF\" />"], view: "<Button Theme=\"{StaticResource Fancy}\" />");
+
+        string report = MarkdownReport.Render(AuditRunner.Run(Config()));
+
+        Assert.Contains("| App | Theme | 2 | 0 | 2 |\n", report);
+        Assert.Contains("Not decided:\n\n- `Glyph` under Light, Dark, defined at `App.axaml:3`: " + UnseenCheck.ScopedWhy + ".\n", report);
+        int undefined = report.IndexOf("## Undefined keys", StringComparison.Ordinal);
+        int unseen = report.IndexOf("## Redefinitions the theme does not see", StringComparison.Ordinal);
+        Assert.InRange(unseen, undefined + 1, report.IndexOf("## Contrast", StringComparison.Ordinal) - 1);
+    }
+
+    [Fact]
+    public void A_read_that_finds_the_key_among_a_styles_resources_says_so_beside_its_kind()
+    {
+        Write("theme/Theme.axaml", "<Styles " + Namespaces + ">\n<StyleInclude Source=\"/Styles.axaml\" />\n</Styles>");
+        Write("theme/Styles.axaml", "<Styles " + Namespaces + ">\n<Style Selector=\"Button\">\n<Style.Resources>\n<SolidColorBrush x:Key=\"Glow\" Color=\"#000000\" />\n"
+                                    + "</Style.Resources>\n<Setter Property=\"Foreground\" Value=\"{StaticResource Glow}\" />\n</Style>\n</Styles>");
+        Consumer("<SolidColorBrush x:Key=\"Glow\" Color=\"#FFFFFFFF\" />");
+
+        UnseenRedefinition notDecided = Assert.Single(Run().UnseenNotDecided);
+
+        Assert.Equal(UnseenCheck.UndrawnWhy + ": setter entry>StyleInclude; " + UnseenCheck.ScopedWhy, notDecided.Why);
+    }
+
+    [Fact]
+    public void A_reference_in_the_themes_own_files_applies_nothing_for_a_consumer_that_reads_them()
+    {
+        Theme(
+            controls: ButtonTheme + "\n<ControlTheme x:Key=\"Fancy\" TargetType=\"Button\">\n<Setter Property=\"Background\" Value=\"{StaticResource Unused}\" />\n</ControlTheme>"
+                      + "\n<ControlTheme x:Key=\"Unapplied\" TargetType=\"Button\">\n<Setter Property=\"Theme\" Value=\"{StaticResource Fancy}\" />\n</ControlTheme>",
+            light: ButtonAlias,
+            dark: ButtonAlias);
+        Consumer("<Color x:Key=\"Unused\">#FF000000</Color>");
+
+        ConsumerThemeFindings findings = Run(paths: "\"app\", \"theme\"");
+
+        Assert.Equal(2, findings.UnseenExamined);
+        Assert.Empty(findings.Unseen);
     }
 
     /// <summary>The report's section on redefinitions, from its heading to the next section's.</summary>
