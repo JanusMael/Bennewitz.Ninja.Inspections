@@ -53,6 +53,7 @@ Avalonia either.
 | `BNXQ1008` | Every control in a zero-size Grid slot is hidden by IsVisible, not by the slot alone. |
 | `BNXQ1009` | Every item container generated from ItemsSource is named by what it shows, not by its item's type. |
 | `BNXQ1010` | Every list, combo or tab row generated from ItemsSource draws a background of its own: its template draws one, and where it draws the row's Background, that is never null. |
+| `BNXQ1011` | Every input control written in markup declares a tooltip. |
 <!-- END GENERATED RULES -->
 
 The table above is rendered from the rule types — `Id` and `Summary` on each `IXamlRule` — and a
@@ -205,6 +206,24 @@ and one asking for a property the row theme binds to each item sets only the row
 checks Avalonia's list, combo and tab rows, measured on 12.1.3 under Fluent, Simple and Semi, and
 leaves tree rows out, because Fluent's and Simple's give a tree row's header a background of its own.
 Pass the application's assembly to `WithAssemblies`.
+
+**`BNXQ1011` is what a person reads before using a control.** `BNXQ1002` asks for the name a screen
+reader speaks and `BNXQ1007` for the id a test searches by; neither is shown to someone pointing at an
+icon button. This rule asks every input control written in markup for a tooltip:
+
+- **The controls.** `AutoCompleteBox`, `Button`, `CalendarDatePicker`, `CheckBox`, `ComboBox`,
+  `DatePicker`, `DropDownButton`, `NumericUpDown`, `RadioButton`, `RepeatButton`, `Slider`,
+  `SplitButton`, `TextBox`, `TimePicker`, `ToggleButton`, `ToggleSplitButton` and `ToggleSwitch`,
+  plus your own control names. A `MenuItem` is left out, since its header is its label. A control in
+  a `ControlTheme`'s template counts.
+- **What counts as a tooltip.** Avalonia's `ToolTip.Tip`, WPF's `ToolTip` or
+  `ToolTipService.ToolTip`, or MAUI's `ToolTipProperties.Text`, as an attribute or a property
+  element. An empty or blank attribute is reported as empty.
+- **Styles.** A control with no tooltip of its own that a style or theme in the scan may give one is
+  named in `Skipped`, not reported. That is a style whose selector names its type, a `ControlTheme`
+  for its type, or a WPF style for it.
+
+A control built in code is not seen.
 
 **`BNXQ1005`, `BNXQ1009` and `BNXQ1010` read a property in every spelling the XAML compiler takes.**
 A setter names it alone, after an owner or in parentheses, in its `Property` attribute or a
