@@ -47,6 +47,34 @@ What remains of the plan for this repository:
 Each family releases alone, from a tag `<family>/vYYYY.Q.MMDD`; [docs/publishing.md](docs/publishing.md)
 is the runbook. Whether a family has anything to release is in its section below.
 
+**Synced to Bennewitz.Ninja.Templates `2026.4.1111`** on 2026-11-11, on the maintainer's word.
+
+`repo-conventions.cs` is that release's. It fails a repository whose `packages.push` names an id
+but whose release does not resolve through `release-target.cs`, and one that does not pin
+AssemblyQuality. That second rule skips an id this repository publishes, so both pass here.
+
+`Bennewitz.Ninja.CodeQuality` `2026.4.1104`, the published package, is referenced privately, every
+rule at its default, the family's decision of 2026-11-10.
+
+- **It stays out of the two projects that hold its source**, `src/CodeQuality` and
+  `tests/CodeQuality.Tests`. One restore never holds a project and a package of the same id, as for
+  AssemblyQuality. So the published release gates this build, not the head being changed.
+- **It reported six findings, every one in a fixture that holds that defect on purpose**, and each
+  is suppressed where it stands with that reason:
+  - `BNCQ1004` in `tests/fixtures/Orphan`'s `FacadeShadow.cs` and `Orphaned.cs`. `Orphaned.cs`'s own
+    comment already said BNCQ1004 would report it.
+  - `BNCQ1004` in `tests/AssemblyQuality.Tests/Fixtures`' `Shadowed.cs` and `HiddenShadow.cs`.
+  - `BNCQ1002` on `Subjects.cs`' `Offender.Leaked` and `LeakedNested`.
+- **Verified on Windows:**
+  - the build passed with warnings as errors;
+  - 1003 of 1003 tests passed, on `main` at `4012b08`;
+  - pack and `assert-packages` passed, and no packed nuspec gains a dependency;
+  - `check` conforms;
+  - `tools/real-code.cs` and the mutation runner's smoke passed;
+  - both probe builds passed.
+
+No family's package changes.
+
 **Synced to Bennewitz.Ninja.Templates `2026.4.1109`** on 2026-11-09. The scripts were already that
 release's; it moves AutoVersioning `2026.3.916` to `2026.4.1031`, whose diagnostics are `BNAV00` to
 `BNAV04` from `2026.3.928` on. xunit.v3 stays `3.2.2`, as below, and Avalonia `12.1.3`. Build with
