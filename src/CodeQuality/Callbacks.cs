@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
 
@@ -12,9 +13,22 @@ namespace Bennewitz.Ninja.CodeQuality;
 /// <para>
 /// ⭐ <b>Guarded means wholly inside one try statement whose catch takes everything.</b> The body is
 /// that try statement and nothing else, and one of its catch clauses takes <see cref="Exception"/>,
-/// or no type, with no filter, and does not end in a <c>throw</c>. A statement before or after the
-/// try can throw where nothing catches it, a narrower catch lets the rest through, a filter decides
-/// at run time, and a catch that ends in a throw sends the exception on to the same end.
+/// or no type, with no filter or one that lets only fatal exceptions through, and does not end in a
+/// <c>throw</c>. A statement before or after the try can throw where nothing catches it, a narrower
+/// catch lets the rest through, any other filter decides at run time, and a catch that ends in a
+/// throw sends the exception on to the same end.
+/// </para>
+/// <para>
+/// ⭐ <b>A filter that lets only fatal exceptions through still catches everything a callback can
+/// survive.</b> It tests the caught variable with <c>is not</c> against fatal types alone:
+/// <c>OutOfMemoryException</c>, <c>StackOverflowException</c> and <c>AccessViolationException</c>,
+/// written <c>e is not F</c>, <c>e is not (F or G)</c>, <c>e is not F and not G</c>,
+/// <c>e is not F &amp;&amp; e is not G</c>, <c>!(e is F)</c> or <c>!(e is F or G)</c>. Measured on
+/// .NET 10: a stack overflow cannot be caught, and an access violation ended the process with no
+/// catch, finally or handler running, so the one such exception a filter lets past is an
+/// <c>OutOfMemoryException</c>, which ends the process wherever it surfaces. Static analysis that
+/// reports a catch-all with no filter, as CodeQL's <c>cs/catch-of-all-exceptions</c> does, accepts
+/// this one, so a consumer can satisfy both.
 /// </para>
 /// <para>
 /// ⚠ <b>Read from the syntax.</b> The catch's type is compared by name, <c>Exception</c>,
@@ -97,8 +111,8 @@ internal static class Callbacks
     {
         foreach (CatchClauseSyntax catchClause in tryStatement.Catches)
         {
-            if (catchClause.Filter is null
-                && (catchClause.Declaration is null || IsException(catchClause.Declaration.Type))
+            if ((catchClause.Declaration is null || IsException(catchClause.Declaration.Type))
+                && (catchClause.Filter is null || LetsOnlyFatalThrough(catchClause))
                 && !EndsInThrow(catchClause.Block))
             {
                 return true;
@@ -108,8 +122,74 @@ internal static class Callbacks
         return false;
     }
 
-    private static bool IsException(TypeSyntax type) =>
-        type.ToString().Replace(" ", string.Empty) is "Exception" or "System.Exception" or "global::System.Exception";
+    /// <summary>
+    /// Whether a catch's filter holds of every exception but a fatal one: the caught variable tested
+    /// with <c>is not</c> against fatal types alone, in any of the forms that say so.
+    /// </summary>
+    private static bool LetsOnlyFatalThrough(CatchClauseSyntax catchClause)
+    {
+        string? caught = catchClause.Declaration?.Identifier.ValueText;
+        return !string.IsNullOrEmpty(caught) && ExcludesOnlyFatal(catchClause.Filter!.FilterExpression, caught!);
+    }
+
+    // `e is not F`, `e is not (F or G)`, `e is not F and not G`, `e is not F && e is not G`,
+    // `!(e is F)` and `!(e is F or G)`, F and G each a fatal type.
+    private static bool ExcludesOnlyFatal(ExpressionSyntax filter, string caught) => Unparenthesized(filter) switch
+    {
+        IsPatternExpressionSyntax test => IsCaught(test.Expression, caught) && NotOfFatal(test.Pattern),
+        BinaryExpressionSyntax both when both.IsKind(SyntaxKind.LogicalAndExpression) =>
+            ExcludesOnlyFatal(both.Left, caught) && ExcludesOnlyFatal(both.Right, caught),
+        PrefixUnaryExpressionSyntax negation when negation.IsKind(SyntaxKind.LogicalNotExpression) =>
+            Unparenthesized(negation.Operand) switch
+            {
+                IsPatternExpressionSyntax test => IsCaught(test.Expression, caught) && OfFatal(test.Pattern),
+                BinaryExpressionSyntax test when test.IsKind(SyntaxKind.IsExpression) =>
+                    IsCaught(test.Left, caught) && test.Right is TypeSyntax type && IsFatal(type),
+                _ => false,
+            },
+        _ => false,
+    };
+
+    private static bool NotOfFatal(PatternSyntax pattern) => pattern switch
+    {
+        ParenthesizedPatternSyntax inner => NotOfFatal(inner.Pattern),
+        UnaryPatternSyntax not when not.IsKind(SyntaxKind.NotPattern) => OfFatal(not.Pattern),
+        BinaryPatternSyntax both when both.IsKind(SyntaxKind.AndPattern) => NotOfFatal(both.Left) && NotOfFatal(both.Right),
+        _ => false,
+    };
+
+    private static bool OfFatal(PatternSyntax pattern) => pattern switch
+    {
+        ParenthesizedPatternSyntax inner => OfFatal(inner.Pattern),
+        BinaryPatternSyntax either when either.IsKind(SyntaxKind.OrPattern) => OfFatal(either.Left) && OfFatal(either.Right),
+        TypePatternSyntax type => IsFatal(type.Type),
+
+        // A type in a pattern may parse as a constant: a dotted one as a member access.
+        ConstantPatternSyntax { Expression: NameSyntax or MemberAccessExpressionSyntax } constant => IsFatal(constant.Expression),
+        _ => false,
+    };
+
+    private static ExpressionSyntax Unparenthesized(ExpressionSyntax expression)
+    {
+        while (expression is ParenthesizedExpressionSyntax parenthesized)
+        {
+            expression = parenthesized.Expression;
+        }
+
+        return expression;
+    }
+
+    private static bool IsCaught(ExpressionSyntax expression, string caught) =>
+        Unparenthesized(expression) is IdentifierNameSyntax name && name.Identifier.ValueText == caught;
+
+    private static bool IsException(TypeSyntax type) => IsSystemType(type, "Exception");
+
+    private static bool IsFatal(ExpressionSyntax type) =>
+        IsSystemType(type, "OutOfMemoryException") || IsSystemType(type, "StackOverflowException") || IsSystemType(type, "AccessViolationException");
+
+    private static bool IsSystemType(ExpressionSyntax type, string name) =>
+        type.ToString().Replace(" ", string.Empty) is var written
+        && (written == name || written == "System." + name || written == "global::System." + name);
 
     private static bool EndsInThrow(BlockSyntax block) =>
         block.Statements.Count > 0 && block.Statements[block.Statements.Count - 1] is ThrowStatementSyntax;

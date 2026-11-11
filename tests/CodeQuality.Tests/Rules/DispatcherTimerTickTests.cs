@@ -39,7 +39,10 @@ public sealed class DispatcherTimerTickTests
             }
             """);
 
-    /// <summary>The fix, one try/catch around the whole body, and a body with nothing in it.</summary>
+    /// <summary>
+    /// The fix, one try/catch around the whole body, its catch-all filtered or not to let a fatal
+    /// exception through, and a body with nothing in it.
+    /// </summary>
     [Fact]
     public Task Guarded_and_empty_handlers_stay_silent() =>
         Run("""
@@ -55,6 +58,10 @@ public sealed class DispatcherTimerTickTests
                     timer.Tick += (_, _) =>
                     {
                         try { Save(); } catch (Exception error) { Log(error); }
+                    };
+                    timer.Tick += (_, _) =>
+                    {
+                        try { Save(); } catch (Exception error) when (error is not OutOfMemoryException) { Log(error); }
                     };
                     timer.Tick += (_, _) => { };
                     timer.Tick -= (_, _) => Save();

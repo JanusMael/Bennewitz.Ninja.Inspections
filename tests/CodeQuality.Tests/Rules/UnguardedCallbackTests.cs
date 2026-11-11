@@ -82,7 +82,8 @@ public sealed class UnguardedCallbackTests
 
     /// <summary>
     /// Not wholly guarded: a statement outside the try, a catch narrower than everything, a catch with
-    /// a filter, a catch that ends in a throw, and a try with no catch at all.
+    /// a filter that may let more than a fatal exception through, a catch that ends in a throw, and a
+    /// try with no catch at all.
     /// </summary>
     [Fact]
     public Task Bodies_that_are_not_wholly_guarded_fire() =>
@@ -106,7 +107,31 @@ public sealed class UnguardedCallbackTests
                     });
                     ThreadPool.QueueUserWorkItem(_ {|BNCQ1009:=>|}
                     {
-                        try { Work(); } catch (Exception error) when (error is not OutOfMemoryException) { Log(error); }
+                        try { Work(); } catch (Exception error) when (error is not IOException) { Log(error); }
+                    });
+                    ThreadPool.QueueUserWorkItem(_ {|BNCQ1009:=>|}
+                    {
+                        try { Work(); } catch (Exception error) when (error is not (OutOfMemoryException or IOException)) { Log(error); }
+                    });
+                    ThreadPool.QueueUserWorkItem(_ {|BNCQ1009:=>|}
+                    {
+                        try { Work(); } catch (Exception error) when (error is OutOfMemoryException) { Log(error); }
+                    });
+                    ThreadPool.QueueUserWorkItem(_ {|BNCQ1009:=>|}
+                    {
+                        try { Work(); } catch (Exception error) when (error is OutOfMemoryException or StackOverflowException) { Log(error); }
+                    });
+                    ThreadPool.QueueUserWorkItem(_ {|BNCQ1009:=>|}
+                    {
+                        try { Work(); } catch (Exception error) when (error is not OutOfMemoryException && Retry()) { Log(error); }
+                    });
+                    ThreadPool.QueueUserWorkItem(_ {|BNCQ1009:=>|}
+                    {
+                        try { Work(); } catch (Exception error) when (_last is not OutOfMemoryException) { Log(error); }
+                    });
+                    ThreadPool.QueueUserWorkItem(_ {|BNCQ1009:=>|}
+                    {
+                        try { Work(); } catch (Exception error) when (error is not OutOfMemoryException) { Log(error); throw; }
                     });
                     ThreadPool.QueueUserWorkItem(_ {|BNCQ1009:=>|}
                     {
@@ -115,6 +140,57 @@ public sealed class UnguardedCallbackTests
                     ThreadPool.QueueUserWorkItem(_ {|BNCQ1009:=>|}
                     {
                         try { Work(); } finally { Log(null); }
+                    });
+                }
+
+                private static void Work() => File.ReadAllText("state.txt");
+
+                private static Exception? _last;
+
+                private static bool Retry() => _last is null;
+
+                private static void Log(Exception? error) => _last = error;
+            }
+            """);
+
+    /// <summary>
+    /// A catch-all whose filter lets only a fatal exception through guards the body, in each way the
+    /// filter is written: what CodeQL's <c>cs/catch-of-all-exceptions</c> accepts.
+    /// </summary>
+    [Fact]
+    public Task A_catch_whose_filter_lets_only_fatal_exceptions_through_guards_the_body() =>
+        Run("""
+            using System;
+            using System.IO;
+            using System.Threading;
+
+            public sealed class Background
+            {
+                public void Wire(FileSystemWatcher watcher)
+                {
+                    watcher.Created += (_, _) =>
+                    {
+                        try { Work(); } catch (Exception error) when (error is not OutOfMemoryException) { Log(error); }
+                    };
+                    watcher.Changed += (_, _) =>
+                    {
+                        try { Work(); } catch (System.Exception error) when (error is not (System.OutOfMemoryException or StackOverflowException)) { Log(error); }
+                    };
+                    watcher.Deleted += (_, _) =>
+                    {
+                        try { Work(); } catch (Exception error) when (error is not OutOfMemoryException and not AccessViolationException) { Log(error); }
+                    };
+                    watcher.Renamed += (_, _) =>
+                    {
+                        try { Work(); } catch (Exception error) when ((error is not OutOfMemoryException) && error is not global::System.StackOverflowException) { Log(error); }
+                    };
+                    ThreadPool.QueueUserWorkItem(_ =>
+                    {
+                        try { Work(); } catch (Exception error) when (!(error is OutOfMemoryException)) { Log(error); }
+                    });
+                    ThreadPool.QueueUserWorkItem(_ =>
+                    {
+                        try { Work(); } catch (IOException error) { Log(error); } catch (Exception error) when (!(error is OutOfMemoryException or StackOverflowException)) { Log(error); }
                     });
                 }
 

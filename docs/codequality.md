@@ -280,7 +280,8 @@ Nothing above these callbacks catches, so a throw in one goes where nobody can h
 | A `System.Timers.Timer` `Elapsed` handler | is swallowed for good: the timer keeps ticking and nothing reports it |
 
 The rule reports such a body when it is not wholly inside one try statement whose catch takes
-`Exception`, or everything, with no filter and not ending in a `throw`. It reads a lambda, an
+`Exception`, or everything, and does not end in a `throw`, with no filter, or one that lets only a
+fatal exception through. It reads a lambda, an
 anonymous method, and a method group naming a method or local function written in the same
 compilation; a method from a reference is not opened. An empty body is not reported. What was
 measured is in the timer, thread, watcher, process and finalizer entries of
@@ -301,6 +302,21 @@ watcher.Created += (_, e) =>
     }
 };
 ```
+
+A catch-all that lets a fatal exception through guards the body as well. Use it where a check
+reports a catch-all with no filter, as CodeQL's `cs/catch-of-all-exceptions` does. The filter
+tests the caught variable with `is not` against fatal types alone: `OutOfMemoryException`,
+`StackOverflowException` and `AccessViolationException`. It may be written `e is not F`,
+`e is not (F or G)`, `e is not F and not G`, `e is not F && e is not G`, `!(e is F)` or
+`!(e is F or G)`:
+
+```csharp
+catch (Exception error) when (error is not OutOfMemoryException)
+```
+
+On .NET 10 neither a stack overflow nor an access violation reaches a catch, so the exception such a
+filter lets past is an `OutOfMemoryException`, which ends the process wherever it surfaces. Any other
+filter decides at run time what it lets through, so the body is still reported.
 
 The body is judged as written. A body that only posts to a dispatcher, or calls a method that
 catches for itself, is still reported, because the rule cannot see what a call throws; suppress it
@@ -323,7 +339,8 @@ and `RunOnce` were not measured, and are not read. What was measured is in
 [the `DispatcherTimer` entry](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/docs/avalonia-gotchas.md#one-throw-from-a-dispatchertimers-tick-stops-the-timer-for-good-while-isenabled-reads-true-and-dispatcherunhandledexception-never-hears-of-it)
 of `docs/avalonia-gotchas.md`.
 
-The fix is one try/catch that logs, around the whole body. On the family's repositories and a real
+The fix is one try/catch that logs, around the whole body, its catch-all unfiltered or letting only a
+fatal exception through, as [`BNCQ1009`](#bncq1009) says. On the family's repositories and a real
 application's code the rule reported one handler, which could not throw on real input; suppress such
 a finding there, with the reason. The rules about Avalonia are numbered from `BNCQ3001`, so they stand apart from the rest. Inert in a
 compilation that cannot name `Avalonia.Threading.DispatcherTimer`.
