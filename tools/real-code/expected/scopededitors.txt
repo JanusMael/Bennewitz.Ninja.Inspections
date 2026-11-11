@@ -8,3 +8,14 @@ BNXQ1007: inspected 13, findings 0, skipped 0
 BNXQ1008: inspected 0, findings 0, skipped 0
 BNXQ1009: inspected 1, findings 0, skipped 0
 BNXQ1010: inspected 1, findings 0, skipped 0
+BNXQ1011: inspected 12, findings 10, skipped 0
+  finding Controls/PropertyEditorWrapper.axaml:245 This CheckBox has no tooltip, so nothing tells the person pointing at it what it does. Give it a ToolTip.Tip that says what it does.
+  finding Controls/PropertyEditorWrapper.axaml:261 This TextBox has no tooltip, so nothing tells the person pointing at it what it does. Give it a ToolTip.Tip that says what it does.
+  finding Controls/PropertyEditorWrapper.axaml:274 This TextBox has no tooltip, so nothing tells the person pointing at it what it does. Give it a ToolTip.Tip that says what it does.
+  finding Controls/PropertyEditorWrapper.axaml:280 This Button has no tooltip, so nothing tells the person pointing at it what it does. Give it a ToolTip.Tip that says what it does.
+  finding Controls/PropertyEditorWrapper.axaml:294 This ComboBox has no tooltip, so nothing tells the person pointing at it what it does. Give it a ToolTip.Tip that says what it does.
+  finding Controls/PropertyEditorWrapper.axaml:311 This AutoCompleteBox (FreeFormBox) has no tooltip, so nothing tells the person pointing at it what it does. Give it a ToolTip.Tip that says what it does.
+  finding Controls/PropertyEditorWrapper.axaml:345 This NumericUpDown has no tooltip, so nothing tells the person pointing at it what it does. Give it a ToolTip.Tip that says what it does.
+  finding Controls/PropertyEditorWrapper.axaml:367 This Button has no tooltip, so nothing tells the person pointing at it what it does. Give it a ToolTip.Tip that says what it does.
+  finding Controls/PropertyEditorWrapper.axaml:388 This TextBox has no tooltip, so nothing tells the person pointing at it what it does. Give it a ToolTip.Tip that says what it does.
+  finding Controls/PropertyEditorWrapper.axaml:393 This Button has no tooltip, so nothing tells the person pointing at it what it does. Give it a ToolTip.Tip that says what it does.

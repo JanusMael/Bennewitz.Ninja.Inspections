@@ -10,3 +10,4 @@ BNXQ1007: inspected 15, findings 0, skipped 0
 BNXQ1008: inspected 5, findings 0, skipped 0
 BNXQ1009: inspected 0, findings 0, skipped 0
 BNXQ1010: inspected 0, findings 0, skipped 0
+BNXQ1011: inspected 15, findings 0, skipped 0
