@@ -17,11 +17,14 @@ public sealed class Offender
     /// <summary>BNAQ1001: the same parameter, required — this one is correct.</summary>
     public void Required(CancellationToken token) { }
 
+    // BNCQ1002: these two leaks are the defects the fixture exists to hold, so they are suppressed here.
+#pragma warning disable BNCQ1002
     /// <summary>BNAQ1002: a leaked serializer type.</summary>
     public JsonNode? Leaked() => null;
 
     /// <summary>BNAQ1002: the same leak, wrapped — a shape that fools an outer-type-only check.</summary>
     public Task<JsonNode?> LeakedNested() => Task.FromResult<JsonNode?>(null);
+#pragma warning restore BNCQ1002
 }
 
 /// <summary>

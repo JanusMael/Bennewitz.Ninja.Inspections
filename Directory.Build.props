@@ -17,7 +17,7 @@
     <GenerateAutoVersionedAssemblyInfo>true</GenerateAutoVersionedAssemblyInfo>
     <AssemblyCompany>Bennewitz.Ninja</AssemblyCompany>
     <!-- The repository's, for what ships nothing: tests, tools and the scripts. AutoVersioning
-         fails any project without one (BAUTOVERSIONING03). Each family's packages set their own:
+         fails any project without one (BNAV03). Each family's packages set their own:
          XamlQuality, AssemblyQuality or CodeQuality, in their csproj, which is read after this.
          PublicVersion is in Directory.Build.targets, where Version already has its default. -->
     <AssemblyProduct>Inspections</AssemblyProduct>
@@ -69,6 +69,25 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers"
+                      PrivateAssets="all"
+                      IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+  </ItemGroup>
+
+  <!-- Bennewitz.Ninja.CodeQuality, every rule at its default, the maintainer's decision of
+       2026-11-10: the source-side twin of the AssemblyQuality tests. Its rules report while the code
+       is written what AssemblyQuality finds after the build, and the shapes Inspections'
+       docs/exception-resilience.md measured to end the process or fail silently: a timer, thread or
+       watcher callback outside a try/catch, a gate released outside a finally, an async lambda an Rx
+       operator never awaits. Each rule is inert where what it reads is out of reach. A finding that
+       cannot throw on real input is suppressed where it stands, with the reason. Private: nothing a
+       package ships carries it.
+
+       This repository is CodeQuality's source, so the published package is the one that gates the
+       build, not the head being changed, and the two projects that hold the source never take it:
+       one restore never holds a project and a package of the same id, as for AssemblyQuality in
+       Directory.Packages.props. -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'CodeQuality' and '$(MSBuildProjectName)' != 'CodeQuality.Tests'">
+    <PackageReference Include="Bennewitz.Ninja.CodeQuality"
                       PrivateAssets="all"
                       IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
   </ItemGroup>
