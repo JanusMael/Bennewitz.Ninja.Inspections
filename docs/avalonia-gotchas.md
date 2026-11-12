@@ -1256,7 +1256,19 @@ Measured on Avalonia 12.1.3 and .NET 10.0.14, headless, on Linux and here on Win
 
 **Fix:** Have the UI-thread handler remember each exception it handles, in a `ConditionalWeakTable`, with an aggregate's flattened inner exceptions, and treat an unobserved `AggregateException` whose inner exceptions are all remembered as the second report: keep it out of the log and off stderr. In tests, collect, `GC.Collect()` then `GC.WaitForPendingFinalizers()`, at the end of every test that throws on the dispatcher, so its second report arrives inside it.
 
-Measured on Avalonia 12.1.3, headless, the cause read in the source at the tag, not reproduced here: a throwing job posted inside a running application, then collections until the second report arrived carrying the same exception object, in 11 cases of about 15 to 30 ms each. On a Windows CI's test order, one surfaced inside an unrelated test as a warning on stderr, and a recorder of `UnobservedTaskException` found 40 in one suite run.
+Measured on Avalonia 12.1.3, headless, the cause read in the source at the tag, not reproduced here: a throwing job posted inside an application's run hosting a headless session, not an application on a real platform, then collections until the second report arrived carrying the same exception object, in 11 cases of about 15 to 30 ms each. On a Windows CI's test order, one surfaced inside an unrelated test as a warning on stderr, and a recorder of `UnobservedTaskException` found 40 in one suite run.
+
+⚠ **A cancellation thrown from a posted job is reported as a failure, twice, and never as a cancellation.** Read in the source at 12.1.3: `InvokeCore` catches every exception, `OperationCanceledException` included, and calls `SetException`, which faults the job's task rather than cancelling it, before `Dispatcher.UnhandledException` is raised. A cancelled task raises no unobserved exception; a faulted one does. Measured, headless, on Windows 11 and in CI on Linux, macOS and Windows, not reproduced here: five more cases, each throwing `OperationCanceledException` or `TaskCanceledException` from a posted job, alone or inside an aggregate, each reached the UI-thread handler as a failure and came back at a later collection as an unobserved task exception wrapping the same object.
+
+### A `Post` to a dispatcher that has shut down is dropped, and nothing says so
+
+**Symptom:** Work posted from a background thread or a finalizer as the application closes, such as a dialog, a save or a log flush, never runs, and the caller cannot tell.
+
+**Cause:** Read in Avalonia's source at 12.1.3, not measured: `Dispatcher.InvokeAsyncImpl` (`src/Avalonia.Base/Threading/Dispatcher.Invoke.cs`, lines 399 to 451) enqueues an operation only while `_hasShutdownFinished` is false; after that it marks the operation `Aborted` and returns, without a throw. `Post` (lines 616 to 632) returns nothing, so the job is lost and its caller cannot know. Shutting down, `StartShutdownImpl` and then `ShutdownImpl` (`Dispatcher.MainLoop.cs`, lines 106 to 125 and 128 to 156) first abort every job still queued, and only then set `_hasShutdownFinished`. With `InvokeAsync`, the operation's task is then the already-cancelled `s_abortedTask` (`DispatcherOperation.cs`, lines 344 to 351), so awaiting it throws `TaskCanceledException`.
+
+**Fix:** Where the caller needs to know that the work ran, use `InvokeAsync` and await it: a `TaskCanceledException` then says it never did. Work that must happen before the application exits belongs on the UI thread before shutdown starts, not posted to it from elsewhere as the application closes.
+
+Read only, not measured: a headless suite shares one dispatcher across its tests, so no test shut it down.
 
 ---
 
@@ -1679,6 +1691,8 @@ Measured on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and Semi.Avalonia 12.1
 **Fix:** Start the other thread inside a dispatched job and join it there. `CheckAccess()` then answers false on it, and the guard throws as it should. Use a `new Thread` joined in the job rather than `Task.Run(…).GetAwaiter().GetResult()`, which xUnit's analyser reports as `xUnit1031`.
 
 Measured on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and xUnit v3, through a `HeadlessUnitTestSession`, headless on Linux x64, not reproduced here.
+
+⚠ **Outside a test, the same cause takes a thread before the application starts.** Read in the source at 12.1.3: `CurrentDispatcher` (`Dispatcher.ThreadStorage.cs`, lines 26 to 36) builds a dispatcher for a calling thread that has none, bound to that thread, and `UIThread` (lines 55 to 69) answers `s_uiThread`, else `CurrentDispatcher`. So a library that reads `Dispatcher.UIThread` or `CurrentDispatcher` before any dispatcher exists, on a background thread, in a finalizer or in a static initializer, makes that thread the UI thread. Inferred, not measured: `InitializeUIThreadDispatcher` (lines 81 to 88), through which a platform installs its dispatcher, begins with `UIThread.VerifyAccess()`, which would then throw on the real UI thread; which platforms call it at start-up was not read. Record the UI thread's dispatcher on the UI thread once the application has started, and post to that one from other threads, a finalizer included. Measured, headless, not reproduced here: inside a running session, `Dispatcher.UIThread` read on another thread returned the session's dispatcher, and a read on the finalizer thread in place of the recorded dispatcher still reached the UI thread. So a headless test cannot catch the read; only a run before any dispatcher exists could.
 
 ### A headless drag is a hover unless each move carries the button
 
