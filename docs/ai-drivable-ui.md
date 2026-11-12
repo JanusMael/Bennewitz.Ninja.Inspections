@@ -338,6 +338,28 @@ application parks its window against a screen edge and sends it to the bottom of
 has a handle (`SetWindowPos(HWND_BOTTOM, NOMOVE|NOSIZE|NOACTIVATE)`), for **every** window it opens,
 through one helper. Windows clamps a top-level window back on screen, so "off screen" is not
 available; parking plus Z-order is. Leave an opt-out for harnesses that need the foreground.
+
+**Or give the application a desktop of its own, where nothing reaches the person's screen.** On Windows,
+`CreateDesktopW(name, NULL, NULL, 0, GENERIC_ALL, NULL)` makes a second desktop in the process's own window
+station. Start the application with `STARTUPINFOW.lpDesktop` set to that name, and call `CloseDesktop` once it
+has ended. Its windows and dialogs are created and work, its child processes inherit the desktop, and since
+nothing switches to it, nothing shows and nothing can be clicked by accident. Measured with a Qt 6
+application, IDA Pro 9.3, on Windows 11, not reproduced here:
+
+- **Drive it from inside, never by input.** The hidden desktop is never the input desktop, so no real mouse
+  or keyboard event reaches it, and nothing in it is active: `QApplication.activeWindow()` was null. Timers
+  inside the process answered its modal dialogs, a form and a yes/no, and pasted into a dock window, by
+  setting values and calling `click()`. The same runs on the person's desktop had shown them every window.
+- ⚠ **A native dialog blocks invisibly.** Windows' own file-open dialog, which the toolkit's code cannot
+  answer, held the run with nothing on any screen. Bound every run: wait with a timeout, then
+  `TerminateProcess`. A 90-second bound is what ended the probe of exactly this.
+- **Every language makes the same calls.** Python's `subprocess.STARTUPINFO` has no `lpDesktop`, so it takes
+  `ctypes`; C# and PowerShell reach the same functions through P/Invoke. An environment passed to
+  `CreateProcessW` is a Unicode block, flagged `CREATE_UNICODE_ENVIRONMENT`, sorted by name ignoring case.
+
+Reach for it only where the application cannot run headless. The toolkit's own offscreen platform comes
+first, Avalonia.Headless or Qt's `QT_QPA_PLATFORM=offscreen`, and on Linux Xvfb or the offscreen platform does
+this job.
 The port's helper, [`HarnessWindowPlacement.cs`](ai-drivable-ui/HarnessWindowPlacement.cs), does all
 of this and the paragraph below.
 
