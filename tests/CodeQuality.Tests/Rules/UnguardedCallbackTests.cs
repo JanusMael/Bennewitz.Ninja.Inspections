@@ -81,6 +81,94 @@ public sealed class UnguardedCallbackTests
             """);
 
     /// <summary>
+    /// A delegate read from a local fires at the local's name at each use, whatever the local holds: a
+    /// lambda, an anonymous method, a method group, or another such local. Measured: a lambda
+    /// subscribed through a local went unreported where the same body as a local function was reported.
+    /// </summary>
+    [Fact]
+    public Task A_local_holding_the_callback_fires_at_each_use() =>
+        Run("""
+            using System.Diagnostics;
+            using System.IO;
+            using System.Threading;
+
+            public sealed class Background
+            {
+                public void Wire(Process process)
+                {
+                    DataReceivedEventHandler record = (_, e) => { Work(); };
+                    process.OutputDataReceived += {|BNCQ1009:record|};
+                    process.ErrorDataReceived += {|BNCQ1009:record|};
+
+                    ThreadStart start = delegate { Work(); };
+                    new Thread({|BNCQ1009:start|}).Start();
+
+                    WaitCallback named = Loop;
+                    ThreadPool.QueueUserWorkItem({|BNCQ1009:named|});
+
+                    ThreadStart again = start;
+                    new Thread({|BNCQ1009:again|}).Start();
+                }
+
+                private void Loop(object? state)
+                {
+                    Work();
+                }
+
+                private static void Work() => File.ReadAllText("state.txt");
+            }
+            """);
+
+    /// <summary>
+    /// A local whose value is not the one its declaration gives stays silent: assigned again, passed by
+    /// <c>ref</c>, declared with no initializer, or a parameter. So does a local holding a guarded body.
+    /// </summary>
+    [Fact]
+    public Task A_local_that_may_hold_another_value_or_a_guarded_body_stays_silent() =>
+        Run("""
+            using System;
+            using System.IO;
+            using System.Threading;
+
+            public sealed class Background
+            {
+                public void Wire(ThreadStart given)
+                {
+                    ThreadStart reassigned = () => Work();
+                    reassigned = Guarded;
+                    new Thread(reassigned).Start();
+
+                    ThreadStart referenced = () => Work();
+                    Replace(ref referenced);
+                    new Thread(referenced).Start();
+
+                    ThreadStart later;
+                    later = () => Work();
+                    new Thread(later).Start();
+
+                    new Thread(given).Start();
+
+                    ThreadStart guarded = () =>
+                    {
+                        try { Work(); } catch (Exception error) when (error is not OutOfMemoryException) { Log(error); }
+                    };
+                    new Thread(guarded).Start();
+                }
+
+                private static void Replace(ref ThreadStart start) => start = Guarded;
+
+                private static void Guarded()
+                {
+                    try { Work(); } catch (Exception error) { Log(error); }
+                }
+
+                private static void Work() => File.ReadAllText("state.txt");
+
+                private static void Log(Exception? error) { }
+            }
+            """);
+
+    /// <summary>
     /// Not wholly guarded: a statement outside the try, a catch narrower than everything, a catch with
     /// a filter that may let more than a fatal exception through, a catch that ends in a throw, and a
     /// try with no catch at all.

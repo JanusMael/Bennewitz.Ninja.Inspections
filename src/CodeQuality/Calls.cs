@@ -25,6 +25,13 @@ internal static class Calls
         Unwrap(value) as IMethodReferenceOperation;
 
     /// <summary>
+    /// The local a delegate is read from, seen through any conversion around it; null for any other
+    /// value.
+    /// </summary>
+    public static ILocalReferenceOperation? LocalReference(IOperation value) =>
+        Unwrap(value) as ILocalReferenceOperation;
+
+    /// <summary>
     /// The called method's name in the source, without its type arguments, or the whole call
     /// where it has no name of its own.
     /// </summary>
