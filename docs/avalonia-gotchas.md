@@ -115,6 +115,8 @@ Measured on Avalonia 12.1.3 with the Fluent theme: a bar 60 tall was shown in an
 
 So the same over-sized child paints over its neighbours inside a `Border`, and is contained inside a `UserControl`. There is no single answer to "will I see it".
 
+Read in the source at 12.1.3, the `True` is `TemplatedControl`'s, which `ContentControl` inherits, so every templated control clips, a `CheckBox` and an `ItemsControl` among them, as the entry on an adorner whose root has a `Margin` says.
+
 **Two details that make the numbers confusing:**
 
 - **The overflow is CENTRED on the slot, not spilled downward.** A 50-high child in a zero-high row reports `Bounds.Top = -25`, height 50 — 25 above and 25 below. A measurement that looks like it straddles a boundary probably is.
@@ -195,6 +197,16 @@ Measured on Avalonia 12.1.3 and .NET 10.0.14, headless with headless drawing, on
 **Fix:** Choose by where the text should sit. `LineHeight` set to the pitch keeps each line's text centred in the pitch; `LineSpacing` set to the pitch less the natural height keeps it at the top of each line, as text at the natural height would be.
 
 Measured on Avalonia 12.1.3, headless with Skia drawing, on Linux in JetBrains Mono at 12 pt, a natural line of 15.84 with its baseline at 12.24: `LineHeight` 20 gave lines of 20 with the baseline at 14.32, 2.08 lower, half the 4.16 extra; `LineSpacing` 4.16 gave lines of 20 with the baseline still at 12.24, and five wrapped lines took 100. Here on Windows, each twice, a three-line `TextBlock` at 16 px in Consolas and in Cascadia Mono: `LineHeight` at the natural height plus 4 moved every baseline down by 2, from 13.25 to 15.25 in Consolas, and `LineSpacing` 4 left it at 13.25; both made each line 4 taller and the layout 12 taller.
+
+### A `Border`'s translucent stroke lies half over its own `Background` and half over what is beneath it
+
+**Symptom:** A contrast figure worked out for a `Border`'s translucent `BorderBrush` composited over the border's `Background` disagrees with the pixels drawn. A stroke of black at 0.87, `#DD000000`, over a yellow row's fill drew `#121102`, where the ink over the fill alone gives `#221F00`.
+
+**Cause:** The background is drawn only to the middle of the stroke, so the inner half of the stroke lies over the `Background` and the outer half over whatever is beneath the border. Avalonia's own documentation of `BackgroundSizing.CenterBorder` says the background is visible underneath half of the border where the border is translucent. Inferred from the pixel, not read in the source: `CenterBorder` is `Border`'s default at 12.1.3.
+
+**Fix:** Score a translucent stroke over both grounds, the `Background` and what lies beneath the border, and take the worse. An opaque stroke reads the same either way.
+
+Measured on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and Semi.Avalonia 12.1.0.1, headless on Linux with Skia, not reproduced here: a plain `Border` with `BorderThickness="0,1,0,0"` and `BackgroundSizing` unset, its `BorderBrush` `#DD000000`, its `Background` a yellow row's fill, over a window ground of `#17151C`. The stroke drew `#121102`: the ink over the fill at an alpha of `0x80`, over the ground.
 
 ---
 
@@ -326,6 +338,32 @@ Measured on Avalonia 12.1.3 and Semi.Avalonia 12.1.0.1, dark variant, headless o
 
 ⭐ **Candidate rule.** A `FocusAdorner` setter in a style whose selector has an activator, or in a style nested in one, is visible to a scan. A ring an application inherits from a theme outside the scanned markup, as Semi's `ToggleButton`'s, is not.
 
+### An adorner whose root has a `Margin` is clipped short by that margin on its right and bottom
+
+**Symptom:** A focus ring drawn outside its control, its template's root a `Border` with `Margin="-4"`, is cut 4 px short on its right and bottom wherever a clipping ancestor's edge is near, while its left and top reach that edge. A check box brought into view at the foot of a `ScrollViewer` loses the bottom of its ring 4 px above the viewer's edge.
+
+**Cause:** Read in Avalonia's source at 12.1.3: an adorner is clipped twice. The compositor walks the adorned element's clipping ancestors and pushes each one's `ClipToBounds` rectangle and `Clip` in its own coordinates (`ServerCompositionVisual.Adorners.cs`, `AdornerHelper_RenderPreGraphPushAdornerClip` and `AdornerLayer_WalkAdornerParentClipRecursive`, lines 83 to 146), which is right. And `AdornerLayer.ArrangeOverride` sets the adorner's `Clip` to `AdornerHelper.CalculateAdornerClip(adorned)` (`AdornerLayer.cs`, `UpdateClip`, lines 297 to 306), a geometry worked out in the adorned element's coordinates (`AdornerHelper.cs`, lines 119 to 181), which the adorner applies in its own. `ArrangeOverride` compensates the adorner's transform for a position other than (0,0), lines 261 to 267, but not the clip, so a margin of -4 moves the clip 4 px up and to the left. Together the two clips cut the right and bottom 4 px early and leave the left and top where the walk puts them.
+
+**Fix:** Keep the adorner's root the size of the adorned element, a `Panel`, and put the margin on a child, so that both clips agree.
+
+```xml
+<FocusAdornerTemplate>
+    <Panel>
+        <Border Margin="-4" BorderThickness="2" BorderBrush="{DynamicResource RingBrush}" />
+    </Panel>
+</FocusAdornerTemplate>
+```
+
+Measured on Avalonia 12.1.3 and .NET 10, headless on Linux with Skia, the cause read in the source at the tag, not reproduced here: a check box's ring drawn 4 px outside its 16 px box, its root a `Border` with `Margin="-4"`, the box brought into view at the foot of a `ScrollViewer` whose presenter ends at y=700. The ring's `Bounds` were (-4,-4,24,24) and its `Clip.Bounds`, in the adorned element's coordinates, (-209,-675,428,697), so the clip's own bottom was y=700; the ring's pixels stopped at y=696, exactly the margin short. With the margin on a child of a `Panel` root, the same ring was drawn whole at the viewer's foot. This fix and the two below were each red in a headless pixel fixture before and green after, the fixture failing against a break of each fix in turn.
+
+⚠ **A templated control clips what reaches past it.** Read in the source at 12.1.3: `TemplatedControl` sets `ClipToBounds` to true (`TemplatedControl.cs`, line 130), so a `CheckBox`, an `ItemsControl` and every other templated control clip, through the compositor's walk, a ring that reaches past them. Measured: a box flush with an `ItemsControl`'s left edge lost its ring's left side. A ring outside a control needs `ClipToBounds="False"` on the control and on any templated ancestor it stands flush against.
+
+⚠ **A `ScrollViewer` brings a focused control into view by the control's own bounds,** so a ring reaching past the control is cut at the viewer's edge when the control lands flush with it. Read in the source at 12.1.3: `ScrollViewer.OnGotFocus`, lines 789 to 794, calls `ControlExtensions.BringIntoView` with `new Rect(Bounds.Size)`. `RequestBringIntoViewEventArgs.TargetRect` is settable, so a class handler on `Control.RequestBringIntoViewEvent` for the control's type, inflating `TargetRect` when `TargetObject` is the control, brings the ring in too. Measured: the box then arrived 6 px inside the edge, its ring whole.
+
+⚠ **A `ToggleButton` style does not reach a `CheckBox`, and a check box's ring adorns its template's focus target.** A type selector matches the exact type, as the entry on a `ListBox` bound to `ItemsSource` says, so `Selector="ToggleButton"` never reaches a `CheckBox`, which then draws the adorner layer's default ring, the theme's. Measured: the check boxes drew Semi's ring in every state, never the checked ring the application's `ToggleButton` style gives its toggles. Read, not measured: `Control.OnGotFocus` adorns `GetTemplateFocusTarget()` (`Control.cs`, lines 392 to 422), and Semi marks a `CheckBox`'s `PART_GlyphPanel` with `TemplatedControl.IsTemplateFocusTarget`, so a ring template that binds to properties of the element it adorns, as the fix in the entry above does, reads them from that panel and not from the `CheckBox`.
+
+⭐ **Candidate rule.** A `FocusAdornerTemplate` whose root element sets a `Margin` is visible to a scan.
+
 ---
 
 ### An unresolvable `DynamicResource` is silent in FOUR places at once
@@ -340,6 +378,16 @@ Measured on Avalonia 12.1.3 and Semi.Avalonia 12.1.0.1, dark variant, headless o
 4. **A screenshot pass can miss it entirely** — all nine elements were conditional on a keybind conflict, and the sandbox config used for a live UIA/screenshot pass had none, so not one was ever on screen.
 
 **Fix:** a static guard, not vigilance. `ThemeResourceIntegrityTests` asserts every `LE.*` key referenced in AXAML is declared, and every declared key is referenced from AXAML **or C#** — six of the eight are resolved from code (`BoolToStatusBrushConverter`, `LinkifiedTextBlock`), so an AXAML-only scan calls them all dead.
+
+### A dangling `StaticResource` alias compiles, and `TryGetResource` throws for its key
+
+**Symptom:** A dictionary entry `<StaticResource x:Key="ButtonSolidForeground" ResourceKey="AppAccentInkThatIsNot" />`, whose `ResourceKey` names nothing, builds with no `AVLN` error or warning. Asking the application for the entry's key, `Application.Current.TryGetResource("ButtonSolidForeground", ThemeVariant.Dark, out var value)`, throws `KeyNotFoundException: Static resource 'AppAccentInkThatIsNot' not found.` the first time: a `Try` method that throws rather than answering false.
+
+**Cause:** Such an alias is a deferred entry, resolved the first time anything looks it up, as the entry on Semi's palette keys reads in the source, so a key it cannot find is found missing then and not at build. That the miss surfaces as this exception from `TryGetResource` is measured, not read.
+
+**Fix:** Ask for every alias in a test. Look each alias's key up on the application, under each variant, and catch `KeyNotFoundException` to name the alias whose target is missing.
+
+Measured on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and Semi.Avalonia 12.1.0.1, dark variant, headless on Linux with Skia, not reproduced here: such an entry, in a dictionary the application merges by `ResourceInclude`, built clean with `-t:Rebuild`, and the lookup threw. Measured here too, by the runtime theme check's tests, `ThemeRuntimeCheckTests`, on Avalonia 12.1.3 headless: `Application.TryGetResource` throws for an alias whose target neither its variant's dictionary nor `Default` holds. Not tested: `FindResource`, `TryFindResource`, and a control's `DynamicResource` to the key.
 
 ---
 
@@ -364,6 +412,26 @@ Measured on Avalonia 12.1.3 and Semi.Avalonia 12.1.0.1, dark variant, headless o
 **Fix:** a guard that does what the app does. **Lay out text** in every bundled family by the URI consumers are told to use, and assert the family the text was shaped with. `AssetLoader.Exists` is weaker: it proves the file is there, not that the name after the `#` matches the font inside it. The headless platform's default drawing (`UseHeadlessDrawing = true`) is enough — every case above behaved identically under it and under Skia, except for which font a fallback list lands on.
 
 <sub>Measured on Avalonia 12.1.0, Windows, on the headless platform under both Skia and headless drawing, using a library's bundled JetBrains Mono NL and that library's pre-rename assembly name. The fallback list shaped with `Consolas` under Skia, and with the stub's `BareMinimum` under headless drawing.</sub>
+
+### A `ResourceInclude` of a file whose root is `Styles` is a build error
+
+**Symptom:** Merging a styles file as a dictionary, `<ResourceInclude Source="avares://…/Themes/Controls.axaml" />` in `Application.Resources`, fails the build with `AVLN2000: Resource "avares://…/Themes/Controls.axaml" is defined as "Avalonia.Styling.Styles" type in the "…" assembly, but expected "Avalonia.Controls.IResourceDictionary".`
+
+**Cause:** The XAML compiler resolves the include and checks its root's type against what a `ResourceInclude` loads.
+
+**Fix:** A file whose root is `Styles` goes in `Application.Styles`, by `StyleInclude`; a `ResourceDictionary` goes in `MergedDictionaries`, by `ResourceInclude`. The compiler enforces the split.
+
+Measured on Avalonia 12.1.3, building a compiled application, not reproduced here.
+
+### At run time an application holds no `ResourceInclude`: its merged dictionaries are plain `ResourceDictionary` objects
+
+**Symptom:** A test or a tool looks for a merged file among `Application.Current.Resources.MergedDictionaries` by its URI, as a `ResourceInclude` with a `Source`, and finds nothing, though the application merges it.
+
+**Cause:** Measured: for four `<ResourceInclude Source="avares://…" />` in a compiled application's `Application.Resources`, `MergedDictionaries` held four plain `Avalonia.Controls.ResourceDictionary` objects, with no `ResourceInclude` and no `Source`, each with its file's own keys. Semi's own merged dictionaries read the same way. Inferred, not measured: the XAML compiler puts the included dictionary in the include's place at build time, which fits the `XamlLoadException` a `StyleInclude` built in code throws, in the entry on an unresolvable `avares://` URI.
+
+**Fix:** Read the file's keys from the file, and ask the application for each key.
+
+Measured on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and Semi.Avalonia 12.1.0.1, headless on Linux, not reproduced here, with a probe printing each merged entry's type, `Source` and key count: 30, 178, 2 and 12 keys, matching the four files.
 
 ---
 
@@ -481,7 +549,7 @@ Measured on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and Semi.Avalonia 12.1
 
 **Symptom:** An application redefines a key of Semi's palette in its own resources, such as the colour `SemiBlue5Color` or the brush `SemiColorPrimary`, and Semi's controls keep Semi's colour, though `Application.TryGetResource` returns the redefinition.
 
-**Cause:** Read in Semi's source at `v12.1.0.1`: its control themes reference component tokens, such as `ButtonDefaultPrimaryForeground`, by `DynamicResource`, and each is a `StaticResource` alias, in Semi's own `Themes/Dark/*.axaml`, of a palette key, as `<StaticResource x:Key="ButtonDefaultPrimaryForeground" ResourceKey="SemiColorPrimary" />`. `SemiTheme.axaml` merges both the palette, `Tokens/_index.axaml`, and the dark tokens, and no Semi control template references the blue family directly. 92 dark component tokens derive from `SemiBlue*`, all aliasing the `SemiColorPrimary` family: Primary, Pointerover, Active, Disabled, Light, LightPointerover and LightActive. Inferred, not read: the aliases resolve inside Semi's own dictionary scope, where Semi's palette is found before `Application.Resources`.
+**Cause:** Read in Semi's source at `v12.1.0.1`: its control themes reference component tokens, such as `ButtonDefaultPrimaryForeground`, by `DynamicResource`, and each is a `StaticResource` alias, in Semi's own `Themes/Dark/*.axaml`, of a palette key, as `<StaticResource x:Key="ButtonDefaultPrimaryForeground" ResourceKey="SemiColorPrimary" />`. `SemiTheme.axaml` merges both the palette, `Tokens/_index.axaml`, and the dark tokens, and no Semi control template references the blue family directly. 92 dark component tokens derive from `SemiBlue*`, all aliasing the `SemiColorPrimary` family: Primary, Pointerover, Active, Disabled, Light, LightPointerover and LightActive. Read in Avalonia 12.1.3's source and the XamlX it pins: such an alias is a deferred entry of its dictionary. When it is added, it takes a snapshot of the resource nodes on the XAML parent stack, which runs through the theme's include chain, here `Themes/Dark/Button.axaml`, the dark `_index.axaml`, `SemiTheme`'s dictionary and `SemiTheme` itself, and ends with `Application.Current`. The first time anything looks the alias up, it searches that snapshot innermost first, and the first hit replaces the entry for good. Inside one dictionary, its own entries come first, then its theme dictionary for the variant, those that variant inherits, `Default`'s, and then its merged dictionaries, the last first. Semi defines the palette key in its own dictionaries, so the search ends there and never reaches the application, though the application is on the stack. Inferred from a text check of Semi's source: all 557 `StaticResource` references in its 51 dark theme files name keys defined inside Semi's own dark chain, so none falls through to the application. A control's `DynamicResource`, by contrast, climbs its styling parents to the application, whose `Resources` it searches before its `Styles`, so a component token the application redefines wins. Drawn here on Avalonia 12.1.3 by the theme audit's pixel tests, `DrawnColourTests`: an alias reads its own dictionaries before the application's resources, in the variant of the theme dictionary around it.
 
 **Fix:** Redefine the component tokens the controls read, such as `ButtonDefaultPrimaryForeground`, `CheckBoxCheckedDefaultBackground` and `TextBoxFocusBorderBrush`, not the palette keys behind them. Rewriting Semi's own palette dictionary at startup was not tried.
 
@@ -1174,11 +1242,21 @@ Measured on Avalonia 12.1.3 and .NET 10.0.14, headless, on Linux and here on Win
 
 **Symptom:** Work handed to the UI thread with `InvokeAsync` and not awaited fails with nothing in the log, even with a dispatcher handler in place. The exception surfaces only as `TaskScheduler.UnobservedTaskException`, at some later garbage collection.
 
-**Cause:** Inferred, not read in the source: `InvokeAsync` returns an operation whose task carries the exception, and nothing observes it, where a `Post` returns nothing to carry it, so its exception goes to `Dispatcher.UnhandledException`, as the first entry in this section says.
+**Cause:** Inferred, not read in the source: `InvokeAsync` returns an operation whose task carries the exception, and nothing observes it, where a `Post` returns nothing to carry it, so its exception goes to `Dispatcher.UnhandledException`, as the first entry in this section says. A posted job's operation keeps the exception on a task of its own as well, which nothing observes either, as the next entry reads in the source.
 
 **Fix:** Await the operation, or observe its task and log the fault. Use `Post` where the work truly runs on its own and the dispatcher's handler should see its failure.
 
 Measured on Avalonia 12.1.3 and .NET 10.0.14, headless, on Linux and here on Windows 11, each case twice in its own process with the same result: `InvokeAsync(Action)` and `InvokeAsync(Func<Task>)`, the second throwing after an `await Task.Yield()`, each throwing `InvalidOperationException` and never awaited. With a dispatcher handler installed, neither reached it; after a forced collection both arrived as `TaskScheduler.UnobservedTaskException`.
+
+### Every exception a `Dispatcher.Post` job throws is reported twice, the second time late, as an unobserved task's
+
+**Symptom:** An application that handles UI-thread exceptions through `Dispatcher.UnhandledException` and logs `TaskScheduler.UnobservedTaskException` reports every UI-thread failure twice. The second report arrives at some later garbage collection, wrapped in an `AggregateException`, whether or not the first handler set `Handled`. In headless tests, a test that throws from a posted job leaves an unobserved task exception that a later test's collection raises, inside whatever that test is doing.
+
+**Cause:** Read in Avalonia's source at 12.1.3: `DispatcherOperation.InvokeCore`, `src/Avalonia.Base/Threading/DispatcherOperation.cs` lines 303 to 318, on a throw calls `GetTaskCore()`, which creates the operation's task, sets the exception on it, and only then rethrows into `Dispatcher.UnhandledException`, which a `Post` asks for. Nothing reads a posted job's task, so once the operation is collected the runtime raises `TaskScheduler.UnobservedTaskException` with an `AggregateException` wrapping the same exception object.
+
+**Fix:** Have the UI-thread handler remember each exception it handles, in a `ConditionalWeakTable`, with an aggregate's flattened inner exceptions, and treat an unobserved `AggregateException` whose inner exceptions are all remembered as the second report: keep it out of the log and off stderr. In tests, collect, `GC.Collect()` then `GC.WaitForPendingFinalizers()`, at the end of every test that throws on the dispatcher, so its second report arrives inside it.
+
+Measured on Avalonia 12.1.3, headless, the cause read in the source at the tag, not reproduced here: a throwing job posted inside a running application, then collections until the second report arrived carrying the same exception object, in 11 cases of about 15 to 30 ms each. On a Windows CI's test order, one surfaced inside an unrelated test as a warning on stderr, and a recorder of `UnobservedTaskException` found 40 in one suite run.
 
 ---
 
@@ -1576,6 +1654,31 @@ Two that go with it:
 
 - ⛔ **The command under a `KeyBinding` is asked `CanExecute` BEFORE it is invoked.** A fake command answering `false` records nothing, however perfectly the chord is bound — so the test passes its own setup and proves nothing.
 - ⚠ **Assert the MODIFIER, not just the key.** A gesture written `"C"` instead of `"Ctrl+C"` parses, builds and binds. The negative case is the one worth writing.
+
+### A headless `KeyPressQwerty` presses a key and never releases it, and a button acts on Space as it is released
+
+**Symptom:** A fixture focuses a `ToggleButton` with `Focus(NavigationMethod.Tab)` and calls `window.KeyPressQwerty(PhysicalKey.Space, RawInputModifiers.None)`. The toggle never checks, and nothing throws.
+
+**Cause:** `KeyPressQwerty` raises the key's press alone. Inferred, not read in the source: a `Button`, and a `ToggleButton` with it, acts on Space at the key's release. A `KeyBinding` runs on the press, so the entry above holds, and its `Ctrl+C` needs no release.
+
+**Fix:** Follow the press with its release.
+
+```csharp
+window.KeyPressQwerty(PhysicalKey.Space, RawInputModifiers.None);
+window.KeyReleaseQwerty(PhysicalKey.Space, RawInputModifiers.None);
+```
+
+Measured on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and Semi.Avalonia 12.1.0.1, headless on Linux with Skia, not reproduced here: Space toggled nothing until the release was added; with it, Space checked and then unchecked each of four toggles a keyboard reaches.
+
+### Headless, between dispatched jobs, a thread that asks for the UI thread can become it
+
+**Symptom:** A class guards its constructor with `Dispatcher.UIThread.CheckAccess()`, so that it is built only on the UI thread. A fixture awaits one dispatched job, then builds the class on a pool thread with `Task.Run`, and the guard does not throw: `CheckAccess()` answers true there, and the constructor gets as far as `Application.Current`, which is null on that thread. Built on another thread inside a dispatched job, with the guard removed, the class makes Avalonia's own check throw "The calling thread cannot access this object because a different thread owns it.", naming no type. A test that a class refuses to be built off the UI thread passes or fails for reasons that have nothing to do with the guard.
+
+**Cause:** Read in Avalonia's source at 12.1.3, not measured: `Dispatcher.UIThread` answers `s_uiThread`, else `CurrentDispatcher`, which builds a dispatcher for the calling thread, whose constructor sets `s_uiThread` if it is still null, the first dispatcher created becoming the UI thread's (`src/Avalonia.Base/Threading/Dispatcher.ThreadStorage.cs`, and `Dispatcher.cs` line 45). `Dispatcher`'s internal `ResetBeforeUnitTests` and `ResetForUnitTests` clear `s_uiThread`. Inferred, not read: the headless session calls one of them between jobs, so between jobs whichever thread asks next becomes the UI thread.
+
+**Fix:** Start the other thread inside a dispatched job and join it there. `CheckAccess()` then answers false on it, and the guard throws as it should. Use a `new Thread` joined in the job rather than `Task.Run(…).GetAwaiter().GetResult()`, which xUnit's analyser reports as `xUnit1031`.
+
+Measured on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and xUnit v3, through a `HeadlessUnitTestSession`, headless on Linux x64, not reproduced here.
 
 ### A headless drag is a hover unless each move carries the button
 
