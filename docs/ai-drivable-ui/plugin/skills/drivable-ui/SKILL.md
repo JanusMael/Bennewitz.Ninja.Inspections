@@ -55,7 +55,9 @@ window holds the foreground and raises nothing before clicking its item, and ass
 effect, never that its input was sent. From SSH, a scheduled task with an interactive principal
 reaches the console session; its console showed despite `-WindowStyle Hidden`, and an application it
 starts should not expect the foreground. `AppliedDPI` lagged Settings, so read the scale from
-`RenderScaling`.
+`RenderScaling`. An application that cannot run headless can run on a Windows desktop of its own
+(`CreateDesktopW`, then `lpDesktop`), where no input reaches it: drive it from inside, and bound every run,
+since a native dialog there blocks unseen.
 
 ## 4. Write the check, then break it
 
