@@ -41,15 +41,29 @@ namespace Bennewitz.Ninja.CodeQuality;
 /// method group naming a method or local function declared in source; a method from a reference is
 /// not opened, and is not reported.
 /// </para>
+/// <para>
+/// ⚠ <b>A local is followed only to the one value it can hold.</b> A delegate read from a local is
+/// the body its declaration initializes it with, followed through up to eight locals, where nothing
+/// in the block declaring it assigns it again, passes it by <c>ref</c> or <c>out</c>, or takes a
+/// reference to it, and the finding goes on the local's name at the call. A local assigned anywhere
+/// else, by name in that block, is not read, and is not reported. Measured: a lambda subscribed
+/// through a local of type <c>DataReceivedEventHandler</c> went unreported where the same body as a
+/// local function was reported.
+/// </para>
 /// </remarks>
 internal static class Callbacks
 {
+    /// <summary>How many locals <see cref="Of(IOperation)"/> follows, one holding the next, before it stops.</summary>
+    private const int MaxLocalHops = 8;
+
     /// <summary>
     /// The body the delegate <paramref name="value"/> runs and where a finding about it goes: the
-    /// lambda's arrow, the anonymous method's <c>delegate</c> keyword, or the method group's name at
-    /// the call. Null where the body cannot be read.
+    /// lambda's arrow, the anonymous method's <c>delegate</c> keyword, or the method group's or the
+    /// local's name at the call. Null where the body cannot be read.
     /// </summary>
-    public static Callback? Of(IOperation value)
+    public static Callback? Of(IOperation value) => Of(value, 0);
+
+    private static Callback? Of(IOperation value, int hops)
     {
         if (Calls.Function(value) is { } function)
         {
@@ -77,6 +91,14 @@ internal static class Callbacks
                     return new Callback(body, NameLocation(group.Syntax));
                 }
             }
+        }
+
+        if (hops < MaxLocalHops
+            && Calls.LocalReference(value) is { } held
+            && OnlyValueOf(held) is { } initial
+            && Of(initial, hops + 1) is { } callback)
+        {
+            return new Callback(callback.Body, NameLocation(held.Syntax));
         }
 
         return null;
@@ -193,6 +215,68 @@ internal static class Callbacks
 
     private static bool EndsInThrow(BlockSyntax block) =>
         block.Statements.Count > 0 && block.Statements[block.Statements.Count - 1] is ThrowStatementSyntax;
+
+    /// <summary>
+    /// The one value a local holds wherever it is read: the initializer of its declaration, where
+    /// nothing in the block declaring it assigns it again, passes it by <c>ref</c> or <c>out</c>, or
+    /// takes a reference to it. Null otherwise.
+    /// </summary>
+    private static IOperation? OnlyValueOf(ILocalReferenceOperation held)
+    {
+        ILocalSymbol local = held.Local;
+        if (local.RefKind != RefKind.None
+            || local.DeclaringSyntaxReferences.Length != 1
+            || local.DeclaringSyntaxReferences[0].GetSyntax() is not VariableDeclaratorSyntax { Initializer.Value: { } initial } declarator
+            || held.SemanticModel is not { } model
+            || declarator.SyntaxTree != model.SyntaxTree
+            || IsWrittenAgain(declarator, local.Name))
+        {
+            return null;
+        }
+
+        return model.GetOperation(initial);
+    }
+
+    /// <summary>
+    /// Whether a name the local's declaration gives is written anywhere in the block that declares it:
+    /// on the left of an assignment, compound or deconstructing ones included, passed by <c>ref</c> or
+    /// <c>out</c>, or taken by reference. Read by name, so a local of the same name in a nested scope
+    /// counts too, which only ever leaves a callback unread.
+    /// </summary>
+    private static bool IsWrittenAgain(VariableDeclaratorSyntax declarator, string name)
+    {
+        SyntaxNode scope = (SyntaxNode?)declarator.FirstAncestorOrSelf<BlockSyntax>() ?? declarator.SyntaxTree.GetRoot();
+        foreach (SyntaxNode node in scope.DescendantNodes())
+        {
+            if (node is not IdentifierNameSyntax identifier || identifier.Identifier.ValueText != name)
+            {
+                continue;
+            }
+
+            switch (identifier.Parent)
+            {
+                case ArgumentSyntax argument when argument.RefKindKeyword.IsKind(SyntaxKind.RefKeyword) || argument.RefKindKeyword.IsKind(SyntaxKind.OutKeyword):
+                case RefExpressionSyntax:
+                case PrefixUnaryExpressionSyntax unary when unary.IsKind(SyntaxKind.AddressOfExpression):
+                    return true;
+            }
+
+            foreach (SyntaxNode ancestor in identifier.Ancestors())
+            {
+                if (ancestor is StatementSyntax)
+                {
+                    break;
+                }
+
+                if (ancestor is AssignmentExpressionSyntax assignment && assignment.Left.Span.Contains(identifier.Span))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 
     private static Location NameLocation(SyntaxNode syntax) => syntax switch
     {

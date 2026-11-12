@@ -283,8 +283,10 @@ The rule reports such a body when it is not wholly inside one try statement whos
 `Exception`, or everything, and does not end in a `throw`, with no filter, or one that lets only a
 fatal exception through. It reads a lambda, an
 anonymous method, and a method group naming a method or local function written in the same
-compilation; a method from a reference is not opened. An empty body is not reported. What was
-measured is in the timer, thread, watcher, process and finalizer entries of
+compilation; a method from a reference is not opened. A delegate passed through a local is read
+as what its declaration gives it, and reported at the local's name, unless the block declaring it
+assigns it again, passes it by `ref` or `out`, or takes a reference to it. An empty body is not
+reported. What was measured is in the timer, thread, watcher, process and finalizer entries of
 [`docs/exception-resilience.md`](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/docs/exception-resilience.md#timers-and-threads).
 
 The fix is one try/catch that logs, around the whole body:
