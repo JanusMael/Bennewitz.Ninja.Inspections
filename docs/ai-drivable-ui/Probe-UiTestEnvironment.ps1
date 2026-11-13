@@ -166,7 +166,12 @@ namespace UiTestProbe {
         else {
             Verdict 'A' 'automation APIs, no synthetic input' $null 'AT-SPI carries Avalonia 12''s peers from its X11 backend, under Xwayland, not from the Wayland backend; driving them is measured under GNOME only - UNVERIFIED here'
         }
-        Verdict 'B' 'synthetic input to the real desktop' $false 'Wayland has no XTEST; injection is compositor-specific and may not exist'
+        if (Get-Process -Name gnome-shell -ErrorAction SilentlyContinue) {
+            Verdict 'B' 'synthetic input to the real desktop' $true 'Xwayland offers XTEST, and a click and a key it injected reached Avalonia 12 on its X11 backend, which UsePlatformDetect() chooses (measured under GNOME Shell); an app on the Wayland backend gets none'
+        }
+        else {
+            Verdict 'B' 'synthetic input to the real desktop' $null 'Xwayland usually offers XTEST to an app on the X11 backend, which UsePlatformDetect() chooses; a Wayland client gets none - UNVERIFIED here'
+        }
         Verdict 'C' 'isolated desktop' $null 'Xvfb is X11 only; a nested or headless compositor is the Wayland answer - UNVERIFIED here'
     }
     else {
@@ -178,8 +183,8 @@ namespace UiTestProbe {
     Verdict 'D' 'fully headless toolkit rendering' $true 'always available; proves nothing about chrome, focus or Z-order'
 
     Write-Host ''
-    Write-Host '  The Windows verdicts are measured, by the harnesses this was written for, and so is A'
-    Write-Host '  under GNOME on Wayland. Treat any other verdict as where to start measuring.'
+    Write-Host '  The Windows verdicts are measured, by the harnesses this was written for, and so are A'
+    Write-Host '  and B under GNOME on Wayland. Treat any other verdict as where to start measuring.'
     Write-Host '  docs/ai-drivable-ui.md, section 4, says which layer of verification to reach for.'
     Write-Host ''
 }
