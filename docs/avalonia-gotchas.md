@@ -619,6 +619,16 @@ Avalonia takes a generated container's automation name from the bound **item**. 
 
 ---
 
+### A `TabControl` gives every tab one content view, and only its `DataContext` changes
+
+**Symptom:** Whatever the content view holds belongs to the tab control, not to a tab. In a log viewer with a tab per open file, one log view served every tab: its scroll position, sideways offset, splitter heights and focus went with the tab control, so switching tabs showed the next file at the last one's place. And anything a tab handed the view through an attached property stayed attached after the tab was left, so keys pressed in one file moved another.
+
+**Cause:** Read in Avalonia's source at 12.1.3. With no `PageTransition`, the selected content goes to the one `PART_SelectedContentHost` (`src/Avalonia.Controls/TabControl.cs`, lines 285 to 287 and 312 to 321). A `DataTemplate` is an `IRecyclingDataTemplate`, and `ContentPresenter.CreateChild` hands it the old child (`src/Avalonia.Controls/Presenters/ContentPresenter.cs`, lines 641 to 644), which `DataTemplate.Build` returns as it is (`src/Markup/Avalonia.Markup.Xaml/Templates/DataTemplate.cs`, line 33, `existing ?? ...`). So one view is built, and each tab only moves its `DataContext`.
+
+**Fix:** Keep per-tab state out of the view, or keep it per data context and save and restore it when the data context changes; the entry on `OnDataContextBeginUpdate` under *Bindings / view-model* says where the data context being left can be read. An attached property that hands a control to something must release `args.OldValue` before handing it to `args.NewValue`, or every earlier tab's handler stays on the control.
+
+Measured on Avalonia 12.1.3 and .NET 10, headless on Linux with Skia, not reproduced here, red in a headless fixture before the fix and green after it: with two files open the window held one instance of the log view, its `DataContext` moving between the two files' view models.
+
 ### A `TreeViewItem` generated from `ItemsSource` has NO automation name — not from the template, not from `ToString()`
 
 **Symptom:** A screen reader announces *nothing at all* for every row of a navigation tree, while the AXAML plainly contains `AutomationProperties.Name` and the `TreeView` itself is correctly named.
@@ -887,6 +897,16 @@ Measured on Avalonia 12.1.3, headless with Skia and the Fluent theme: a `ListBox
 
 Measured the same way as the entry above.
 
+### An item added to a `ListBox`'s `SelectedItems` while its `DataContext` changes is listed twice
+
+**Symptom:** While a list's `DataContext` is changing, a handler adds a row to `SelectedItems`. When the change completes, `SelectedItems` holds that row twice. A later deselection removes one copy and leaves the other, so the list reports a row selected that its selection model does not hold.
+
+**Cause:** Read in Avalonia's source at 12.1.3, with the stack traces. A data context change is batched (`StyledElement.DataContextNotifying`, `src/Avalonia.Base/StyledElement.cs`, lines 691 to 727), and `SelectingItemsControl.OnDataContextBeginUpdate` defers the selection model's new source to `EndUpdating` (`src/Avalonia.Controls/Primitives/SelectingItemsControl.cs`, lines 585 to 596). An item added in between is not in the model's old source, so it stays in `WritableSelectedItems` unselected. At the end, `InternalSelectionModel.Update`, through `SyncFromSelectedItems`, selects it in the new source (`src/Avalonia.Controls/Selection/InternalSelectionModel.cs`, lines 65 to 99 and 161 to 198), and the commit's `OnSelectionChanged` adds it to `WritableSelectedItems` a second time.
+
+**Fix:** Make a selection change that depends on the new items after the batch, for instance by posting it to the dispatcher.
+
+Measured on Avalonia 12.1.3 and .NET 10, headless on Linux with Skia, not reproduced here, red in a headless fixture before the fix and green after it.
+
 ### A `ListBox` has no drag selection, and the pressed row keeps the pointer
 
 **Symptom:** Dragging across rows selects only the row the drag began on, and every `PointerMoved` handler reports that first row, never the row under the pointer.
@@ -918,6 +938,26 @@ Measured on Avalonia 12.1.3, headless with Skia and the Fluent theme, with point
 **Fix:** Set `Handled` for `PageUp` and `PageDown` in the handler that scrolls by a page. Leave the keys it does not handle to the list.
 
 Measured on Avalonia 12.1.3, headless with Skia and the Fluent theme: a `ListBox` of 400 strings, 270 pixels tall, with its first row focused and the key pressed through `KeyPressQwerty`.
+
+### In the tunnel phase, one element's handlers run last added first
+
+**Symptom:** Two tunnelling handlers on one element: the one added second hears a key first, and when it marks the key handled the first never hears it. In a log view, PageUp and PageDown reached only the newest handler, while Home, End and the arrows, which it left unhandled, reached all of them.
+
+**Cause:** Read in Avalonia's source at 12.1.3. `EventRoute.RaiseEventImpl` walks the route backwards for `RoutingStrategies.Tunnel` (`src/Avalonia.Base/Interactivity/EventRoute.cs`, lines 121 to 139), and an element's handlers sit in the route in the order they were added, so walking it backwards reverses them too.
+
+**Fix:** Do not depend on the order of two handlers on one element. With `handledEventsToo: false`, the newest one decides for the rest.
+
+Measured on Avalonia 12.1.3 and .NET 10, headless on Linux with Skia, not reproduced here, red in a headless fixture before the fix and green after it.
+
+### `RemoveHandler` removes every subscription of an equal delegate
+
+**Symptom:** A component that re-attaches its handlers to a control it already holds, adding the new ones and then disposing the old, ends up with none, and nothing says so. A tab shown a second time recorded none of its clicks.
+
+**Cause:** Read in Avalonia's source at 12.1.3. `Interactive.RemoveHandler(RoutedEvent, Delegate)` walks the subscriptions and removes each whose `Handler == handler` (`src/Avalonia.Base/Interactivity/Interactive.cs`, lines 81 to 98), and a routed event's CLR `remove` goes there too, as `SelectingItemsControl.SelectionChanged`'s does (`src/Avalonia.Controls/Primitives/SelectingItemsControl.cs`, lines 175 to 179). Two delegates of one instance method on one target are equal, so removing the old subscription removes the new one as well.
+
+**Fix:** Let go of what was attached before attaching again.
+
+Measured on Avalonia 12.1.3 and .NET 10, headless on Linux with Skia, not reproduced here, both ways: handlers that were instance methods went deaf after a second attach, and a local function capturing a per-call local, which makes a delegate of its own on each call, survived it.
 
 ### Key bindings run before `KeyDown`, so a handler first on the key's route sees whether a command ran
 
@@ -1189,6 +1229,16 @@ Measured on Avalonia 12.1.3 and Avalonia.Headless 12.1.3 with Skia, Semi.Avaloni
 ⚠ **A leftover can cost more than nothing.** In the case measured, a search box's view model kept the `IDataErrorInfo` of the WPF code it was ported from, and a subscription that raised `PropertyChanged` for the box's text again whenever validity changed, so that WPF would ask for the error again. Under Avalonia the re-raise drew nothing. It also ran inside Rx's `Throttle` delivery, which holds the throttle's lock on its timer's thread, and fed back into the `CombineLatest` above the throttle. A key typed at that moment took the `CombineLatest`'s lock and waited for the throttle's, while the delivery held the throttle's and waited for the `CombineLatest`'s. In the application that freezes the window; in its test suite it was a test host hanging with no message, which a stack dump from `dotnet-stack`, run through `dnx`, named. A fixture that forces the interleaving failed 3 runs of 3 before the re-raise and the interface were removed and passed 3 of 3 after, and the whole suite then ran 8 times without a stall, where it had stalled in 2 of 3 runs that morning. The deadlock is Rx's and the application's, not Avalonia's; it hid in a WPF idiom that silently does nothing. Measured on the same versions, not reproduced here.
 
 ⭐ **Candidate rule.** A type the compiled assemblies define that implements `IDataErrorInfo` is visible to a scan, and so is markup that names it as an `x:DataType`. A model shared with a front end that does ask, as WPF does, would be reported too.
+
+### Inside `OnDataContextBeginUpdate`, `DataContext` already reads the new value
+
+**Symptom:** An override of `OnDataContextBeginUpdate` that saves state for the data context being left, keyed by `DataContext`, files it under the one arriving. Bindings on the element have not moved yet: a property bound to `{Binding}` still holds the old value there.
+
+**Cause:** Where in the value store the new value is written before the notifying callback runs was not read. Measured: a timeline from a view over a tab switch read the new view model as `DataContext` and the old one's row heights at the begin callback, then the `DataContext` change notification, then the rows moving, then the end callback.
+
+**Fix:** Keep the data context the state belongs to in a field set at `OnDataContextEndUpdate`, or read a binding's target rather than `DataContext` itself.
+
+Measured on Avalonia 12.1.3 and .NET 10, headless on Linux with Skia, not reproduced here, red in a headless fixture before the fix and green after it.
 
 ### A two-way binding whose `ConvertBack` throws writes the source type's default over the source, and does it again after every change
 
