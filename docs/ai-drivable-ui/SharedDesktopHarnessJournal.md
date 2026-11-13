@@ -89,6 +89,8 @@ goes through a portal that asks the user. So **approach B is not merely awkward 
 absent** — and approach C's usual Linux answer, `Xvfb`, is an **X11** server and so only helps an
 X11 (or XWayland) client.
 
+⚠ **That holds for a client on the Wayland backend, not for an Avalonia application under Xwayland.** Avalonia 12's `UsePlatformDetect()` runs an application on its X11 backend in a Wayland session, and Xwayland offers XTEST: under a headless GNOME Shell 50.1 session, Xwayland reported XTEST 2.2, and a click and a key injected through `libXtst` reached an Avalonia 12.1.3 window, in three runs of three. So approach B exists for such an application under GNOME, through Xwayland, with the caveats of the `xdotool` entry in [avalonia-gotchas.md](../avalonia-gotchas.md). What other compositors' Xwayland offers was not measured.
+
 What exists instead is compositor-specific: virtual-pointer and virtual-keyboard protocols that some
 compositors implement and others do not, and headless compositors (`cage`, `weston --backend=headless`,
 `labwc`) for the isolated-desktop role. **None of this is verified in the port** — its harnesses

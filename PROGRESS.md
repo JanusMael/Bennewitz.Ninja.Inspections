@@ -767,15 +767,6 @@ None open.
   as that type**, although the XAML compiler takes the framework's type of the name, outside the
   chain. It decides wrongly only where the consumer's type hides the property's field with another.
   Not measured; found while fixing the case where both types are in the chain.
-- **The environment probe and two Linux entries may take a Wayland session for the Wayland
-  backend.** Found by PR #64's review, each a change of its own, measured under WSL first.
-  `Probe-UiTestEnvironment.ps1` answers no to synthetic input under Wayland, "Wayland has no XTEST",
-  where the `xdotool` entry measured clicks and plain keys reaching an application on the X11
-  backend under Xwayland in a GNOME Wayland session. "`Window.Icon` is a no-op on Wayland" may mean
-  the backend, since under a Wayland session `UsePlatformDetect()` runs the application on X11, where
-  that entry's own fix says `_NET_WM_ICON` is written. And "`XDG_SESSION_TYPE` distinguishes Wayland
-  from X11" names the session, where `TryGetPlatformHandle()?.HandleDescriptor`, `XID` or none,
-  tells the backend, as PR #64's measurement printed.
 
 ## AssemblyQuality
 
