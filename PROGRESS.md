@@ -47,33 +47,52 @@ What remains of the plan for this repository:
 Each family releases alone, from a tag `<family>/vYYYY.Q.MMDD`; [docs/publishing.md](docs/publishing.md)
 is the runbook. Whether a family has anything to release is in its section below.
 
-**Synced to Bennewitz.Ninja.Templates `2026.4.1111`** on 2026-11-11, on the maintainer's word.
+**Synced to Bennewitz.Ninja.Templates `2026.4.1113`** on 2026-11-13, on the maintainer's word.
 
-`repo-conventions.cs` is that release's. It fails a repository whose `packages.push` names an id
-but whose release does not resolve through `release-target.cs`, and one that does not pin
-AssemblyQuality. That second rule skips an id this repository publishes, so both pass here.
+`repo-conventions.cs` and `release-target.cs` are that release's. `resolve` refuses a version below
+the newest nuget.org lists for one of the family's ids, unless nuget.org already lists it, as a
+re-run does. `check` asks a repository to pin CodeQuality beside AssemblyQuality, skipping an id it
+publishes, so both pass here. Both scripts read MSBuild's `-getProperty` JSON from its first brace
+to its last.
 
-`Bennewitz.Ninja.CodeQuality` `2026.4.1104`, the published package, is referenced privately, every
-rule at its default, the family's decision of 2026-11-10.
+`Bennewitz.Ninja.CodeQuality` `2026.4.1111`, the published package, is referenced privately, every
+rule at its default, the family's decision of 2026-11-10. It was `2026.4.1104` until this sync.
+`2026.4.1113`, released from here the same day, is not taken: the sync stays on the version the
+templates pin.
 
 - **It stays out of the two projects that hold its source**, `src/CodeQuality` and
   `tests/CodeQuality.Tests`. One restore never holds a project and a package of the same id, as for
   AssemblyQuality. So the published release gates this build, not the head being changed.
-- **It reported six findings, every one in a fixture that holds that defect on purpose**, and each
-  is suppressed where it stands with that reason:
+- **It reports nothing new.** The six findings `2026.4.1104` reported are each in a fixture that
+  holds that defect on purpose, and each is suppressed where it stands with that reason:
   - `BNCQ1004` in `tests/fixtures/Orphan`'s `FacadeShadow.cs` and `Orphaned.cs`. `Orphaned.cs`'s own
     comment already said BNCQ1004 would report it.
   - `BNCQ1004` in `tests/AssemblyQuality.Tests/Fixtures`' `Shadowed.cs` and `HiddenShadow.cs`.
   - `BNCQ1002` on `Subjects.cs`' `Offender.Leaked` and `LeakedNested`.
+- **The floor, against nuget.org:**
+  - `codequality/v2026.4.1113`, which nuget.org lists, resolves as a re-run; `2026.4.1112`,
+    `2026.3.930` and `2026.1.101` are refused below `2026.4.1113`;
+  - `xamlquality/v2026.4.1113` resolves above `2026.4.1111`, and `2026.4.1109`, listed, as a re-run;
+    `2026.4.1110` and `2026.1.101` are refused;
+  - `assemblyquality/v2026.4.1113` resolves above `2026.4.1031`; `2026.4.1030` and `2026.1.101` are
+    refused.
 - **Verified on Windows:**
   - the build passed with warnings as errors;
-  - 1003 of 1003 tests passed, on `main` at `4012b08`;
+  - 1074 of 1074 tests passed, on `main` at `a2688f7`;
   - pack and `assert-packages` passed, and no packed nuspec gains a dependency;
   - `check` conforms;
   - `tools/real-code.cs` and the mutation runner's smoke passed;
   - both probe builds passed.
 
 No family's package changes.
+
+**Synced to Bennewitz.Ninja.Templates `2026.4.1111`** on 2026-11-11. `repo-conventions.cs` began
+failing a repository whose `packages.push` names an id whose release does not resolve through
+`release-target.cs`, and one that does not pin AssemblyQuality. CodeQuality `2026.4.1104` was first
+referenced privately, and its six findings, above, were suppressed. Build with warnings as errors,
+1003 of 1003 tests at `4012b08`, pack, `assert-packages`, `check`, which conforms,
+`tools/real-code.cs`, the mutation runner's smoke and both probe builds passed on Windows. No
+family's package changes.
 
 **Synced to Bennewitz.Ninja.Templates `2026.4.1109`** on 2026-11-09. The scripts were already that
 release's; it moves AutoVersioning `2026.3.916` to `2026.4.1031`, whose diagnostics are `BNAV00` to
