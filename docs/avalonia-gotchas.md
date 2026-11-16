@@ -1514,13 +1514,16 @@ They are the price of referencing DataGrid, not a defect to hunt for in your cod
 
 ## Linux platform integration
 
-### `Window.Icon` is a no-op on Wayland
+### `Window.Icon` is a no-op on Avalonia's Wayland backend, which a Wayland session does not choose by default
 
-**Symptom:** Setting `Window.Icon = AppIcon.Instance` doesn't change the dock / titlebar / Alt-Tab icon on Wayland (CachyOS / COSMIC, modern GNOME, KDE 6, Sway).
+**Symptom:** Setting `Window.Icon = AppIcon.Instance` doesn't change the dock / titlebar / Alt-Tab icon of an application on Avalonia's Wayland backend (CachyOS / COSMIC, modern GNOME, KDE 6, Sway).
 
-**Cause:** Wayland protocol intentionally does not expose a per-window-icon API. Compositors read icons via `app_id` → `.desktop` file lookup in `$XDG_DATA_DIRS/applications/`.
+**Cause:** The Wayland backend ignores it: in Avalonia.Wayland 12.1.3's package, `WindowImpl.SetIcon` is an empty method, a bare `ret`, and so is `ShowTaskbarIcon`, read here. Wayland compositors read icons via `app_id` → `.desktop` file lookup in `$XDG_DATA_DIRS/applications/`.
 
-**Fix:** Ship a `.desktop` file template, installed per user or by the packager. `Window.Icon` continues to work on X11 (writes `_NET_WM_ICON`).
+⚠ **A Wayland session is not the Wayland backend.** Only `UseWayland()` or `UseWaylandWithFallback()` chooses that backend. In a Wayland session, with `WAYLAND_DISPLAY` and `DISPLAY` both set, `UsePlatformDetect()` runs the application on X11 under Xwayland, and there `Window.Icon` is written: `_NET_WM_ICON` held 1026 values, the 32 × 32 icon set, and was absent from a control run that set none. Measured on Avalonia 12.1.3 and .NET 10 under WSL 2, Ubuntu 26.04.1, in a headless GNOME Shell 50.1 session with its Xwayland, the property read through `libX11`, in two runs and the control. Whether the shell then shows that icon was not measured.
+
+**Fix:** Ship a `.desktop` file template, installed per user or by the packager, which serves either backend. `Window.Icon` works on X11, the backend a Wayland session gets by default.
+
 
 ### Emoji glyphs require system emoji-font fallback on Linux
 
@@ -1530,9 +1533,12 @@ They are the price of referencing DataGrid, not a defect to hunt for in your cod
 
 **Fix:** For nav icons, prefer `★` (U+2605, BLACK STAR) over `⭐` — basic Unicode Dingbats block, supported by Inter and most system fonts directly without emoji fallback.
 
-### `XDG_SESSION_TYPE` distinguishes Wayland from X11
+### `XDG_SESSION_TYPE` names the session, not the backend the application runs on
 
 **Useful for diagnostics:** `Environment.GetEnvironmentVariable("XDG_SESSION_TYPE")` returns `"wayland"` / `"x11"` / `"tty"` etc. on systemd-logind systems. Logging it on Linux startup makes bug reports self-identify the session type.
+
+⚠ **It does not say which backend Avalonia chose.** In a Wayland session `UsePlatformDetect()` runs the application on X11 under Xwayland: with `XDG_SESSION_TYPE=wayland`, `WAYLAND_DISPLAY` and `DISPLAY` all set, `TryGetPlatformHandle()?.HandleDescriptor` was `"XID"`. Measured on Avalonia 12.1.3 and .NET 10 under WSL 2, Ubuntu 26.04.1, in a headless GNOME Shell 50.1 session, in three runs, the session type set by the harness as a display manager sets it. Log the descriptor beside the session type: `"XID"` is the X11 backend, and the Wayland backend gives none, as the measurement behind the entry on the AT-SPI bus under the Wayland backend printed on 12.1.3.
+
 
 ### Driving an Avalonia app with `xdotool`: a popup is its own X window, and accelerators do not arrive
 
