@@ -1,7 +1,7 @@
 # AGENTS.md — Bennewitz.Ninja.Inspections
 
 > For anyone changing this repository, human or agent. This top half is the repository as a whole:
-> the three families it holds, how each releases, the invariants they share, the commands and the
+> the four families it holds, how each releases, the invariants they share, the commands and the
 > checklists. Each family's own contract follows under its name. Each top-level directory has an
 > `AGENTS.md` of its own for what only its files show.
 >
@@ -12,16 +12,17 @@
 
 ## What this repository is
 
-Static analysis for .NET, read three ways: one product, three families, each with its own packages,
-version line and releases.
+Static analysis for .NET, read three ways, and a fourth family that tests the tests: four families,
+each with its own packages, version line and releases.
 
 | Family | Reads | Packages | Projects | Its README |
 |---|---|---|---|---|
 | `xamlquality` | XAML markup, and the consumer's compiled controls by reflection | `Bennewitz.Ninja.XamlQuality`, `.XamlQuality.ThemeAudit`, `.XamlQuality.ThemeRuntime` | `src/XamlQuality*` | [`docs/xamlquality.md`](docs/xamlquality.md) |
 | `assemblyquality` | The shipped assembly, by reflection | `Bennewitz.Ninja.AssemblyQuality` | `src/AssemblyQuality` | [`docs/assemblyquality.md`](docs/assemblyquality.md) |
 | `codequality` | The source, as a Roslyn analyzer | `Bennewitz.Ninja.CodeQuality` | `src/CodeQuality` | [`docs/codequality.md`](docs/codequality.md) |
+| `testing` | The tests, by mutating what they guard | `Bennewitz.Ninja.Testing.Mutate` | `src/Testing.Mutate` | [`docs/testing.md`](docs/testing.md) |
 
-Each family's README is its rules catalog and its packages' nuget.org page: each package packs its
+Each family's README is its packages' nuget.org page, and each analysis family's its rules catalog: each package packs its
 family's file as `README.md` (`FamilyReadme` in its csproj). The root [`README.md`](README.md) is the
 overview. A `BNCQ` rule with a `BNAQ` counterpart carries its number; its README section says which.
 
@@ -333,9 +334,8 @@ issue when none is running, and cite them by path. Each document's header says s
 runs every rule over ClaudeForge's, DiffView's and ScopedEditors' markup and build output, at the
 commits `tools/real-code/inputs.json` pins, and compares what they print with a committed record of
 what `main` printed. A change that alters what a rule says about real code shows it in its own diff,
-and CI's `Verification tools` job holds every pull request to the record. The mutation runner plants
-each defect a catalog lists in a copy of the working tree, one at a time, and reports whether exactly
-the tests the catalog expects failed. The headless probe measures what Avalonia does with the cases
+and CI's `Verification tools` job holds every pull request to the record. A change's mutations are a
+set that `mutate`, the testing family's tool, runs: its section below says how. The headless probe measures what Avalonia does with the cases
 the reviews of `BNXQ1005`, `BNXQ1009` and `BNXQ1010`, and the changes to them, wrote, under its
 Fluent, Simple and Semi themes, and judges what each of those rules says about each case against the
 measurements; CI builds it and does not run it. `tools/AGENTS.md` says how.
@@ -451,7 +451,7 @@ dotnet pack Inspections.slnx -c Release -p:Version=0.0.0-local --output ./packag
 dotnet run --file scripts/assert-packages.cs -- ./packages/local
 dotnet run --file tools/real-code.cs
 dotnet run --file tools/real-code.cs -- --update
-dotnet run --file tools/mutate.cs -- <TestClass> <catalog.json>
+dotnet run --project src/Testing.Mutate -c Release -- --set <set.json>
 dotnet run --file tools/probe.cs -- <pattern>
 dotnet run --file scripts/fetch-reference.cs
 dotnet run --file scripts/fetch-reference.cs -- --status
@@ -463,8 +463,10 @@ dotnet run --file scripts/fetch-reference.cs -- --status
   declare, reading each id from its `.nuspec`, as the release does before it pushes.
 - The sixth compares what every rule prints over the pinned real code with `main`'s record, and the
   seventh rewrites the record from this tree. Read every line that moved before committing it.
-- The eighth plants each defect of a catalog in a copy of the tree and runs one test class, from the
-  test project that holds it; it refuses a run estimated past 30 minutes.
+- The eighth runs a mutation set with this tree's build of `mutate`, in a worktree it cuts and never
+  in the checkout, and refuses a run estimated past its budget, 30 minutes unless `--budget` says
+  otherwise. `--swap src/XamlQuality/XamlQuality.csproj` builds a mutation of the rules library alone and swaps
+  it into the tests' output, as CI runs `tests/XamlQuality.Tests/Mutations/smoke.json`.
 - The ninth measures the headless probe's cases whose id matches the pattern, a trailing `*` taking
   a prefix, and judges what `BNXQ1005`, `BNXQ1009` and `BNXQ1010` say about each against the
   measurements; it exits 1 when a measurement refutes a verdict.
@@ -486,7 +488,7 @@ dotnet run --file scripts/fetch-reference.cs -- --status
 ##### Budgeting a change, before it starts
 
 - **Set the review budget first.** A new rule, or a change to one, is ready when the suite passes, the
-  mutations planted in the code it touches each fail a test (`tools/mutate.cs`), the real-code comparison holds
+  mutations planted in the code it touches each fail a test (`mutate`), the real-code comparison holds
   (`tools/real-code.cs`, over ClaudeForge, DiffView and ScopedEditors), its record rewritten in the
   same pull request wherever the change means to alter it, what it claims the framework does is
   measured headless under Fluent, Simple and Semi (`tools/probe.cs`), and at most two independent
@@ -516,8 +518,8 @@ dotnet run --file scripts/fetch-reference.cs -- --status
    a property is involved, the cases where the rule must stay silent, and one asserting `Inspected`
    is zero.
 5. Prove each test can fail. Remove the behaviour it covers, watch exactly that test fail, then
-   restore it by the inverse edit. `tools/mutate.cs` does this for a catalog of such defects, each in
-   a copy of the tree, which it never edits.
+   restore it by the inverse edit. `mutate` does this for a set of such defects, each in a worktree,
+   never in the checkout.
 6. Regenerate the README table. Prose about how the rule overlaps another goes outside the generated
    markers.
 7. Run it on real code before it lands: a consumer's markup and, for a rule that reads assemblies,
@@ -676,3 +678,47 @@ the install section of `docs/codequality.md` in the same change.
 
 **Releasing:** in the same change as the tag, move the rules from
 `AnalyzerReleases.Unshipped.md` into `AnalyzerReleases.Shipped.md` under `## Release <version>`.
+
+## Testing
+
+### What this family is
+
+`Bennewitz.Ninja.Testing.Mutate`: `mutate`, the family's one mutation runner, a dotnet tool, by
+`plans/00008`. It converged DiffView's `scripts/mutate-behaviour.cs`, whose set format, verdicts,
+completeness, `--owed` and `--parallel` it keeps, with this repository's own runner, which it
+replaced, and whose rule
+that the checkout is never edited, and whose budget, it keeps. [docs/testing.md](docs/testing.md)
+describes it for a consumer; this section covers how to change it.
+
+| Path | What it holds |
+|---|---|
+| `src/Testing.Mutate/` | The tool: `Program.cs` reads the command line and runs a set; `Plan.cs` reads a set; `Judge.cs` reads a test log and compares it with a declaration; `Setup.cs` the faults a set is refused for and the tests its files declare; `Completeness.cs`; `Worktrees.cs` and `ParallelRun.cs` where every edit is planted; `Swap.cs` the assembly swap; `Source.cs` the checkout as a git tree; `Shards.cs`, `Owed.cs`, `Git.cs`, `Dotnet.cs`, `Shell.cs`, `Options.cs` |
+| `tests/Testing.Mutate.Tests/` | `MutateTests`, DiffView's tests moved with their `fixtures/`; `WorktreeRunTests`, whole runs over a repository each test run makes in temp; `OwnSetTests`; `HelpTests`; `Packaging/`; and `Mutations/worktrees.json`, the tool's own set over what the plan added |
+
+### Invariants
+
+| Invariant | Failure if broken | Guarded by |
+|---|---|---|
+| A run edits a file only in a worktree it cut, which `Worktrees.Marker` names in the run's environment; anywhere else it cuts one and runs again there | A run killed partway leaves a defect in the person's checkout, taking their uncommitted work with any revert from git | `Worktrees.IsOurs`; `WorktreeRunTests.A_run_kills_as_declared_from_a_worktree_and_leaves_the_checkout_as_it_found_it` |
+| A worktree is loaded from the checkout's state as a git tree, every untracked file git does not ignore included, and is checked to hold that tree before anything builds | A run proves code that is not the checkout's: a test still uncommitted is missing from it | `Source.Tree`, `Worktrees.Cut`; the same test, whose killer is in an untracked file |
+| A dead run's worktrees are removed by the next run, a run being named by its process id and start time, and a worktree found by its path with every link resolved | Worktrees pile up under the temp directory, a reused process id passes for the run that died, or on macOS, where git names the temp folder through its link, none is ever found | `Worktrees.Sweep`, `Worktrees.Real`; `WorktreeRunTests.A_worktree_a_dead_run_left_is_removed_by_the_next_run`, `RealPathTests` |
+| A run estimated past its budget is refused after its baseline, before anything is edited | A verification run goes past the 30 minutes the family allows one | `Program.cs`; `WorktreeRunTests.A_run_estimated_past_its_budget_is_refused_after_its_baseline_and_edits_nothing` |
+| A run started in a worktree a run cut for it is told so, and knows the worktree by git's own name for it; one that still does not know it as its own stops, and never cuts another | A run that does not recognise its worktree cuts one more, and so on without end, as one did on macOS, whose temp folder git names through a link | `Worktrees.Mark`, `Worktrees.TakeStarted`; `WorktreeRunTests.A_run_started_in_a_worktree_it_does_not_know_as_its_own_cuts_no_other` |
+| A test log is read without the terminal's escape sequences | On a CI runner the host colours the line that names a failed test, so every kill reads as `aborted` | `Judge.Plain`; `MutateTests.A_log_the_host_coloured_is_read_as_the_same_log_uncoloured` |
+| A mutation under the folder of a project `--swap` names builds that project alone, without a restore, and its assembly and symbols are copied over the test project's before the tests run; one whose build must restore is built as the test project | A swapped mutation is judged by an assembly it did not build, and reads as survived | `Swap`; `WorktreeRunTests.A_mutation_in_a_swapped_project_builds_it_alone_and_is_judged_by_the_assembly_it_swaps_in` |
+| The set format is DiffView's: an unknown key is refused, a red set needs a green control, a green mutation names no killer | DiffView's committed sets stop reading as they did when it moves to the tool | `Plan.Load`, `MutationSetJson`; `MutateTests` |
+| Only an explicit `Test run summary: Passed!` reads as green, and a red run that names no failed test is `aborted` | A host that died reads as a pass or as a kill | `Judge`; `MutateTests.An_aborted_host_is_not_read_as_green`, `An_aborted_host_is_not_read_as_a_kill_either` |
+| A mutation never edits the set that declares it, and no test reads a set it is held to | Under its own edit the set reads as another, and every mutation of it reads as a kill of the test that reads it | `Setup.EditsItsOwnSet`; `OwnSetTests` |
+| The tests drive the tool through its real command line, as `Testing.Mutate.dll` beside them | A test of a method passes where the command line a person runs does not | `Tool.Run` |
+| A test's source that writes another test project's test keeps that test's attribute off its own lines | The tool's own set, which reads this project's test files by lines, counts the written test as one of this project's | `WorktreeRunTests.Subject`, which interpolates it |
+
+### Commands
+
+```bash
+dotnet test --project tests/Testing.Mutate.Tests/Testing.Mutate.Tests.csproj
+dotnet tests/Testing.Mutate.Tests/bin/Release/net10.0/Testing.Mutate.dll --parallel 3 --set tests/Testing.Mutate.Tests/Mutations/worktrees.json
+```
+
+- The second runs the tool's own set with this tree's build of the tool, from outside the worktree it
+  cuts; build the test project in `Release` first. In one worktree it is estimated past the 30 minutes a run is
+  allowed, so it runs in three, in about twenty.

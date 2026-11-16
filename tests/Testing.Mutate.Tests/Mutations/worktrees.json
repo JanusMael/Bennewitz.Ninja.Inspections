@@ -1,0 +1,97 @@
+{
+  // What plans/00008 adds to the runner it moved from DiffView: the checkout is never edited, a dead run's worktree is
+  // removed, a run is held to its budget, a set never edits itself, a repository with no central pins can run, and a
+  // swapped project's assembly is what its mutations are judged by.
+  // Run with this repository's build of the tool, from outside the worktrees it cuts:
+  //   dotnet tests/Testing.Mutate.Tests/bin/Release/net10.0/Testing.Mutate.dll --set tests/Testing.Mutate.Tests/Mutations/worktrees.json
+  "project": "tests/Testing.Mutate.Tests/Testing.Mutate.Tests.csproj",
+  "tests": ["tests/Testing.Mutate.Tests/WorktreeRunTests.cs", "tests/Testing.Mutate.Tests/OwnSetTests.cs"],
+  "mutations": [
+    {
+      "name": "a run edits whatever checkout it is in",
+      "file": "src/Testing.Mutate/Worktrees.cs",
+      "old": "public static bool IsOurs(string repo) =>",
+      "new": "public static bool IsOurs(string repo) => true ||",
+      "killer": "A_run_kills_as_declared_from_a_worktree_and_leaves_the_checkout_as_it_found_it",
+      "says": "this checkout is not edited"
+    },
+    {
+      "name": "the worktrees carry no untracked file",
+      "file": "src/Testing.Mutate/Source.cs",
+      "old": "[\"add\", \"--all\"]",
+      "new": "[\"add\", \"--update\"]",
+      "killer": "A_run_kills_as_declared_from_a_worktree_and_leaves_the_checkout_as_it_found_it"
+    },
+    {
+      "name": "a dead run's worktree is kept",
+      "file": "src/Testing.Mutate/Worktrees.cs",
+      "old": "            if (IsLive(run))",
+      "new": "            if (IsLive(run) || run.Length > 0)",
+      "killer": "A_worktree_a_dead_run_left_is_removed_by_the_next_run"
+    },
+    {
+      "name": "the budget is never reached",
+      "file": "src/Testing.Mutate/Program.cs",
+      "old": "if (estimate > Options.Budget)",
+      "new": "if (estimate > Options.Budget * 1e9)",
+      "killer": "A_run_estimated_past_its_budget_is_refused_after_its_baseline_and_edits_nothing"
+    },
+    {
+      "name": "a set that edits itself goes unremarked",
+      "file": "src/Testing.Mutate/Setup.cs",
+      "old": "return mutations.FirstOrDefault(",
+      "new": "return mutations.Where(m => m.Name.Length < 0).FirstOrDefault(",
+      "killer": "A_set_that_edits_itself_is_refused_before_anything_runs"
+    },
+    {
+      "name": "every set is taken to edit itself",
+      "file": "src/Testing.Mutate/Program.cs",
+      "old": "if (Setup.EditsItsOwnSet(repo, setFile, plan.Mutations) is { } ownSet)",
+      "new": "if ((Setup.EditsItsOwnSet(repo, setFile, plan.Mutations) ?? plan.Mutations[0]) is { } ownSet)",
+      "killer": "A_set_that_edits_another_file_is_not_refused_for_it"
+    },
+    {
+      "name": "a repository with no central pins cannot run",
+      "file": "src/Testing.Mutate/Program.cs",
+      "old": "plan.Pins == Plan.DefaultPins && !File.Exists(path)",
+      "new": "plan.Pins == Plan.DefaultPins && !File.Exists(path) && path.Length < 0",
+      "killer": "A_run_kills_as_declared_from_a_worktree_and_leaves_the_checkout_as_it_found_it"
+    },
+    {
+      "name": "a mutation in a swapped project is built as the test project",
+      "file": "src/Testing.Mutate/Swap.cs",
+      "old": "public bool Takes(string repo, Mutation mutation) =>",
+      "new": "public bool Takes(string repo, Mutation mutation) => repo.Length < 0 &&",
+      "killer": "A_mutation_in_a_swapped_project_builds_it_alone_and_is_judged_by_the_assembly_it_swaps_in"
+    },
+    {
+      "name": "a swapped assembly never reaches the tests",
+      "file": "src/Testing.Mutate/Swap.cs",
+      "old": "if (File.Exists(built))",
+      "new": "if (File.Exists(built) && built.Length < 0)",
+      "killer": "A_mutation_in_a_swapped_project_builds_it_alone_and_is_judged_by_the_assembly_it_swaps_in"
+    },
+    {
+      "name": "a swap that names no project is taken",
+      "file": "src/Testing.Mutate/Program.cs",
+      "old": "if (!File.Exists(Path.Combine(repo, swapped)))",
+      "new": "if (!File.Exists(Path.Combine(repo, swapped)) && swapped.Length < 0)",
+      "killer": "A_swap_that_names_no_project_is_refused_before_anything_builds"
+    },
+    {
+      "name": "a run that does not know its worktree cuts another",
+      "file": "src/Testing.Mutate/Program.cs",
+      "old": "if (startedInAWorktree)",
+      "new": "if (startedInAWorktree && repo.Length < 0)",
+      "killer": "A_run_started_in_a_worktree_it_does_not_know_as_its_own_cuts_no_other"
+    },
+    {
+      "name": "a comment reworded",
+      "file": "src/Testing.Mutate/Program.cs",
+      "old": "// The pins a set's markers are judged against.",
+      "new": "// The pins against which a set's markers are judged.",
+      "expect": "green",
+      "because": "a comment compiles to nothing, so every test must stay green"
+    }
+  ]
+}

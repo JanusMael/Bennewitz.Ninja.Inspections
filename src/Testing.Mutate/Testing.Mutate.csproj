@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RollForward>Major</RollForward>
+    <!-- Packed as a dotnet tool: `dotnet tool install Bennewitz.Ninja.Testing.Mutate` → `mutate`, run in a
+         repository as `dotnet mutate` once its tool manifest pins it (plans/00008, decision 7). -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>mutate</ToolCommandName>
+    <PackageId>Bennewitz.Ninja.Testing.Mutate</PackageId>
+    <AssemblyProduct>Testing</AssemblyProduct>
+    <FamilyReadme>docs/testing.md</FamilyReadme>
+    <IsPackable>true</IsPackable>
+    <Description>
+      Mutation testing for .NET test suites: plants each defect a committed set declares, one at a time, in a
+      git worktree of the checkout, builds and runs the tests, and compares what failed with what the set
+      says should: the test that must fail, the words its failure carries, or a change that must stay green.
+      A set is held to every test its files declare, so a test no mutation can break is named.
+    </Description>
+    <PackageTags>mutation-testing;testing;tests;xunit;dotnet-tool</PackageTags>
+  </PropertyGroup>
+</Project>

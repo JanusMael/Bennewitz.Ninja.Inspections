@@ -1,0 +1,32 @@
+{
+  // The set CI runs to show the mutation runner still works over this repository: two defects in code that rarely
+  // changes, each killed by one known test, and a control. It holds the class to no completeness, naming no test file;
+  // a change's own set does that. Run as:
+  //   dotnet run --project src/Testing.Mutate -c Release -- --set tests/XamlQuality.Tests/Mutations/smoke.json --swap src/XamlQuality/XamlQuality.csproj
+  "project": "tests/XamlQuality.Tests/XamlQuality.Tests.csproj",
+  "class": "XamlQuality.Tests.Rules.ExpanderAutomationNameRuleTests",
+  "mutations": [
+    {
+      "name": "markup under obj is scanned",
+      "file": "src/XamlQuality/XamlScanContext.cs",
+      "old": "excludedDirectories ?? [\"bin\", \"obj\"],",
+      "new": "excludedDirectories ?? [\"bin\"],",
+      "killer": "MarkupUnderObj_IsNotScanned"
+    },
+    {
+      "name": "an empty property element is a name",
+      "file": "src/XamlQuality/AutomationName.cs",
+      "old": "propertyElement.HasElements || !string.IsNullOrWhiteSpace(propertyElement.Value);",
+      "new": "propertyElement.HasElements || propertyElement.Name.LocalName.Length > 0;",
+      "killer": "AnExpanderNamedByAnEmptyPropertyElement_IsReported"
+    },
+    {
+      "name": "a summary reworded",
+      "file": "src/XamlQuality/XamlScanContext.cs",
+      "old": "/// <summary>The markup a scan covers.</summary>",
+      "new": "/// <summary>What markup a scan covers.</summary>",
+      "expect": "green",
+      "because": "a comment compiles to nothing, so every test must stay green"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 {
-  "description": "Static analysis for .NET in three families: XamlQuality for XAML markup, AssemblyQuality for the compiled assembly, and CodeQuality, a Roslyn analyzer, for the source. Ships as Bennewitz.Ninja.XamlQuality, .XamlQuality.ThemeAudit, .XamlQuality.ThemeRuntime, .AssemblyQuality and .CodeQuality.",
+  "description": "Four .NET families: static analysis of XAML markup (XamlQuality), the compiled assembly (AssemblyQuality) and the source (CodeQuality), and mutation testing (Testing). Ships as Bennewitz.Ninja.XamlQuality, .XamlQuality.ThemeAudit, .XamlQuality.ThemeRuntime, .AssemblyQuality, .CodeQuality and .Testing.Mutate.",
   "homepage": "",
   "topics": [
     "accessibility",
@@ -36,7 +36,8 @@
       "Bennewitz.Ninja.XamlQuality.ThemeRuntime"
     ],
     "assemblyquality": ["Bennewitz.Ninja.AssemblyQuality"],
-    "codequality": ["Bennewitz.Ninja.CodeQuality"]
+    "codequality": ["Bennewitz.Ninja.CodeQuality"],
+    "testing": ["Bennewitz.Ninja.Testing.Mutate"]
   },
   "bareTags": "xamlquality",
   "props": {

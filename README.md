@@ -1,16 +1,18 @@
 # Bennewitz.Ninja.Inspections
 
 Static analysis for .NET, read three ways: the XAML markup, the assembly that ships, and the source
-as it is typed. Each family has its own packages, its own version line and its own releases.
+as it is typed; and a fourth family, Testing, that proves the tests can fail. Each family has its own
+packages, its own version line and its own releases.
 
 | Family | Reads | Packages | Its README |
 |---|---|---|---|
 | XamlQuality | XAML markup, and the compiled controls it names | [`Bennewitz.Ninja.XamlQuality`](https://www.nuget.org/packages/Bennewitz.Ninja.XamlQuality), [`.ThemeAudit`](https://www.nuget.org/packages/Bennewitz.Ninja.XamlQuality.ThemeAudit), [`.ThemeRuntime`](https://www.nuget.org/packages/Bennewitz.Ninja.XamlQuality.ThemeRuntime) | [docs/xamlquality.md](docs/xamlquality.md) |
 | AssemblyQuality | The shipped assembly, by reflection | [`Bennewitz.Ninja.AssemblyQuality`](https://www.nuget.org/packages/Bennewitz.Ninja.AssemblyQuality) | [docs/assemblyquality.md](docs/assemblyquality.md) |
 | CodeQuality | The source, as a Roslyn analyzer | [`Bennewitz.Ninja.CodeQuality`](https://www.nuget.org/packages/Bennewitz.Ninja.CodeQuality) | [docs/codequality.md](docs/codequality.md) |
+| Testing | The tests, by breaking what they guard | [`Bennewitz.Ninja.Testing.Mutate`](https://www.nuget.org/packages/Bennewitz.Ninja.Testing.Mutate) | [docs/testing.md](docs/testing.md) |
 
-Each family's README is its rules catalog, every rule with its own section, and its packages'
-nuget.org page.
+Each family's README is its packages' nuget.org page, and each analysis family's is its rules
+catalog, every rule with its own section.
 
 ## XamlQuality
 
@@ -55,6 +57,18 @@ dotnet add package Bennewitz.Ninja.CodeQuality
 A development dependency: it runs inside the compiler and ships nothing at run time. It needs a
 compiler from Roslyn 4.14 on: Visual Studio 2022 17.14, or a .NET 9.0.3xx SDK or later.
 
+## Testing
+
+`mutate`, a dotnet tool for mutation testing: it plants each defect a committed set declares, one at
+a time, in a git worktree of the checkout, which it never edits, and compares what failed with what
+the set says should, the test that must fail and the words its failure carries, or a change that
+must stay green. A set is held to every test its files declare, so a test nothing can break is named.
+
+```bash
+dotnet tool install Bennewitz.Ninja.Testing.Mutate
+dotnet mutate --set tests/MyApp.Tests/Mutations/parser.json
+```
+
 ## Every clean result says what it inspected
 
 The XamlQuality and AssemblyQuality rules report and never assert: the consumer chooses the runner
@@ -89,7 +103,7 @@ DynamicData, each shape measured, with its fix.
 ## Releases
 
 Each family releases alone, from a tag of its own: `xamlquality/vYYYY.Q.MMDD`,
-`assemblyquality/vYYYY.Q.MMDD` or `codequality/vYYYY.Q.MMDD`. The version is the tag's, and a
+`assemblyquality/vYYYY.Q.MMDD`, `codequality/vYYYY.Q.MMDD` or `testing/vYYYY.Q.MMDD`. The version is the tag's, and a
 release publishes only that family's packages, to nuget.org through trusted publishing; no API key
 exists in this repository. XamlQuality's releases before it was joined by the other two carry plain
 `vYYYY.Q.MMDD` tags.
