@@ -957,7 +957,8 @@ repository kept under `tools/`.
   every kill read as `aborted`: every log is now read without escape sequences (`Judge.Plain`). And on macOS the temp
   folder is reached through a link, so a run did not know the worktree cut for it as its own and cut another, and so
   on until its test's bound: the worktree is now named as git names it there, and a run started in one that still
-  does not know it stops rather than cut another (`Worktrees.Mark`). Each has a test. Run in three worktrees, the
+  does not know it stops rather than cut another (`Worktrees.Mark`), and a sweep finds a dead run's worktree by its
+  path with every link resolved, as git names it (`Worktrees.Real`). Each has a test. Run in three worktrees, the
   tool's own set then found its worktree tests sharing one temp folder, where one shard's sweep removed another's
   dead worktree first; each run over a test's repository now has a temp folder of its own.
 - **The old runner could not time #138.** It rebuilds `src/XamlQuality` for its swap in every pool, and a pool for a

@@ -153,6 +153,7 @@ the analyzer or the package list is wrong, not the test.
 |---|---|
 | `MutateTests.cs`, `fixtures/` | DiffView's tests of the runner, moved with their fixtures, whose paths name this folder: reading a log, a set, its faults, its completeness, shards and their merge, `--owed` |
 | `WorktreeRunTests.cs` | Whole runs over a repository the class makes in temp, an xUnit v3 project with one test in an untracked file: the checkout left as it was, the budget, a dead run's worktree swept |
+| `RealPathTests.cs` | A path through a link resolved as git names it, which a sweep compares; skipped where the account cannot make a link |
 | `OwnSetTests.cs`, `HelpTests.cs` | A set that edits itself is refused; help answers outside a checkout, and nothing else does |
 | `Packaging/PackagingTests.cs` | Every packable project classified, and the release workflow globbing nothing |
 | `Mutations/worktrees.json` | The tool's own set over what `plans/00008` added; no test reads it |

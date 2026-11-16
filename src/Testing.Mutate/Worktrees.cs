@@ -95,7 +95,9 @@ internal static class Worktrees
             return 0;
         }
 
-        string home = Path.GetFullPath(Home);
+        // Both sides with every link resolved: git names a worktree by its real path, which on macOS is not how the temp
+        // folder is spelt (Mark's remarks), so a dead run's worktree would never be found under it.
+        string home = Real(Home);
         int removed = 0;
         foreach (string line in listed.Stdout.Split('\n'))
         {
@@ -104,7 +106,7 @@ internal static class Worktrees
                 continue;
             }
 
-            string tree = Path.GetFullPath(line["worktree ".Length..].Trim());
+            string tree = Real(line["worktree ".Length..].Trim());
             if (!tree.StartsWith(home + Path.DirectorySeparatorChar, PathComparison))
             {
                 continue;
@@ -262,6 +264,35 @@ internal static class Worktrees
         }
 
         return !Directory.Exists(tree);
+    }
+
+    /// <summary>
+    /// The full path with every link along it resolved, as the system resolves it, a link within a link included; the
+    /// part past the last folder that exists is kept as written.
+    /// </summary>
+    internal static string Real(string path) => Real(path, 0);
+
+    /// <param name="depth">The links already followed: past 40, a loop of links is the system's error, not a reason to hang.</param>
+    private static string Real(string path, int depth)
+    {
+        string full = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        string root = Path.GetPathRoot(full) ?? string.Empty;
+        if (depth > 40)
+        {
+            return full;
+        }
+
+        string current = root;
+        foreach (string part in full[root.Length..].Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
+        {
+            current = Path.Combine(current, part);
+            if (Directory.Exists(current) && new DirectoryInfo(current).LinkTarget is { } target)
+            {
+                current = Real(Path.IsPathRooted(target) ? target : Path.Combine(Path.GetDirectoryName(current) ?? root, target), depth + 1);
+            }
+        }
+
+        return current.Length == 0 ? full : current;
     }
 
     /// <summary>Whether the run a folder under <see cref="Home"/> is named for, <c>pid-ticks</c>, is still running.</summary>
