@@ -1,7 +1,7 @@
 # AGENTS.md — `tests/`
 
 One test project per family, `XamlQuality.Tests` with `XamlQuality.ThemeRuntime.Tests`,
-`AssemblyQuality.Tests` and `CodeQuality.Tests`, and under `fixtures/` the assemblies
+`AssemblyQuality.Tests`, `CodeQuality.Tests` and `Testing.Mutate.Tests`, and under `fixtures/` the assemblies
 AssemblyQuality's tests reflect over. `tests/Directory.Build.props` makes each test project an
 xUnit v3 test executable on Microsoft.Testing.Platform that is never packed;
 `tests/fixtures/Directory.Build.props` keeps the fixtures plain libraries.
@@ -143,3 +143,24 @@ executable that is never packed.
 
 ⛔ **Never weaken a packaging or convention test to make it pass.** When one fails, the project,
 the analyzer or the package list is wrong, not the test.
+
+## Testing
+
+`Testing.Mutate.Tests`, which references the tool's project and runs it as `Testing.Mutate.dll` beside it, through
+`Tool.Run`, from the repository's root or from a repository a test makes in temp.
+
+| Path | What it covers |
+|---|---|
+| `MutateTests.cs`, `fixtures/` | DiffView's tests of the runner, moved with their fixtures, whose paths name this folder: reading a log, a set, its faults, its completeness, shards and their merge, `--owed` |
+| `WorktreeRunTests.cs` | Whole runs over a repository the class makes in temp, an xUnit v3 project with one test in an untracked file: the checkout left as it was, the budget, a dead run's worktree swept |
+| `OwnSetTests.cs`, `HelpTests.cs` | A set that edits itself is refused; help answers outside a checkout, and nothing else does |
+| `Packaging/PackagingTests.cs` | Every packable project classified, and the release workflow globbing nothing |
+| `Mutations/worktrees.json` | The tool's own set over what `plans/00008` added; no test reads it |
+
+### Rules
+
+| Rule | Why | Guarded by |
+|---|---|---|
+| No test reads a set under `Mutations/` | Under one of the set's own mutations its edit no longer applies, so a test reading it dies under every mutation and reads as killed by each | review; `OwnSetTests` for the set itself |
+| A test that writes another project's test into a file keeps the attribute off its own lines | The tool reads this project's test files by lines, so a written test would count as one of this project's | `WorktreeRunTests.Subject` |
+| A fixture's path names `tests/Testing.Mutate.Tests/fixtures/`, as the sets are read from the repository's root | A set names its files from the root the tool runs in | `MutateTests.SetFixture` |

@@ -1,7 +1,7 @@
 # AGENTS.md — `src/`
 
-The shipped projects of the three families, each folder named for its family: `XamlQuality*`,
-`AssemblyQuality` and `CodeQuality`. Each family's packages are published together from that
+The shipped projects of the four families, each folder named for its family: `XamlQuality*`,
+`AssemblyQuality`, `CodeQuality` and `Testing.*`. Each family's packages are published together from that
 family's tag, so everything here is permanent once its family releases.
 
 ## Rules every family keeps
@@ -105,3 +105,16 @@ The family's one project, the analyzer, packed as `Bennewitz.Ninja.CodeQuality`.
 XML doc remarks follow the family's house style: one `<para>` per point, each opening with a marker
 and a bold claim: ⭐ key idea, ⚠ caution, ⛔ trap. Explain *why*, and say "Measured:" when a claim
 comes from an observed failure. Finding messages state the defect, why it bites, and every valid fix.
+
+## Testing
+
+The family's one project, `Testing.Mutate`, packed as the dotnet tool `Bennewitz.Ninja.Testing.Mutate`, whose
+command is `mutate`. The root `AGENTS.md`'s Testing section names each file.
+
+### Rules
+
+| Rule | Why | Guarded by |
+|---|---|---|
+| The `ToolCommandName` stays `mutate` | It is what a repository's tool manifest and its scripts invoke, as `dotnet mutate` | `Testing.Mutate.csproj` |
+| Every type is internal, so the project generates no documentation file | The tool has no API; the documentation file would turn the moved code's partial `<param>` tags into errors and describe nothing a consumer reads | `Testing.Mutate.csproj` |
+| What the tool kept from DiffView's runner is changed only where `plans/00008` says, and each file says so in its first line | DiffView's committed sets and its tests read the runner as it was; a quiet change is one they meet as a wrong verdict | the first line of each moved file; `MutateTests` |

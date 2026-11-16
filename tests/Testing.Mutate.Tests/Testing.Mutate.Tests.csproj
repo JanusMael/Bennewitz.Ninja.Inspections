@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Framework packages, IsTestProject and OutputType all come from tests/Directory.Build.props. -->
+  <ItemGroup>
+    <!-- The tests drive the tool through its real command line, as Testing.Mutate.dll beside them. -->
+    <ProjectReference Include="..\..\src\Testing.Mutate\Testing.Mutate.csproj" />
+  </ItemGroup>
+</Project>

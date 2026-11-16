@@ -22,6 +22,8 @@
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("AssemblyQuality.Tests")]
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("CodeQuality")]
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("CodeQuality.Tests")]
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Testing.Mutate")]
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Testing.Mutate.Tests")]
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("ThemeAudit")]
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("XamlQuality")]
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("XamlQuality.Tests")]

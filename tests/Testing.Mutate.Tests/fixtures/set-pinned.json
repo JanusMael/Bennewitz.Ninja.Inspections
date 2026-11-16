@@ -1,0 +1,25 @@
+{
+  // A set pinned by the fixture pins file, with no marker in its tests, whose project is the one these tests
+  // run in: what a moved pin owes it turns on what that project's restore resolves, which is there whenever
+  // they run. Read by MutateTests under --owed-by and --list only.
+  "project": "tests/Testing.Mutate.Tests/Testing.Mutate.Tests.csproj",
+  "tests": ["tests/Testing.Mutate.Tests/fixtures/declared-tests.txt"],
+  "pins": "tests/Testing.Mutate.Tests/fixtures/pins.xml",
+  "mutations": [
+    {
+      "name": "the one place changes",
+      "file": "tests/Testing.Mutate.Tests/fixtures/subject.txt",
+      "old": "The one place an edit applies.",
+      "new": "Somewhere else.",
+      "killer": "A_plain_fact"
+    },
+    {
+      "name": "a change that should not matter",
+      "file": "tests/Testing.Mutate.Tests/fixtures/subject.txt",
+      "old": "Nothing compiles it",
+      "new": "Nothing builds it",
+      "expect": "green",
+      "because": "the subject is read by no test"
+    }
+  ]
+}

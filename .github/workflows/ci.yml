@@ -104,8 +104,8 @@ jobs:
   # consumers' markup and build output that tools/real-code/inputs.json pins, and fails when what
   # they print differs from the record of what main printed, tools/real-code/expected/. One
   # platform is enough: the records are text, and the library writes their paths with '/'. The
-  # mutation runner's smoke catalog then shows tools/mutate.cs still works, and the headless probe
-  # and tools/probe.cs, which runs it, still build.
+  # mutation runner's smoke set then shows the testing family's mutate still works, and the headless
+  # probe and tools/probe.cs, which runs it, still build.
   #
   # ⚠ The job name is a required check in .github/repository.json, as the others are.
   verification:
@@ -133,10 +133,13 @@ jobs:
           XQ_REAL_CODE_CACHE: ${{ runner.temp }}/real-code
         run: dotnet run --file tools/real-code.cs
 
-      # Two defects in code that rarely changes, each failing one known test: the mutation runner
-      # still plants, rebuilds, runs and puts back, on a platform other than the one it was written on.
+      # Two defects in code that rarely changes, each killed by one known test, and a green control:
+      # mutate, by plans/00008, still cuts a worktree, plants, builds, swaps the rules library into the
+      # tests' output, runs and judges, on a platform other than the one it was written on.
       - name: Mutation runner smoke
-        run: dotnet run --file tools/mutate.cs -- ExpanderAutomationNameRuleTests tools/mutate/smoke.json --workers 2
+        env:
+          AVALONIA_TELEMETRY_OPTOUT: 1
+        run: dotnet run --project src/Testing.Mutate -c Release -- --set tests/XamlQuality.Tests/Mutations/smoke.json --swap src/XamlQuality/XamlQuality.csproj
 
       # Built, not run: measuring the probe's cases here would gate every rule change on them, which
       # plans/00001 leaves to a decision of its own. AVALONIA_TELEMETRY_OPTOUT keeps Avalonia's build

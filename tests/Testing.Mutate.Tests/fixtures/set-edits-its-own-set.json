@@ -1,0 +1,15 @@
+{
+  // A set one of whose mutations edits the set itself: under that edit the set no longer reads as it does, so a run
+  // would judge another set. Refused as a setup fault, by MutateTests under --check.
+  "project": "tests/Testing.Mutate.Tests/Testing.Mutate.Tests.csproj",
+  "mutations": [
+    {
+      "name": "the set rewrites itself",
+      "file": "tests/Testing.Mutate.Tests/fixtures/set-edits-its-own-set.json",
+      "old": "the set rewrites itself",
+      "new": "the set rewrote itself",
+      "expect": "green",
+      "because": "nothing reads it but the run it would mislead"
+    }
+  ]
+}
