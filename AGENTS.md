@@ -39,7 +39,8 @@ AssemblyQuality's approved plans moved unchanged to `plans/assemblyquality/`.
 | `tools/` | XamlQuality's verification tooling, never shipped |
 | `docs/` | Each family's README, the release runbook, and XamlQuality's Avalonia and drivable-UI documents |
 | `plans/` | Numbered plans, continuing XamlQuality's sequence; `plans/assemblyquality/` holds that family's, unchanged |
-| `scripts/` | File-based apps: the release resolution, the packaging guard, the conventions check, and XamlQuality's reference fetcher |
+| `scripts/` | File-based apps: the release resolution, the packaging guard and the conventions check |
+| `reference/` | XamlQuality's read-only checkouts of the real themes' sources, which git ignores, and the files beside them, which it tracks: the family's fetcher, `fetch-reference.cs`, its manifest and three MSBuild shields |
 | `.claude-plugin/` | The marketplace manifest serving the `drivable-ui` plugin from `docs/ai-drivable-ui/plugin/` |
 | `Inspections.slnx` | The one solution: every family's `src` and `tests` projects |
 | `AssemblyInfo.InternalsVisibleTo.cs` / `.External.cs`, `Directory.Build.targets` | Templates' solution-wide friend grants: every project grants its internals to every assembly the solution builds |
@@ -453,8 +454,8 @@ dotnet run --file tools/real-code.cs
 dotnet run --file tools/real-code.cs -- --update
 dotnet run --project src/Testing.Mutate -c Release -- --set <set.json>
 dotnet run --file tools/probe.cs -- <pattern>
-dotnet run --file scripts/fetch-reference.cs
-dotnet run --file scripts/fetch-reference.cs -- --status
+dotnet run --file reference/fetch-reference.cs
+dotnet run --file reference/fetch-reference.cs -- --status
 ```
 
 - The third regenerates the rules table in `docs/xamlquality.md` (`RulesCatalogTests`). Commit the result; the build
@@ -470,9 +471,10 @@ dotnet run --file scripts/fetch-reference.cs -- --status
 - The ninth measures the headless probe's cases whose id matches the pattern, a trailing `*` taking
   a prefix, and judges what `BNXQ1005`, `BNXQ1009` and `BNXQ1010` say about each against the
   measurements; it exits 1 when a measurement refutes a verdict.
-- The tenth fetches the real themes' sources into `reference/`, at the versions
-  `Directory.Packages.props` pins, for work by hand, and the eleventh reports whether each is there at
-  its pin. No test, build or CI job reads them.
+- The tenth fetches the real themes' sources into `reference/`, each at the commit its packages'
+  nuspecs record for the version `Directory.Packages.props` pins, for work by hand, and the eleventh
+  reports whether each is there at its pin. No test, build or CI job reads them. `reference/README.md`
+  says the rest.
 - A local build of the solution wants `AVALONIA_TELEMETRY_OPTOUT=1`: `tests/XamlQuality.ThemeRuntime.Tests`
   takes Avalonia, whose build telemetry otherwise starts a process that outlives the build. Every job
   of `ci.yml` and `release.yml` sets it.

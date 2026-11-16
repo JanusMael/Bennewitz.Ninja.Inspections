@@ -1,0 +1,24 @@
+{
+  // The real themes' sources, fetched read-only into the folders beside this file by fetch-reference.cs, for
+  // work by hand, such as pointing the theme audit at the real themes' markup: no test, build or CI job reads
+  // them. Each is fetched at the commit its packages' nuspecs record for the version Directory.Packages.props
+  // pins, so a raise there leaves its checkout off its pin until the script runs with --update; "tag" is
+  // fetched only where the nuspecs record no commit. "sparse" lists the folders a checkout holds. README.md
+  // beside this file describes every field.
+  "sources": [
+    {
+      "name": "Avalonia",
+      "dir": "reference/Avalonia",
+      "packages": ["Avalonia.Themes.Fluent", "Avalonia.Themes.Simple"],
+      "tag": "{version}",
+      "sparse": ["src/Avalonia.Themes.Fluent", "src/Avalonia.Themes.Simple"]
+    },
+    {
+      "name": "Semi.Avalonia",
+      "dir": "reference/Semi.Avalonia",
+      "packages": ["Semi.Avalonia"],
+      "tag": "v{version}",
+      "sparse": ["src/Semi.Avalonia"]
+    }
+  ]
+}

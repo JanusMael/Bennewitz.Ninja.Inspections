@@ -2,8 +2,9 @@ bin/
 obj/
 artifacts/
 packages/
-# The real themes' sources, which scripts/fetch-reference.cs fetches for work by hand.
-reference/
+# The real themes' sources, which reference/fetch-reference.cs fetches for work by hand. The files beside
+# the checkouts are tracked.
+/reference/*/
 *.user
 .vs/
 .idea/
