@@ -703,6 +703,8 @@ describes it for a consumer; this section covers how to change it.
 | A worktree is loaded from the checkout's state as a git tree, every untracked file git does not ignore included, and is checked to hold that tree before anything builds | A run proves code that is not the checkout's: a test still uncommitted is missing from it | `Source.Tree`, `Worktrees.Cut`; the same test, whose killer is in an untracked file |
 | A dead run's worktrees are removed by the next run, a run being named by its process id and start time | Worktrees pile up under the temp directory, and a reused process id passes for the run that died | `Worktrees.Sweep`; `WorktreeRunTests.A_worktree_a_dead_run_left_is_removed_by_the_next_run` |
 | A run estimated past its budget is refused after its baseline, before anything is edited | A verification run goes past the 30 minutes the family allows one | `Program.cs`; `WorktreeRunTests.A_run_estimated_past_its_budget_is_refused_after_its_baseline_and_edits_nothing` |
+| A run started in a worktree a run cut for it is told so, and knows the worktree by git's own name for it; one that still does not know it as its own stops, and never cuts another | A run that does not recognise its worktree cuts one more, and so on without end, as one did on macOS, whose temp folder git names through a link | `Worktrees.Mark`, `Worktrees.TakeStarted`; `WorktreeRunTests.A_run_started_in_a_worktree_it_does_not_know_as_its_own_cuts_no_other` |
+| A test log is read without the terminal's escape sequences | On a CI runner the host colours the line that names a failed test, so every kill reads as `aborted` | `Judge.Plain`; `MutateTests.A_log_the_host_coloured_is_read_as_the_same_log_uncoloured` |
 | A mutation under the folder of a project `--swap` names builds that project alone, without a restore, and its assembly and symbols are copied over the test project's before the tests run; one whose build must restore is built as the test project | A swapped mutation is judged by an assembly it did not build, and reads as survived | `Swap`; `WorktreeRunTests.A_mutation_in_a_swapped_project_builds_it_alone_and_is_judged_by_the_assembly_it_swaps_in` |
 | The set format is DiffView's: an unknown key is refused, a red set needs a green control, a green mutation names no killer | DiffView's committed sets stop reading as they did when it moves to the tool | `Plan.Load`, `MutationSetJson`; `MutateTests` |
 | Only an explicit `Test run summary: Passed!` reads as green, and a red run that names no failed test is `aborted` | A host that died reads as a pass or as a kill | `Judge`; `MutateTests.An_aborted_host_is_not_read_as_green`, `An_aborted_host_is_not_read_as_a_kill_either` |
@@ -714,8 +716,9 @@ describes it for a consumer; this section covers how to change it.
 
 ```bash
 dotnet test --project tests/Testing.Mutate.Tests/Testing.Mutate.Tests.csproj
-dotnet tests/Testing.Mutate.Tests/bin/Release/net10.0/Testing.Mutate.dll --set tests/Testing.Mutate.Tests/Mutations/worktrees.json
+dotnet tests/Testing.Mutate.Tests/bin/Release/net10.0/Testing.Mutate.dll --parallel 3 --set tests/Testing.Mutate.Tests/Mutations/worktrees.json
 ```
 
 - The second runs the tool's own set with this tree's build of the tool, from outside the worktree it
-  cuts; build the test project in `Release` first. It takes about twelve minutes.
+  cuts; build the test project in `Release` first. In one worktree it is estimated past the 30 minutes a run is
+  allowed, so it runs in three, in about twenty.

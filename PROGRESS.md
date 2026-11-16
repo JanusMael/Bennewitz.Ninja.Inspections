@@ -933,7 +933,7 @@ repository kept under `tools/`.
 | Step | Result |
 |---|---|
 | 2, the family | `repo-conventions check` finds only the description above. Pack and `assert-packages --family testing` pass; the packed tool, installed from outside the repository, answers `mutate --help` with exit 0 |
-| 3, DiffView's runner moved | DiffView's tests that do not test the journal pass here, with the new tests: a run from a worktree that kills as declared and leaves the checkout's bytes and `git status` as they were, an untracked killer reaching the worktree, a dead run's worktree removed, a set that edits itself refused, help outside a checkout. The tool's own set, `tests/Testing.Mutate.Tests/Mutations/worktrees.json`, run from a built copy: 11 mutations as declared, its 7 declared tests each killed |
+| 3, DiffView's runner moved | DiffView's tests that do not test the journal pass here, with the new tests: a run from a worktree that kills as declared and leaves the checkout's bytes and `git status` as they were, an untracked killer reaching the worktree, a dead run's worktree removed, a set that edits itself refused, help outside a checkout. The tool's own set, `tests/Testing.Mutate.Tests/Mutations/worktrees.json`, run from a built copy: 12 mutations as declared, its 8 declared tests each killed, in three worktrees at once, since in one it is estimated past its budget |
 | 4, the budget and the swap | A run past its budget is refused after its baseline, and one given `--budget` is held to it. Over the smoke set, a mutation of the rules library took 3.9 to 6.2 s by the old runner's swap and 10.3 to 16.1 s by the test project's incremental build, warm, with another session's builds alongside in some runs, so the swap is back as `--swap <project>`, which CI's smoke step uses. In the tool it saves less: nine mutations each way, with other sessions holding the processor at 100%, took 14.0 s on average swapped and 17.9 s built; the old runner also ran the test assembly directly, under *Follow-ups* below. #138's six defects and a control ran as declared, 12.2 to 19.6 s each; the old runner could not run them at all, below |
 | 5, this repository moves | CI's `Verification tools` job runs the tool over `tests/XamlQuality.Tests/Mutations/smoke.json` with the rules library swapped; `tools/mutate.cs` and `tools/mutate/` are gone, and with them the follow-ups on a `[Theory]` no defect fails, which the tool counts, and on a defect to what restore reads, which the tool restores for |
 | 6, parity with DiffView's runner | At DiffView `9b36789`, in a scratch clone never pushed, three of its sets were run by both: `AgentBaseline.Tests`' `staleness`, 17 mutations, and `DiffView.Avalonia.Tests`' `header-alignment`, 6, and `received-files`, 5. DiffView's runner ran with `--parallel 1`, so in a worktree with `SkipReferenceSources` as its shards are, and the tool with `--property SkipReferenceSources=true`. Every one of the 28 mutations had the same verdict from both, `ok`, and each set's completeness was the same, 8, 3 and 1 declared tests all killed. Their times are not compared: another session's builds and test runs held the processor at 100% throughout |
@@ -952,6 +952,14 @@ repository kept under `tools/`.
   `swapped` where it was.
 - **A dead run's worktree folders are deleted whole**, beyond `git worktree remove`, so that one git no longer lists
   is swept too.
+- **Two faults the pull request's first CI run found, which DiffView's runner never met, never having run on a CI
+  runner or on macOS.** There the test host colours its output, so the line naming a failed test went unread and
+  every kill read as `aborted`: every log is now read without escape sequences (`Judge.Plain`). And on macOS the temp
+  folder is reached through a link, so a run did not know the worktree cut for it as its own and cut another, and so
+  on until its test's bound: the worktree is now named as git names it there, and a run started in one that still
+  does not know it stops rather than cut another (`Worktrees.Mark`). Each has a test. Run in three worktrees, the
+  tool's own set then found its worktree tests sharing one temp folder, where one shard's sweep removed another's
+  dead worktree first; each run over a test's repository now has a temp folder of its own.
 - **The old runner could not time #138.** It rebuilds `src/XamlQuality` for its swap in every pool, and a pool for a
   CodeQuality class never restores that project, so it stopped with `NETSDK1004`; #138 was timed with the tool alone.
 - **This file's history keeps the old runner's name** where it records what was, in the syncs above and in the

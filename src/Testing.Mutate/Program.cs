@@ -53,6 +53,9 @@ if (args.Any(a => a is "--help" or "-h" or "-?"))
     return 0;
 }
 
+// Read before anything starts a process, which would otherwise inherit it.
+bool startedInAWorktree = Worktrees.TakeStarted();
+
 string repo;
 try
 {
@@ -213,7 +216,7 @@ if (judgeLog is not null)
         return 2;
     }
 
-    string log = File.ReadAllText(judgeLog);
+    string log = Judge.Plain(File.ReadAllText(judgeLog));
     Reading read = Judge.Read(log);
     string outcome = Judge.Outcome(read, new Declared(judgeExpect, judgeKiller, judgeSays), log);
     Console.WriteLine(read);
@@ -578,6 +581,15 @@ if (killsFile is not null)
 // else, it cuts one and runs again there with the same arguments.
 if (!Worktrees.IsOurs(repo))
 {
+    // ⛔ A run started in a worktree a run cut for it never cuts another: one that does not know the worktree as its
+    // own would cut one more each time, without end.
+    if (startedInAWorktree)
+    {
+        Console.Error.WriteLine($"mutate: started in a worktree cut for this run, but git names this checkout {repo}, "
+            + $"and the run that cut it named {Environment.GetEnvironmentVariable(Worktrees.Marker)}; refusing to cut another");
+        return 2;
+    }
+
     return Worktrees.RunOne(repo, args);
 }
 

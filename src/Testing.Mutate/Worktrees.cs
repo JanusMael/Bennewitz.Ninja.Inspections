@@ -21,6 +21,45 @@ internal static class Worktrees
     /// <summary>The environment variable naming the worktree a run was started in, by the run that cut it.</summary>
     public const string Marker = "BENNEWITZ_MUTATE_WORKTREE";
 
+    /// <summary>
+    /// The environment variable that tells a run it was started in a worktree a run cut for it. It reads it once and
+    /// clears it, so a run its tests start in another checkout is not taken for one.
+    /// </summary>
+    public const string Started = "BENNEWITZ_MUTATE_STARTED";
+
+    /// <summary>
+    /// Gives a run started in the worktree at <paramref name="path"/> what tells it the worktree is its own: the
+    /// worktree's root as git names it there, which is how the run reads its own root, and <see cref="Started"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>⛔ <b>Measured on macOS:</b> the temp folder is reached through a link, <c>/var</c> to <c>/private/var</c>, and
+    /// git names the worktree by the second. Marked with the path as cut, the run did not know the worktree as its own,
+    /// cut another, and so on, until the test that ran it gave up ten minutes later.</para>
+    /// </remarks>
+    public static void Mark(IDictionary<string, string?> environment, string path)
+    {
+        string root;
+        try
+        {
+            root = Repo.Root(path);
+        }
+        catch (InvalidOperationException)
+        {
+            root = Path.GetFullPath(path);
+        }
+
+        environment[Marker] = root;
+        environment[Started] = "1";
+    }
+
+    /// <summary>Whether this process was started in a worktree a run cut for it; asked once, at start, and cleared.</summary>
+    public static bool TakeStarted()
+    {
+        bool started = Environment.GetEnvironmentVariable(Started) == "1";
+        Environment.SetEnvironmentVariable(Started, null);
+        return started;
+    }
+
     private static readonly StringComparison PathComparison =
         OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 
@@ -152,7 +191,7 @@ internal static class Worktrees
                 start.ArgumentList.Add(argument);
             }
 
-            start.Environment[Marker] = path;
+            Mark(start.Environment, path);
             using Process process = Process.Start(start) ?? throw new InvalidOperationException("could not start this tool again");
             void Stop(object? sender, ConsoleCancelEventArgs e)
             {

@@ -35,6 +35,13 @@ internal static partial class Judge
     /// <summary>The one outcome that is not a failure of the run.</summary>
     public const string Ok = "ok";
 
+    /// <summary>
+    /// The log without the terminal's escape sequences, which is how every log is read. ⛔ Measured on GitHub's
+    /// runners (plans/00008): the test host colours its output where it takes the run for CI's, as
+    /// <c>ESC[31mfailed ESC[m Name</c>, so a failed test went unnamed and every kill read as <c>aborted</c>.
+    /// </summary>
+    public static string Plain(string log) => Escapes().Replace(log, string.Empty);
+
     public static Reading Read(string log)
     {
         bool passed = log.Contains("Test run summary: Passed!", StringComparison.Ordinal);
@@ -117,4 +124,8 @@ internal static partial class Judge
     /// </summary>
     [GeneratedRegex(@"(?m)^failed\s+\S*?\.(?<name>\w+)[\s(]")]
     private static partial Regex FailedTest();
+
+    /// <summary>A control sequence: ESC, <c>[</c>, its parameters, and the letter that ends it.</summary>
+    [GeneratedRegex(@"\x1B\[[0-?]*[ -/]*[@-~]")]
+    private static partial Regex Escapes();
 }

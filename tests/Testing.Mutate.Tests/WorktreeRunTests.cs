@@ -14,6 +14,9 @@ namespace Testing.Mutate.Tests;
 /// untracked, and one uncommitted edit. A run can only kill the mutation if the untracked file reached its worktree,
 /// and the checkout's bytes and status, read before and after, show whether the run edited it.</para>
 /// <para>⚠ <b>Each run restores and builds,</b> about half a minute, so this class holds four runs and no more.</para>
+/// <para>⛔ <b>Every run has a temp folder of its own</b> (<see cref="Subject.Run"/>), so no other run's sweep, from
+/// another test or a person's own run, removes a worktree this class made: the tool's own set, run in three
+/// worktrees at once, read a dead run's worktree as already gone.</para>
 /// </remarks>
 public sealed class WorktreeRunTests(WorktreeRunTests.Subject subject) : IClassFixture<WorktreeRunTests.Subject>
 {
@@ -23,7 +26,7 @@ public sealed class WorktreeRunTests(WorktreeRunTests.Subject subject) : IClassF
         string before = subject.State();
 
         // A budget of its own, which the run is held to and allowed by.
-        (int exitCode, string output) = Tool.Run(subject.Root, ["--set", "Mutations/calculator.json", "--budget", "10"]);
+        (int exitCode, string output) = subject.Run(["--set", "Mutations/calculator.json", "--budget", "10"]);
 
         Assert.True(exitCode == 0, output);
         Assert.Contains("against a budget of 10.0 min", output, StringComparison.Ordinal);
@@ -34,7 +37,7 @@ public sealed class WorktreeRunTests(WorktreeRunTests.Subject subject) : IClassF
         // The killer is in the untracked test file: it was killed, so that file reached the worktree.
         Assert.Contains("1 killed by a mutation", output, StringComparison.Ordinal);
         Assert.Equal(before, subject.State());
-        Assert.DoesNotContain(Subject.Home, subject.Worktrees(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(subject.Home, subject.Worktrees(), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -42,7 +45,7 @@ public sealed class WorktreeRunTests(WorktreeRunTests.Subject subject) : IClassF
     {
         string before = subject.State();
 
-        (int exitCode, string output) = Tool.Run(subject.Root, ["--set", "Mutations/calculator.json", "--budget", "0.001"]);
+        (int exitCode, string output) = subject.Run(["--set", "Mutations/calculator.json", "--budget", "0.001"]);
 
         Assert.True(exitCode == 2, output);
         Assert.Contains("baseline: green", output, StringComparison.Ordinal);
@@ -56,11 +59,11 @@ public sealed class WorktreeRunTests(WorktreeRunTests.Subject subject) : IClassF
     {
         // A run named for a process that is not running: no system hands out the largest pid there is. Its start time is
         // this test's own, so two runs of the test never meet.
-        string left = Path.Combine(Subject.Home, $"{int.MaxValue}-{DateTime.UtcNow.Ticks}", "1");
+        string left = Path.Combine(subject.Home, $"{int.MaxValue}-{DateTime.UtcNow.Ticks}", "1");
         subject.Git("worktree", "add", "--detach", left, "HEAD");
         Assert.Contains(left, subject.Worktrees(), StringComparison.OrdinalIgnoreCase);
 
-        (int exitCode, string output) = Tool.Run(subject.Root, ["--set", "Mutations/calculator.json", "--only", "other way round"]);
+        (int exitCode, string output) = subject.Run(["--set", "Mutations/calculator.json", "--only", "other way round"]);
 
         Assert.True(exitCode == 0, output);
         Assert.Contains("left by a run that is gone", output, StringComparison.Ordinal);
@@ -71,7 +74,7 @@ public sealed class WorktreeRunTests(WorktreeRunTests.Subject subject) : IClassF
     [Fact]
     public void A_mutation_in_a_swapped_project_builds_it_alone_and_is_judged_by_the_assembly_it_swaps_in()
     {
-        (int exitCode, string output) = Tool.Run(subject.Root, ["--set", "Mutations/calculator.json", "--swap", "Calculator/Calculator.csproj"]);
+        (int exitCode, string output) = subject.Run(["--set", "Mutations/calculator.json", "--swap", "Calculator/Calculator.csproj"]);
 
         // The red mutation is killed only if the assembly it built reached the tests' output.
         Assert.True(exitCode == 0, output);
@@ -81,9 +84,27 @@ public sealed class WorktreeRunTests(WorktreeRunTests.Subject subject) : IClassF
     }
 
     [Fact]
+    public void A_run_started_in_a_worktree_it_does_not_know_as_its_own_cuts_no_other()
+    {
+        // What a run cut for it is started with, naming a worktree that is not where it runs: on macOS the marker once
+        // named the temp folder through its link, so the run cut another worktree, and so on without end.
+        Dictionary<string, string> environment = new()
+        {
+            ["BENNEWITZ_MUTATE_STARTED"] = "1",
+            ["BENNEWITZ_MUTATE_WORKTREE"] = Path.Combine(Path.GetTempPath(), "not-this-checkout"),
+        };
+
+        (int exitCode, string output) = subject.Run(["--set", "Mutations/calculator.json"], environment);
+
+        Assert.True(exitCode == 2, output);
+        Assert.Contains("refusing to cut another", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("in a worktree of this checkout", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void A_swap_that_names_no_project_is_refused_before_anything_builds()
     {
-        (int exitCode, string output) = Tool.Run(subject.Root, ["--set", "Mutations/calculator.json", "--swap", "Calculator/Missing.csproj"]);
+        (int exitCode, string output) = subject.Run(["--set", "Mutations/calculator.json", "--swap", "Calculator/Missing.csproj"]);
 
         Assert.True(exitCode == 2, output);
         Assert.Contains("--swap takes a project file", output, StringComparison.Ordinal);
@@ -96,6 +117,7 @@ public sealed class WorktreeRunTests(WorktreeRunTests.Subject subject) : IClassF
         public Subject()
         {
             Root = Directory.CreateTempSubdirectory("mutate-subject-").FullName;
+            Temp = Directory.CreateTempSubdirectory("mutate-temp-").FullName;
             string repo = RepoPaths.Root;
             File.Copy(Path.Combine(repo, "global.json"), Path.Combine(Root, "global.json"));
             File.Copy(Path.Combine(repo, "NuGet.config"), Path.Combine(Root, "NuGet.config"));
@@ -186,8 +208,23 @@ public sealed class WorktreeRunTests(WorktreeRunTests.Subject subject) : IClassF
 
         private const string Fact = "[Fact]";
 
-        /// <summary>Where the tool keeps every run's worktrees, as it names it.</summary>
-        public static string Home => Path.Combine(Path.GetTempPath(), "bennewitz-mutate", "worktrees");
+        /// <summary>The temp folder every run over the subject is given, which no other run shares.</summary>
+        public string Temp { get; }
+
+        /// <summary>Where the tool keeps the worktrees of runs over the subject, as it names it under <see cref="Temp"/>.</summary>
+        public string Home => Path.Combine(Temp, "bennewitz-mutate", "worktrees");
+
+        /// <summary>Runs the tool over the subject with <see cref="Temp"/> as its temp folder, and anything else given.</summary>
+        public (int ExitCode, string Output) Run(IEnumerable<string> arguments, IReadOnlyDictionary<string, string>? environment = null)
+        {
+            Dictionary<string, string> given = new(StringComparer.Ordinal) { ["TMP"] = Temp, ["TEMP"] = Temp, ["TMPDIR"] = Temp };
+            foreach ((string name, string value) in environment ?? new Dictionary<string, string>())
+            {
+                given[name] = value;
+            }
+
+            return Tool.Run(Root, arguments, environment: given);
+        }
 
         public string Root { get; }
 
@@ -234,12 +271,15 @@ public sealed class WorktreeRunTests(WorktreeRunTests.Subject subject) : IClassF
                 // Removed below either way.
             }
 
-            foreach (string file in Directory.EnumerateFiles(Root, "*", SearchOption.AllDirectories))
+            foreach (string folder in (string[])[Root, Temp])
             {
-                File.SetAttributes(file, FileAttributes.Normal);
-            }
+                foreach (string file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
+                {
+                    File.SetAttributes(file, FileAttributes.Normal);
+                }
 
-            Directory.Delete(Root, recursive: true);
+                Directory.Delete(folder, recursive: true);
+            }
         }
 
         private void Write(string relative, string text)

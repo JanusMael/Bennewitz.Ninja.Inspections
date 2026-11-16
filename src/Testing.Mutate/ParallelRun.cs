@@ -67,8 +67,8 @@ internal static partial class ParallelRun
                         info.ArgumentList.Add(argument);
                     }
 
-                    // The worktree this shard may edit, and no other (Worktrees.Marker).
-                    info.Environment[Worktrees.Marker] = trees[k];
+                    // The worktree this shard may edit, and no other (Worktrees.Marker), named as git names it there.
+                    Worktrees.Mark(info.Environment, trees[k]);
 
                     using StreamWriter writer = new(Log(s, k)) { AutoFlush = true };
                     using Process process = new() { StartInfo = info };

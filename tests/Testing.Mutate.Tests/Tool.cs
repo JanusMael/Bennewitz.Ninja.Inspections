@@ -6,7 +6,8 @@ namespace Testing.Mutate.Tests;
 internal static class Tool
 {
     /// <summary>Runs the tool in <paramref name="directory"/>, bounded, and answers its exit code and everything it printed.</summary>
-    public static (int ExitCode, string Output) Run(string directory, IEnumerable<string> arguments, TimeSpan? bound = null)
+    public static (int ExitCode, string Output) Run(
+        string directory, IEnumerable<string> arguments, TimeSpan? bound = null, IReadOnlyDictionary<string, string>? environment = null)
     {
         ProcessStartInfo start = new()
         {
@@ -20,6 +21,11 @@ internal static class Tool
         foreach (string argument in arguments)
         {
             start.ArgumentList.Add(argument);
+        }
+
+        foreach ((string name, string value) in environment ?? new Dictionary<string, string>())
+        {
+            start.Environment[name] = value;
         }
 
         using Process process = Process.Start(start) ?? throw new InvalidOperationException("Could not start the tool.");

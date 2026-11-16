@@ -102,6 +102,19 @@ public sealed class MutateTests
     }
 
     [Fact]
+    public void A_log_the_host_coloured_is_read_as_the_same_log_uncoloured()
+    {
+        // As GitHub's runners print it: the line naming the failed test, and the summary, coloured. Read as it was,
+        // the failed test went unnamed and every kill read as aborted.
+        (int exitCode, string output) = Run(
+            ["--judge", Fixture("killed-in-colour.log"), "red", "--killer", KilledTest, "--says", "17.554062499999997"]);
+
+        Assert.True(exitCode == 0, output);
+        Assert.Contains(KilledTest, output, StringComparison.Ordinal);
+        Assert.DoesNotContain("aborted", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void A_kill_by_some_other_test_is_a_wrong_killer()
     {
         // A red run proves the mutation broke something; only the declared test failing proves it

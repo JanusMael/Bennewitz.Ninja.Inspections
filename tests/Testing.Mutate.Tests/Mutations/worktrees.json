@@ -79,6 +79,13 @@
       "killer": "A_swap_that_names_no_project_is_refused_before_anything_builds"
     },
     {
+      "name": "a run that does not know its worktree cuts another",
+      "file": "src/Testing.Mutate/Program.cs",
+      "old": "if (startedInAWorktree)",
+      "new": "if (startedInAWorktree && repo.Length < 0)",
+      "killer": "A_run_started_in_a_worktree_it_does_not_know_as_its_own_cuts_no_other"
+    },
+    {
       "name": "a comment reworded",
       "file": "src/Testing.Mutate/Program.cs",
       "old": "// The pins a set's markers are judged against.",

@@ -42,7 +42,7 @@ internal static class Dotnet
 
     /// <param name="classes">The classes to run, each its own <c>--filter-class</c>, which add up; none for the whole project.</param>
     public static string Test(string repo, string project, IReadOnlyList<string> classes) =>
-        Shell.Run(
+        Judge.Plain(Shell.Run(
             repo,
             "dotnet",
             [
@@ -50,5 +50,5 @@ internal static class Dotnet
                 .. classes.SelectMany(c => (string[])["--filter-class", c]),
             ],
             RunBound,
-            BuildEnvironment).Output;
+            BuildEnvironment).Output);
 }
