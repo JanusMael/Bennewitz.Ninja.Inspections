@@ -94,7 +94,11 @@ leading zero dropped. `2026.3.920` is 20 September 2026, in Q3.
 a version that can never be replaced, and the recovery is to wait for tomorrow.
 
 The release refuses a version of any other shape, and one whose quarter is not its date's:
-`2026.3.1001` is refused, because 1 October is in the fourth quarter.
+`2026.3.1001` is refused, because 1 October is in the fourth quarter. It also refuses a version
+below the newest that nuget.org lists for one of the release's ids, which nuget.org would take
+without a word and keep: a version is the date of its release, so tag today's. A version nuget.org
+already lists is let through, since a re-run's push is skipped; an id nuget.org has never seen has
+no floor; and when nuget.org cannot be read, the release is refused rather than guessed.
 
 ⛔ **A published version is permanent.** It cannot be replaced, re-pushed, or corrected — only
 superseded by a higher one, or unlisted.
@@ -166,6 +170,8 @@ either dispatch the workflow by hand or cut the next day's version.
 | Token exchange **401**, *"No matching trust policy owned by user"* | The name in `NUGET_USER`, the policy's owner, or the policy's scope | Work the list below — the message is identical for all three |
 | **Push unauthorized** | The policy is owned by a different account than the package | Confirm the policy owner on nuget.org |
 | **Token expired** | More than an hour between login and push | The two steps are adjacent here; suspect a stalled build |
+| *"nuget.org lists `<id>` `<version>`, newer than …"* | The tag's version is below the newest nuget.org lists for one of the release's ids | Tag today's date. Nothing was built or published |
+| *"… so whether `<version>` is below its newest is unknown"* | nuget.org did not answer, or not within 30 seconds | `gh run rerun` once nuget.org answers. Nothing was built or published |
 | `already_exists` | Re-running a completed release | Expected — `--skip-duplicate` makes it a no-op |
 | GitHub Release **422** | A release already exists for that tag | Delete the conflicting release, then re-run |
 | One package pushed, another **403** | More than one policy, so one exchange reached only one of them | Collapse to a single policy whose patterns cover every id, then `gh run rerun` — `--skip-duplicate` no-ops the one already live |
