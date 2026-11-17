@@ -1,0 +1,16 @@
+xUnit.net v3 In-Process Runner v3.2.2+728c1dce01 (64-bit .NET 10.0.15)
+  Discovering: XamlQuality.Tests
+  Discovered:  XamlQuality.Tests
+  Starting:    XamlQuality.Tests
+    XamlQuality.Tests.Rules.ExpanderAutomationNameRuleTests.MarkupUnderObj_IsNotScanned [FAIL]
+      Assert.Equal() Failure: Values differ
+      Expected: 0
+      Actual:   1
+      Stack Trace:
+        D:\a\Inspections\Inspections\tests\XamlQuality.Tests\Rules\ExpanderAutomationNameRuleTests.cs(142,0): at XamlQuality.Tests.Rules.ExpanderAutomationNameRuleTests.MarkupUnderObj_IsNotScanned()
+           at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+           at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Finished:    XamlQuality.Tests (ID = '14315c147f366453c1db891da708c15bf8ab710432fb3dce2f0a80f3a7e02213')
+=== TEST EXECUTION SUMMARY ===
+   XamlQuality.Tests  Total: 8, Errors: 0, Failed: 1, Skipped: 0, Not Run: 0, Time: 0.282s
+

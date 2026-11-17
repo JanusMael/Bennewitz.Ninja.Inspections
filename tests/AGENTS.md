@@ -152,6 +152,7 @@ the analyzer or the package list is wrong, not the test.
 | Path | What it covers |
 |---|---|
 | `MutateTests.cs`, `fixtures/` | DiffView's tests of the runner, moved with their fixtures, whose paths name this folder: reading a log, a set, its faults, its completeness, shards and their merge, `--owed` |
+| `InProcessLogTests.cs`, `fixtures/runs/` | The log a direct run prints, by `plans/00009`: each pair one run captured from xUnit v3's in-process runner and from `dotnet test`, judged alike, a kill, a failed theory row, a host that died, a cleanup error, a green run and a filter that matched nothing |
 | `WorktreeRunTests.cs` | Whole runs over a repository the class makes in temp, an xUnit v3 project with one test in an untracked file: the checkout left as it was, the budget, a dead run's worktree swept |
 | `RealPathTests.cs` | A path through a link resolved as git names it, which a sweep compares; skipped where the account cannot make a link |
 | `OwnSetTests.cs`, `HelpTests.cs` | A set that edits itself is refused; help answers outside a checkout, and nothing else does |

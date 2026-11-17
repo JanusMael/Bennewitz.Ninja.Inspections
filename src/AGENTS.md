@@ -117,4 +117,4 @@ command is `mutate`. The root `AGENTS.md`'s Testing section names each file.
 |---|---|---|
 | The `ToolCommandName` stays `mutate` | It is what a repository's tool manifest and its scripts invoke, as `dotnet mutate` | `Testing.Mutate.csproj` |
 | Every type is internal, so the project generates no documentation file | The tool has no API; the documentation file would turn the moved code's partial `<param>` tags into errors and describe nothing a consumer reads | `Testing.Mutate.csproj` |
-| What the tool kept from DiffView's runner is changed only where `plans/00008` says, and each file says so in its first line | DiffView's committed sets and its tests read the runner as it was; a quiet change is one they meet as a wrong verdict | the first line of each moved file; `MutateTests` |
+| What the tool kept from DiffView's runner is changed only where `plans/00008`, or a later plan, says, and each file says so in its first line, naming every plan that changed it | DiffView's committed sets and its tests read the runner as it was; a quiet change is one they meet as a wrong verdict | the first line of each moved file; `MutateTests` |

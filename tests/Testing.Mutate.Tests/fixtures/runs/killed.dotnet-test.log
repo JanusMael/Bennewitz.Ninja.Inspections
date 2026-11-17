@@ -1,0 +1,25 @@
+Running tests from D:\a\Inspections\Inspections\tests\XamlQuality.Tests\bin\Release\net10.0\XamlQuality.Tests.dll (net10.0|x64)
+failed XamlQuality.Tests.Rules.ExpanderAutomationNameRuleTests.MarkupUnderObj_IsNotScanned (15ms)
+  Assert.Equal() Failure: Values differ
+Expected: 0
+Actual:   1
+  from D:\a\Inspections\Inspections\tests\XamlQuality.Tests\bin\Release\net10.0\XamlQuality.Tests.dll (net10.0|x64)
+  Assert.Equal() Failure: Values differ
+  Expected: 0
+  Actual:   1
+    at XamlQuality.Tests.Rules.ExpanderAutomationNameRuleTests.MarkupUnderObj_IsNotScanned() in D:\a\Inspections\Inspections\tests\XamlQuality.Tests\Rules\ExpanderAutomationNameRuleTests.cs:142
+    at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+    at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+D:\a\Inspections\Inspections\tests\XamlQuality.Tests\bin\Release\net10.0\XamlQuality.Tests.dll (net10.0|x64) failed with 1 error(s) (1s 536ms)
+Exit code: 2
+  Standard output: xUnit.net v3 Microsoft.Testing.Platform v1 Runner v3.2.2+728c1dce01 (64-bit .NET 10.0.15)
+  
+
+Test run summary: Failed!
+  total: 8
+  failed: 1
+  succeeded: 7
+  skipped: 0
+  duration: 4s 588ms
+Test run completed with non-success exit code: 2 (see: https://aka.ms/testingplatform/exitcodes)
+

@@ -19,7 +19,7 @@ dotnet mutate --set tests/MyApp.Tests/Mutations/parser.json
 ```
 
 It needs a git checkout and tests on Microsoft.Testing.Platform, which `dotnet test --project` and `--filter-class`
-assume, as xUnit v3's do.
+assume, as xUnit v3's do. Where the tests are xUnit v3's, it runs them directly instead, as *How it runs* says.
 
 ### A set
 
@@ -83,7 +83,9 @@ Every mutation's run is compared with its declaration, and anything but `ok` fai
 | `build` | The mutation does not compile, which proves nothing about the tests |
 
 Only an explicit `Test run summary: Passed!` reads as green: an aborted host prints `Failed!` with `failed: 0`, which
-every reading by counts calls healthy.
+every reading by counts calls healthy. In the log of xUnit v3's in-process runner, which a direct run prints, only a
+summary of more than no tests with no error and no failure reads as green: a filter that matches nothing prints
+`Total: 0` and exits 0.
 
 ### Completeness
 
@@ -99,6 +101,14 @@ marker in no test, and a marked test some mutation killed anyway each fail the r
   holds that tree, and plants its mutations there. A run killed partway leaves only the worktree, which the next run
   removes.
 - **A clean baseline first.** The worktree's clean tree must build and pass, or nothing is mutated.
+- **The tests run directly where they can.** The baseline runs the built test assembly through the in-process runner
+  xUnit v3 builds into it, `dotnet <assembly> -class <class> -noColor`, in the assembly's folder, where `dotnet test`
+  starts its tests too. Where that runner answers and the clean tree passes by it, every mutation runs that way, which
+  took a swapped mutation of one library from 3.2 s to 2.3 s on average on an idle machine, since `dotnet test --project`
+  evaluates the project first. Anything else, another framework,
+  an assembly built to start Microsoft.Testing.Platform itself, or a clean tree red when run directly, runs the
+  baseline again through `dotnet test`, and every mutation with it. The run says which, as
+  `test run: direct, <assembly>` or `test run: dotnet test, since …`.
 - **A budget.** A run is estimated after its baseline and refused past 30 minutes, or past `--budget <minutes>`.
 - **Builds stay incremental.** Every build and test run is given one `BuildTimestamp` for the run, MSBuild's node
   reuse off and Avalonia's build telemetry off. A mutation's build skips the restore unless its edit, or the one

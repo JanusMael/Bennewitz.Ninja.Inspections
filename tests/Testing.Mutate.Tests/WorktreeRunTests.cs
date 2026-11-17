@@ -11,9 +11,10 @@ namespace Testing.Mutate.Tests;
 /// <remarks>
 /// <para>⭐ <b>The repository is real and small:</b> a calculator library and an xUnit v3 project holding its one test,
 /// a set with a red mutation that names its killer and a green control, committed but for the test file, which stays
-/// untracked, and one uncommitted edit. A run can only kill the mutation if the untracked file reached its worktree,
+/// untracked, and one uncommitted edit; beside the test, untracked too and held to no mutation, two tests every
+/// baseline runs, which pass only where a run starts its tests as <c>dotnet test</c> does (plans/00009). A run can only kill the mutation if the untracked file reached its worktree,
 /// and the checkout's bytes and status, read before and after, show whether the run edited it.</para>
-/// <para>⚠ <b>Each run restores and builds,</b> about half a minute, so this class holds four runs and no more.</para>
+/// <para>⚠ <b>Each run restores and builds,</b> about half a minute, so this class holds six runs and no more.</para>
 /// <para>⛔ <b>Every run has a temp folder of its own</b> (<see cref="Subject.Run"/>), so no other run's sweep, from
 /// another test or a person's own run, removes a worktree this class made: the tool's own set, run in three
 /// worktrees at once, read a dead run's worktree as already gone.</para>
@@ -29,6 +30,7 @@ public sealed class WorktreeRunTests(WorktreeRunTests.Subject subject) : IClassF
         (int exitCode, string output) = subject.Run(["--set", "Mutations/calculator.json", "--budget", "10"]);
 
         Assert.True(exitCode == 0, output);
+        Assert.Contains("test run: direct, Calculator.Tests.dll", output, StringComparison.Ordinal);
         Assert.Contains("against a budget of 10.0 min", output, StringComparison.Ordinal);
         Assert.Contains("this checkout is not edited", output, StringComparison.Ordinal);
         Assert.Contains("ok     the calculator subtracts", output, StringComparison.Ordinal);
@@ -102,6 +104,33 @@ public sealed class WorktreeRunTests(WorktreeRunTests.Subject subject) : IClassF
     }
 
     [Fact]
+    public void A_test_project_that_starts_the_platform_itself_runs_through_dotnet_test_and_kills_as_declared()
+    {
+        // Built so, the assembly's entry point is Microsoft.Testing.Platform's, which refuses the in-process runner's
+        // `-class`; the baseline's green under `dotnet test` also shows its tests found their folder there.
+        (int exitCode, string output) = subject.Run(["--set", "Mutations/calculator.json", "--property", "UseMicrosoftTestingPlatformRunner=true"]);
+
+        Assert.True(exitCode == 0, output);
+        Assert.Contains("test run: dotnet test, since the assembly run directly is not xUnit v3's in-process runner", output, StringComparison.Ordinal);
+        Assert.Contains("ok     the calculator subtracts", output, StringComparison.Ordinal);
+        Assert.Contains("ok     the sum is taken the other way round", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_clean_tree_red_when_run_directly_runs_through_dotnet_test()
+    {
+        // The subject's test that passes only under the platform, when asked to: the direct baseline is red by it, so the
+        // run takes the way the baseline is green by, and judges every mutation by it.
+        Dictionary<string, string> environment = new() { ["SUBJECT_NEEDS_PLATFORM"] = "1" };
+
+        (int exitCode, string output) = subject.Run(["--set", "Mutations/calculator.json", "--only", "subtracts"], environment);
+
+        Assert.True(exitCode == 0, output);
+        Assert.Contains("test run: dotnet test, since the clean tree run directly is red", output, StringComparison.Ordinal);
+        Assert.Contains("ok     the calculator subtracts", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void A_swap_that_names_no_project_is_refused_before_anything_builds()
     {
         (int exitCode, string output) = subject.Run(["--set", "Mutations/calculator.json", "--swap", "Calculator/Missing.csproj"]);
@@ -166,6 +195,25 @@ public sealed class WorktreeRunTests(WorktreeRunTests.Subject subject) : IClassF
                 {
                     {{Fact}}
                     public void Two_and_three_make_five() => Assert.Equal(5, Calculator.Add(2, 3));
+                }
+                """);
+            // Outside the set's test files, so held to no mutation, and run by every baseline (plans/00009): its first test
+            // passes only where the run starts beside the assembly, as `dotnet test` starts it, and its second, when the
+            // run is asked to, only under Microsoft.Testing.Platform, which `dotnet test` starts with `--server`.
+            Write("Calculator.Tests/WhereTests.cs", $$"""
+                using Xunit;
+
+                namespace Arithmetic.Tests;
+
+                public sealed class WhereTests
+                {
+                    {{Fact}}
+                    public void Runs_beside_its_assembly() =>
+                        Assert.True(File.Exists(Path.Combine(Environment.CurrentDirectory, "Calculator.Tests.dll")), Environment.CurrentDirectory);
+
+                    {{Fact}}
+                    public void Runs_under_the_platform_when_asked() =>
+                        Assert.True(Environment.GetEnvironmentVariable("SUBJECT_NEEDS_PLATFORM") is null || Environment.GetCommandLineArgs().Contains("--server"));
                 }
                 """);
             Write("Mutations/calculator.json", """
