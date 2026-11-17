@@ -1,0 +1,15 @@
+Running tests from D:\a\Probe\Probe\bin\Debug\net10.0\Probe.dll (net10.0|x64)
+D:\a\Probe\Probe\bin\Debug\net10.0\Probe.dll (net10.0|x64) Zero tests ran (399ms)
+Exit code: 8
+  Standard output: xUnit.net v3 Microsoft.Testing.Platform v1 Runner v3.2.2+728c1dce01 (64-bit .NET 10.0.15)
+  
+
+Test run summary: Zero tests ran
+  error: 1
+
+  total: 0
+  failed: 0
+  succeeded: 0
+  skipped: 0
+  duration: 634ms
+Test run completed with non-success exit code: 8 (see: https://aka.ms/testingplatform/exitcodes)

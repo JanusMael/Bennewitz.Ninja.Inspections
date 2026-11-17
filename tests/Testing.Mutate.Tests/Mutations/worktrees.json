@@ -1,12 +1,82 @@
 {
   // What plans/00008 adds to the runner it moved from DiffView: the checkout is never edited, a dead run's worktree is
   // removed, a run is held to its budget, a set never edits itself, a repository with no central pins can run, and a
-  // swapped project's assembly is what its mutations are judged by.
+  // swapped project's assembly is what its mutations are judged by. And what plans/00009 adds: the tests run directly
+  // where the in-process runner answers and the clean tree is green by it, else through `dotnet test`, and that runner's
+  // log is read as its `dotnet test` twin is.
   // Run with this repository's build of the tool, from outside the worktrees it cuts:
   //   dotnet tests/Testing.Mutate.Tests/bin/Release/net10.0/Testing.Mutate.dll --set tests/Testing.Mutate.Tests/Mutations/worktrees.json
   "project": "tests/Testing.Mutate.Tests/Testing.Mutate.Tests.csproj",
-  "tests": ["tests/Testing.Mutate.Tests/WorktreeRunTests.cs", "tests/Testing.Mutate.Tests/OwnSetTests.cs"],
+  "tests": [
+    "tests/Testing.Mutate.Tests/WorktreeRunTests.cs",
+    "tests/Testing.Mutate.Tests/OwnSetTests.cs",
+    "tests/Testing.Mutate.Tests/InProcessLogTests.cs"
+  ],
   "mutations": [
+    {
+      "name": "the direct way is never chosen",
+      "file": "src/Testing.Mutate/Program.cs",
+      "old": "string? direct = Dotnet.Property(repo, plan.Project, \"TargetPath\");",
+      "new": "string? direct = plan.Project.Length < 0 ? Dotnet.Property(repo, plan.Project, \"TargetPath\") : null;",
+      "killer": "A_run_kills_as_declared_from_a_worktree_and_leaves_the_checkout_as_it_found_it",
+      "says": "test run: direct"
+    },
+    {
+      "name": "a red direct baseline is kept",
+      "file": "src/Testing.Mutate/Program.cs",
+      "old": ": baseline.Verdict != \"green\"",
+      "new": ": baseline.Verdict == \"never\"",
+      "killer": "A_clean_tree_red_when_run_directly_runs_through_dotnet_test"
+    },
+    {
+      "name": "any log is taken for the in-process runner's",
+      "file": "src/Testing.Mutate/Judge.cs",
+      "old": "log.IndexOf(SummaryHeading, banner, StringComparison.Ordinal) > banner;",
+      "new": "log.IndexOf(SummaryHeading, banner, StringComparison.Ordinal) > banner || log.Length > 0;",
+      "killer": "A_test_project_that_starts_the_platform_itself_runs_through_dotnet_test_and_kills_as_declared"
+    },
+    {
+      "name": "the summary's failures are ignored",
+      "file": "src/Testing.Mutate/Judge.cs",
+      "old": "|| totals.Groups[\"failed\"].Value != \"0\")",
+      "new": "|| totals.Groups[\"failed\"].Value == \"never\")",
+      "killer": "A_direct_run_is_judged_as_its_dotnet_test_twin_is"
+    },
+    {
+      "name": "the summary's errors are ignored",
+      "file": "src/Testing.Mutate/Judge.cs",
+      "old": "|| totals.Groups[\"errors\"].Value != \"0\"",
+      "new": "|| totals.Groups[\"errors\"].Value == \"never\"",
+      "killer": "A_direct_run_is_judged_as_its_dotnet_test_twin_is"
+    },
+    {
+      "name": "a summary of no tests passes",
+      "file": "src/Testing.Mutate/Judge.cs",
+      "old": "CultureInfo.InvariantCulture) == 0",
+      "new": "CultureInfo.InvariantCulture) == -1",
+      "killer": "A_summary_that_prints_every_count_for_no_tests_is_red"
+    },
+    {
+      "name": "a [FAIL] line is unread",
+      "file": "src/Testing.Mutate/Judge.cs",
+      "old": "\\[FAIL\\]",
+      "new": "\\[FAILED\\]",
+      "killer": "A_direct_kill_names_the_failed_test_its_message_and_where_its_trace_stopped"
+    },
+    {
+      "name": "a theory row's arguments hide its name",
+      "file": "src/Testing.Mutate/Judge.cs",
+      "old": "(?:\\(.*\\))?[ \\t]+",
+      "new": "[ \\t]+",
+      "killer": "A_failed_theory_row_is_named_by_its_method"
+    },
+    {
+      "name": "the in-process runner's trace line is unread",
+      "file": "src/Testing.Mutate/Judge.cs",
+      "old": "|\\((?<paren>\\d+),\\d+\\))",
+      "new": "|\\((?<paren>\\d+),\\d+\\)x)",
+      "killer": "A_direct_kill_names_the_failed_test_its_message_and_where_its_trace_stopped"
+    },
     {
       "name": "a run edits whatever checkout it is in",
       "file": "src/Testing.Mutate/Worktrees.cs",

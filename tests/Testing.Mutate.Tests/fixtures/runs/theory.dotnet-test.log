@@ -1,0 +1,24 @@
+Running tests from D:\a\Probe\Probe\bin\Debug\net10.0\Probe.dll (net10.0|x64)
+failed Probe.TheoryTests.A_row_fails(value: 1.5) (206ms)
+  Assert.Equal() Failure: Values differ
+Expected: 2
+Actual:   1.5
+  from D:\a\Probe\Probe\bin\Debug\net10.0\Probe.dll (net10.0|x64)
+  Assert.Equal() Failure: Values differ
+  Expected: 2
+  Actual:   1.5
+    at Probe.TheoryTests.A_row_fails(Double value) in D:\a\Probe\Probe\Cases.cs:10
+    at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+    at System.Reflection.MethodBaseInvoker.InvokeDirectByRefWithFewArgs(Object obj, Span`1 copyOfArgs, BindingFlags invokeAttr)
+D:\a\Probe\Probe\bin\Debug\net10.0\Probe.dll (net10.0|x64) failed with 1 error(s) (621ms)
+Exit code: 2
+  Standard output: xUnit.net v3 Microsoft.Testing.Platform v1 Runner v3.2.2+728c1dce01 (64-bit .NET 10.0.15)
+  
+
+Test run summary: Failed!
+  total: 2
+  failed: 1
+  succeeded: 1
+  skipped: 0
+  duration: 984ms
+Test run completed with non-success exit code: 2 (see: https://aka.ms/testingplatform/exitcodes)

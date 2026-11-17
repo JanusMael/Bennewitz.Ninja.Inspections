@@ -1,4 +1,4 @@
-// Moved from DiffView's scripts/mutate-behaviour.cs at 9b36789 by plans/00008; changed only where the plan says.
+// Moved from DiffView's scripts/mutate-behaviour.cs at 9b36789 by plans/00008; changed only where the plan says, and where plans/00009 says.
 namespace Bennewitz.Ninja.Testing.Mutate;
 
 /// <summary>What a mutation says must happen to the run it is judged by.</summary>
@@ -26,9 +26,11 @@ internal readonly record struct Reading(string Verdict, string Message, IReadOnl
 }
 
 /// <summary>
-/// Reads a `dotnet test` log. ⛔ The outcome line is load-bearing and no arithmetic replaces it: an
+/// Reads a test run's log: <c>dotnet test</c>'s, or, by plans/00009, the in-process runner's that xUnit v3 builds into a
+/// test assembly. ⛔ The outcome line is load-bearing and no arithmetic replaces it: an
 /// aborted host prints `Failed!` with `failed: 0`, which every count-based reading calls healthy —
-/// `AGENTS.md` §5 and `scripts/catch-crash`. So anything that is not an explicit `Passed!` is red.
+/// `AGENTS.md` §5 and `scripts/catch-crash`. So anything that is not an explicit `Passed!` is red, and in the
+/// in-process runner's log, anything that is not a summary of more than no tests with no error and no failure.
 /// </summary>
 internal static partial class Judge
 {
@@ -42,9 +44,20 @@ internal static partial class Judge
     /// </summary>
     public static string Plain(string log) => Escapes().Replace(log, string.Empty);
 
+    /// <summary>
+    /// Whether the log is the in-process runner's: its banner, then its summary's heading (plans/00009, decision 2). A
+    /// run that printed no summary is not, so a host that died before it reads as no direct run at all.
+    /// </summary>
+    public static bool InProcess(string log)
+    {
+        int banner = log.IndexOf(InProcessBanner, StringComparison.Ordinal);
+        return banner >= 0 && log.IndexOf(SummaryHeading, banner, StringComparison.Ordinal) > banner;
+    }
+
     public static Reading Read(string log)
     {
-        bool passed = log.Contains("Test run summary: Passed!", StringComparison.Ordinal);
+        bool inProcess = log.Contains(InProcessBanner, StringComparison.Ordinal);
+        bool passed = inProcess ? InProcessPassed(log) : log.Contains("Test run summary: Passed!", StringComparison.Ordinal);
         string message = string.Empty;
         foreach (string raw in log.Split('\n'))
         {
@@ -59,17 +72,18 @@ internal static partial class Judge
         List<int> lines = [];
         foreach (Match m in TraceLine().Matches(log))
         {
-            int at = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
-            if (!lines.Contains(at))
+            Group at = m.Groups["line"].Success ? m.Groups["line"] : m.Groups["paren"];
+            int number = int.Parse(at.Value, CultureInfo.InvariantCulture);
+            if (!lines.Contains(number))
             {
-                lines.Add(at);
+                lines.Add(number);
             }
         }
 
         lines.Sort();
 
         List<string> failed = [];
-        foreach (Match m in FailedTest().Matches(log))
+        foreach (Match m in (inProcess ? InProcessFailedTest() : FailedTest()).Matches(log))
         {
             string name = m.Groups["name"].Value;
             if (!failed.Contains(name))
@@ -114,8 +128,54 @@ internal static partial class Judge
             : Ok;
     }
 
-    /// <summary>A stack frame in a source file: the line its trace stopped on.</summary>
-    [GeneratedRegex(@"[^\s:(]+\.cs:(?:line )?(\d+)")]
+    /// <summary>The first line the in-process runner prints, before its version.</summary>
+    private const string InProcessBanner = "xUnit.net v3 In-Process Runner";
+
+    /// <summary>What the in-process runner prints before its summary lines, one for each assembly.</summary>
+    private const string SummaryHeading = "=== TEST EXECUTION SUMMARY ===";
+
+    /// <summary>
+    /// ⛔ Green only on a summary, after its heading, whose every assembly line ran more than no tests with no error and no
+    /// failure. Measured, 2026-11-17: a filter that matches nothing prints <c>Total: 0</c> alone and exits 0, so a
+    /// reading by the exit code, or by the absence of a failure, calls it a pass.
+    /// </summary>
+    private static bool InProcessPassed(string log)
+    {
+        int heading = log.LastIndexOf(SummaryHeading, StringComparison.Ordinal);
+        if (heading < 0)
+        {
+            return false;
+        }
+
+        string summary = log[(heading + SummaryHeading.Length)..];
+        bool any = false;
+        foreach (string raw in summary.Split('\n'))
+        {
+            if (raw.Trim().Length == 0)
+            {
+                continue;
+            }
+
+            Match totals = SummaryTotals().Match(raw);
+            if (!totals.Success
+                || int.Parse(totals.Groups["total"].Value, CultureInfo.InvariantCulture) == 0
+                || totals.Groups["errors"].Value != "0"
+                || totals.Groups["failed"].Value != "0")
+            {
+                return false;
+            }
+
+            any = true;
+        }
+
+        return any;
+    }
+
+    /// <summary>
+    /// A stack frame in a source file: the line its trace stopped on, as <c>dotnet test</c> prints it,
+    /// <c>in File.cs:142</c> or <c>File.cs:line 142</c>, or as the in-process runner does, <c>File.cs(142,0): at</c>.
+    /// </summary>
+    [GeneratedRegex(@"[^\s:(]+\.cs(?::(?:line )?(?<line>\d+)|\((?<paren>\d+),\d+\))")]
     private static partial Regex TraceLine();
 
     /// <summary>
@@ -124,6 +184,17 @@ internal static partial class Judge
     /// </summary>
     [GeneratedRegex(@"(?m)^failed\s+\S*?\.(?<name>\w+)[\s(]")]
     private static partial Regex FailedTest();
+
+    /// <summary>
+    /// A failed test as the in-process runner prints one: the fully qualified name, a theory row's arguments after it,
+    /// then <c>[FAIL]</c>. The name is the method's, the last segment before any arguments.
+    /// </summary>
+    [GeneratedRegex(@"(?m)^\s*\S*?\.(?<name>\w+)(?:\(.*\))?[ \t]+\[FAIL\][ \t]*\r?$")]
+    private static partial Regex InProcessFailedTest();
+
+    /// <summary>One assembly's line of the in-process runner's summary, with every count it prints for a run that ran.</summary>
+    [GeneratedRegex(@"\bTotal: (?<total>\d+), Errors: (?<errors>\d+), Failed: (?<failed>\d+), Skipped: \d+, Not Run: \d+, Time: ")]
+    private static partial Regex SummaryTotals();
 
     /// <summary>A control sequence: ESC, <c>[</c>, its parameters, and the letter that ends it.</summary>
     [GeneratedRegex(@"\x1B\[[0-?]*[ -/]*[@-~]")]

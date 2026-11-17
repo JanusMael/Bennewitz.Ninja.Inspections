@@ -1,0 +1,22 @@
+Running tests from D:\a\Probe\Probe\bin\Debug\net10.0\Probe.dll (net10.0|x64)
+failed [Test Class Cleanup Failure (Probe.CleanupTests.Passes)]
+  Class fixture type 'Probe.Throwing' threw in Dispose
+---- System.InvalidOperationException : cleanup failed
+  from D:\a\Probe\Probe\bin\Debug\net10.0\Probe.dll (net10.0|x64)
+  Xunit.MicrosoftTestingPlatform.XunitException: Class fixture type 'Probe.Throwing' threw in Dispose
+  ---- System.InvalidOperationException : cleanup failed
+    --- End of stack trace from previous location ---
+    ----- Inner Stack Trace -----
+    at Probe.Throwing.Dispose() in D:\a\Probe\Probe\Cases.cs:21
+D:\a\Probe\Probe\bin\Debug\net10.0\Probe.dll (net10.0|x64) failed with 1 error(s) (564ms)
+Exit code: 2
+  Standard output: xUnit.net v3 Microsoft.Testing.Platform v1 Runner v3.2.2+728c1dce01 (64-bit .NET 10.0.15)
+  
+
+Test run summary: Failed!
+  total: 2
+  failed: 1
+  succeeded: 1
+  skipped: 0
+  duration: 940ms
+Test run completed with non-success exit code: 2 (see: https://aka.ms/testingplatform/exitcodes)

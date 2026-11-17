@@ -7,8 +7,9 @@ namespace Bennewitz.Ninja.Testing.Mutate;
 /// </summary>
 /// <remarks>
 /// <para>⭐ <b>Measured:</b> over Inspections' smoke set, nine mutations of its rules library each way, on a machine
-/// other builds kept busy, took 14.0 s on average swapped and 17.9 s built, 2026-11-16. Most of what is left is the
-/// test run, which <c>dotnet test --project</c> starts by evaluating the project.</para>
+/// other builds kept busy, took 14.0 s on average swapped and 17.9 s built, 2026-11-16. Most of what was left was the
+/// test run, which <c>dotnet test --project</c> starts by evaluating the project, and which plans/00009 runs directly
+/// where it can.</para>
 /// <para>⚠ <b>Only the swapped project's own build checks the mutation:</b> one that changes what the project shows the
 /// projects referencing it is not compiled against them, and can fail at run time where a build would have refused it.
 /// Swap a project whose mutations stay inside it.</para>
@@ -61,8 +62,8 @@ internal sealed record Swap(string Project, string Folder, string Assembly, stri
             return null;
         }
 
-        string? assembly = Property(repo, project, "TargetPath");
-        string? output = Property(repo, testProject, "TargetDir");
+        string? assembly = Dotnet.Property(repo, project, "TargetPath");
+        string? output = Dotnet.Property(repo, testProject, "TargetDir");
         if (assembly is null || output is null)
         {
             fault = $"--swap {project}: MSBuild names no single assembly for it, or no output for {testProject}; a project that targets several frameworks is not swapped";
@@ -76,18 +77,5 @@ internal sealed record Swap(string Project, string Folder, string Assembly, stri
         }
 
         return new Swap(project, Path.GetDirectoryName(full)! + Path.DirectorySeparatorChar, assembly, output);
-    }
-
-    /// <summary>A property as MSBuild evaluates the project for this run's builds: its last line of output, or null.</summary>
-    private static string? Property(string repo, string project, string name)
-    {
-        Shell.Result result = Shell.Run(
-            repo,
-            "dotnet",
-            ["msbuild", project, "-getProperty:" + name, "-p:Configuration=" + Options.Configuration, .. Options.PropertyArguments],
-            TimeSpan.FromMinutes(5),
-            Dotnet.BuildEnvironment);
-        string? value = result.Stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).LastOrDefault();
-        return result.Exit == 0 && !string.IsNullOrEmpty(value) ? value : null;
     }
 }

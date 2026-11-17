@@ -1,0 +1,7 @@
+xUnit.net v3 In-Process Runner v3.2.2+728c1dce01 (64-bit .NET 10.0.15)
+  Discovering: Probe
+  Discovered:  Probe
+  Starting:    Probe
+  Finished:    Probe (ID = 'cff68f1b0809281490c94526ff54f1f83109556eaf5fd4c89aaa2e62a6da02f3')
+=== TEST EXECUTION SUMMARY ===
+   Probe  Total: 1, Errors: 0, Failed: 0, Skipped: 0, Not Run: 0, Time: 0.105s

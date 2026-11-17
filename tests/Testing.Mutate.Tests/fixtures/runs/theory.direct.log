@@ -1,0 +1,15 @@
+xUnit.net v3 In-Process Runner v3.2.2+728c1dce01 (64-bit .NET 10.0.15)
+  Discovering: Probe
+  Discovered:  Probe
+  Starting:    Probe
+    Probe.TheoryTests.A_row_fails(value: 1.5) [FAIL]
+      Assert.Equal() Failure: Values differ
+      Expected: 2
+      Actual:   1.5
+      Stack Trace:
+        Probe\Cases.cs(10,0): at Probe.TheoryTests.A_row_fails(Double value)
+           at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+           at System.Reflection.MethodBaseInvoker.InvokeDirectByRefWithFewArgs(Object obj, Span`1 copyOfArgs, BindingFlags invokeAttr)
+  Finished:    Probe (ID = 'cff68f1b0809281490c94526ff54f1f83109556eaf5fd4c89aaa2e62a6da02f3')
+=== TEST EXECUTION SUMMARY ===
+   Probe  Total: 2, Errors: 0, Failed: 1, Skipped: 0, Not Run: 0, Time: 0.141s

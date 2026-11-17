@@ -34,6 +34,12 @@
 // kill without being the declared one fails the run: `wrong-killer`, `wrong-assertion`, and `aborted`, a host that died
 // with no test failed. Anything but an explicit `Passed!` is red.
 //
+// ⭐ The tests run directly where they can (plans/00009): the baseline runs the built test assembly through the
+// in-process runner xUnit v3 builds into it, and where that runner answers and the clean tree is green by it, every
+// mutation runs that way, a swapped one of Inspections' smoke set in 2.3 s where `dotnet test --project` took 3.2, on an
+// idle machine, 2026-11-17. Anything else, another framework or a red
+// direct baseline, runs the baseline again through `dotnet test`, and every mutation with it. The run prints which.
+//
 // ⭐ A set that names its TEST FILES is held to every test in them: a full run fails while any of those tests was
 // killed by no mutation, unless a line in its body reads `// inert-at-pin: <package> <version>` and the set's pins
 // still hold that version. A set with red mutations and no green one, its positive control, is refused.
@@ -621,9 +627,44 @@ TimeSpan buildTime = baselineClock.Elapsed;
 // which --list prints. The baseline runs the set's own filter, the widest any mutation here is judged by.
 IReadOnlyList<string> setClasses = plan.ReadClasses(repo);
 
-baselineClock.Restart();
-Reading baseline = Judge.Read(Dotnet.Test(repo, plan.Project, plan.Class is { } setClass ? [setClass] : []));
-TimeSpan testTime = baselineClock.Elapsed;
+// ⛔ How the tests run is chosen here, once (plans/00009, decision 2): directly, through the in-process runner xUnit v3
+// builds into the test assembly, only where that runner answered and the clean tree is green by it; anything else runs
+// the baseline again through `dotnet test`, which every mutation then takes too. What is judged is what ran.
+IReadOnlyList<string> baselineFilter = plan.Class is { } setClass ? [setClass] : [];
+string? direct = Dotnet.Property(repo, plan.Project, "TargetPath");
+string fellBack;
+Reading baseline = default;
+TimeSpan testTime = TimeSpan.Zero;
+if (direct is null || !File.Exists(direct))
+{
+    fellBack = "MSBuild names no single built assembly for the test project";
+    direct = null;
+}
+else
+{
+    baselineClock.Restart();
+    string directLog = Dotnet.Test(repo, plan.Project, baselineFilter, direct);
+    testTime = baselineClock.Elapsed;
+    baseline = Judge.Read(directLog);
+    fellBack = !Judge.InProcess(directLog)
+        ? "the assembly run directly is not xUnit v3's in-process runner"
+        : baseline.Verdict != "green"
+            ? $"the clean tree run directly is {baseline}"
+            : string.Empty;
+    if (fellBack.Length > 0)
+    {
+        direct = null;
+    }
+}
+
+if (direct is null)
+{
+    baselineClock.Restart();
+    baseline = Judge.Read(Dotnet.Test(repo, plan.Project, baselineFilter));
+    testTime = baselineClock.Elapsed;
+}
+
+Console.WriteLine(direct is null ? $"test run: dotnet test, since {fellBack}" : $"test run: direct, {Path.GetFileName(direct)}");
 if (baseline.Verdict != "green")
 {
     Console.Error.WriteLine($"baseline: the clean tree is red — nothing was mutated. {baseline}");
@@ -722,7 +763,7 @@ try
                 continue;
             }
 
-            string log = Dotnet.Test(repo, plan.Project, mutation.ClassesFrom(setClasses));
+            string log = Dotnet.Test(repo, plan.Project, mutation.ClassesFrom(setClasses), direct);
             Reading reading = Judge.Read(log);
             Verdict.RecordKills(killedBy, mutation.Name, reading.Failed);
             string outcome = Judge.Outcome(reading, mutation.Declared, log);
