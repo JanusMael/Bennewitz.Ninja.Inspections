@@ -123,6 +123,8 @@ executable that is never packed.
 | `CodeQuality.Tests/Rules/Plain.cs` | One analyzer over a plain compilation, configured from `.editorconfig` text as the compiler configures it, reporting its findings and how many actions it registered. For what the testing framework cannot show: a rule that is off until enabled, and a gate that stayed closed |
 | `CodeQuality.Tests/Rules/Images.cs` | Compiles a source to a real assembly image, whose metadata references only what it uses, as a package's DLL does |
 | `CodeQuality.Tests/Rules/*Tests.cs` | One class per rule: firing, silent, and inert outside its scope |
+| `CodeQuality.Tests/Rules/AvaloniaReferences.cs` | The .NET reference assemblies with the real Avalonia 12.1.3 beside them, and Avalonia.Headless for the rules that read the headless session, resolved as test-time references that no project restores |
+| `CodeQuality.Tests/Mutations/bncq3002.json` | `BNCQ3002`'s mutation set, by `plans/00010`, run with `mutate --swap src/CodeQuality/CodeQuality.csproj`; no test reads it |
 | `CodeQuality.Tests/Packaging/PackagingTests.cs` | Every packable project is classified in exactly one package list; the release workflow globs nothing |
 | `CodeQuality.Tests/Packaging/AnalyzerShapeTests.cs` | Read off the compiled assembly: an analyzer targets `netstandard2.0` and references only what the compiler host provides; a library carries the trimmable mark. Read from the project file: an analyzer packs only itself, under `analyzers/dotnet/cs`, with no dependencies |
 

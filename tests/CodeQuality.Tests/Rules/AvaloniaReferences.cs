@@ -25,11 +25,30 @@ internal static class AvaloniaReferences
     public static readonly ReferenceAssemblies Assemblies =
         ReferenceAssemblies.Net.Net80.AddPackages([new PackageIdentity("Avalonia", "12.1.3")]);
 
+    /// <summary>Avalonia and Avalonia.Headless, for the rules that read the headless session.</summary>
+    public static readonly ReferenceAssemblies Headless =
+        ReferenceAssemblies.Net.Net80.AddPackages([new PackageIdentity("Avalonia", "12.1.3"), new PackageIdentity("Avalonia.Headless", "12.1.3")]);
+
+    /// <summary>
+    /// The same on .NET 10's reference assemblies, whose <c>Task.WaitAll</c> and <c>WaitAny</c> take a
+    /// <c>params ReadOnlySpan&lt;Task&gt;</c>, which a call with loose tasks binds to.
+    /// </summary>
+    public static readonly ReferenceAssemblies HeadlessNet100 =
+        ReferenceAssemblies.Net.Net100.AddPackages([new PackageIdentity("Avalonia", "12.1.3"), new PackageIdentity("Avalonia.Headless", "12.1.3")]);
+
     public static Task<ImmutableArray<MetadataReference>> References() =>
         Assemblies.ResolveAsync(LanguageNames.CSharp, TestContext.Current.CancellationToken);
+
+    public static Task<ImmutableArray<MetadataReference>> HeadlessReferences() =>
+        Headless.ResolveAsync(LanguageNames.CSharp, TestContext.Current.CancellationToken);
 
     /// <summary>Runs <typeparamref name="TAnalyzer"/> over <paramref name="source"/>, with Avalonia referenced.</summary>
     public static Task Run<TAnalyzer>(string source)
         where TAnalyzer : DiagnosticAnalyzer, new() =>
         new RuleTest<TAnalyzer>(source) { ReferenceAssemblies = Assemblies }.Run();
+
+    /// <summary>Runs <typeparamref name="TAnalyzer"/> over <paramref name="source"/>, with Avalonia and Avalonia.Headless referenced.</summary>
+    public static Task RunHeadless<TAnalyzer>(string source, ReferenceAssemblies? assemblies = null)
+        where TAnalyzer : DiagnosticAnalyzer, new() =>
+        new RuleTest<TAnalyzer>(source) { ReferenceAssemblies = assemblies ?? Headless }.Run();
 }
