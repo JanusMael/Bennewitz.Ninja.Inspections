@@ -1742,13 +1742,94 @@ Measured on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and Semi.Avalonia 12.1
 
 **Symptom:** A class guards its constructor with `Dispatcher.UIThread.CheckAccess()`, so that it is built only on the UI thread. A fixture awaits one dispatched job, then builds the class on a pool thread with `Task.Run`, and the guard does not throw: `CheckAccess()` answers true there, and the constructor gets as far as `Application.Current`, which is null on that thread. Built on another thread inside a dispatched job, with the guard removed, the class makes Avalonia's own check throw "The calling thread cannot access this object because a different thread owns it.", naming no type. A test that a class refuses to be built off the UI thread passes or fails for reasons that have nothing to do with the guard.
 
-**Cause:** Read in Avalonia's source at 12.1.3, not measured: `Dispatcher.UIThread` answers `s_uiThread`, else `CurrentDispatcher`, which builds a dispatcher for the calling thread, whose constructor sets `s_uiThread` if it is still null, the first dispatcher created becoming the UI thread's (`src/Avalonia.Base/Threading/Dispatcher.ThreadStorage.cs`, and `Dispatcher.cs` line 45). `Dispatcher`'s internal `ResetBeforeUnitTests` and `ResetForUnitTests` clear `s_uiThread`. Inferred, not read: the headless session calls one of them between jobs, so between jobs whichever thread asks next becomes the UI thread.
+**Cause:** Read in Avalonia's source at 12.1.3, not measured: `Dispatcher.UIThread` answers `s_uiThread`, else `CurrentDispatcher`, which builds a dispatcher for the calling thread, whose constructor sets `s_uiThread` if it is still null, the first dispatcher created becoming the UI thread's (`src/Avalonia.Base/Threading/Dispatcher.ThreadStorage.cs`, and `Dispatcher.cs` line 45). `Dispatcher`'s internal `ResetBeforeUnitTests` and `ResetForUnitTests` clear `s_uiThread`. Read too: under the default `PerTest` isolation the headless session calls `ResetBeforeUnitTests` as each dispatch starts and again as it ends, so between jobs whichever thread asks next becomes the UI thread. The entry below measures what that does to a dispatch that starts while another thread asks.
 
 **Fix:** Start the other thread inside a dispatched job and join it there. `CheckAccess()` then answers false on it, and the guard throws as it should. Use a `new Thread` joined in the job rather than `Task.Run(…).GetAwaiter().GetResult()`, which xUnit's analyser reports as `xUnit1031`.
 
 Measured on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and xUnit v3, through a `HeadlessUnitTestSession`, headless on Linux x64, not reproduced here.
 
 ⚠ **Outside a test, the same cause takes a thread before the application starts.** Read in the source at 12.1.3: `CurrentDispatcher` (`Dispatcher.ThreadStorage.cs`, lines 26 to 36) builds a dispatcher for a calling thread that has none, bound to that thread, and `UIThread` (lines 55 to 69) answers `s_uiThread`, else `CurrentDispatcher`. So a library that reads `Dispatcher.UIThread` or `CurrentDispatcher` before any dispatcher exists, on a background thread, in a finalizer or in a static initializer, makes that thread the UI thread. Inferred, not measured: `InitializeUIThreadDispatcher` (lines 81 to 88), through which a platform installs its dispatcher, begins with `UIThread.VerifyAccess()`, which would then throw on the real UI thread; which platforms call it at start-up was not read. Record the UI thread's dispatcher on the UI thread once the application has started, and post to that one from other threads, a finalizer included. Measured, headless, not reproduced here: inside a running session, `Dispatcher.UIThread` read on another thread returned the session's dispatcher, and a read on the finalizer thread in place of the recorded dispatcher still reached the UI thread. So a headless test cannot catch the read; only a run before any dispatcher exists could.
+
+### Under headless `PerTest` isolation, a thread that reads `Dispatcher.UIThread` as a dispatch starts takes the UI thread, and the dispatch fails in `VerifyAccess`
+
+**Symptom:** Now and then, a headless test fails with "The calling thread cannot access this object because a different thread owns it." It is thrown from `Dispatcher.VerifyAccess`, under `DefaultRenderLoop.Add`, `ServerCompositor..ctor` and `Compositor..ctor`, while the session sets up that test's application. A rerun of the same commit passes. The failing test is a victim. The thread that took the UI thread runs code an earlier test left running, such as a pool continuation or a file watcher that calls `CheckAccess`, `Post` or `InvokeAsync`.
+
+**Cause:** Read in the source at 12.1.3.
+
+- **Isolation defaults to per test.** With no `[assembly: AvaloniaTestIsolation]`, a session isolates each test (`AvaloniaTestIsolationLevel.PerTest`).
+- **Every dispatch resets the UI thread.** Each dispatch starts in `EnsureIsolatedApplication` (`src/Headless/Avalonia.Headless/HeadlessUnitTestSession.cs`). That calls `Dispatcher.ResetBeforeUnitTests()`, which clears `s_uiThread` in `ResetGlobalState` (`Dispatcher.ThreadStorage.cs`), and then calls `SetupUnsafe()`. The end of the dispatch clears it again.
+- **The first thread to read it takes it.** The first dispatcher built becomes the UI thread's (`s_uiThread ??= this`, in `Dispatcher`'s constructor), and reading `Dispatcher.UIThread` while there is none builds a dispatcher for the reading thread.
+- **The set-up reads it late.** The headless platform's set-up first reads it in `new Compositor(null)`, near its end (`AvaloniaHeadlessPlatform.cs`). If another thread reads it before then, that thread owns the UI thread, and the compositor's render loop refuses the session's thread.
+
+**Fix:** Give the headless tests an assembly of their own, in which every test runs in the session. Set `PerAssembly` isolation there, and dispatch once before any test runs. Then check, outside a dispatch, that the UI thread is the thread a dispatch runs on.
+
+```csharp
+[assembly: AvaloniaTestApplication(typeof(TestApp))]
+[assembly: AvaloniaTestIsolation(AvaloniaTestIsolationLevel.PerAssembly)]
+[assembly: AssemblyFixture(typeof(HeadlessWarmUp))]
+
+public sealed class HeadlessWarmUp : IAsyncLifetime
+{
+    public async ValueTask InitializeAsync()
+    {
+        HeadlessUnitTestSession session = HeadlessUnitTestSession.GetOrStartForAssembly(typeof(HeadlessWarmUp).Assembly);
+        Thread dispatched = await session.Dispatch(() => Thread.CurrentThread, CancellationToken.None)
+            .ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
+        if (Dispatcher.UIThread.Thread != dispatched)
+        {
+            throw new InvalidOperationException("Another thread owns the headless UI thread.");
+        }
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+}
+```
+
+`ForceYielding` makes the rest of the method run on another thread, never on the session's thread, for the reason the entry below gives.
+
+- ⚠ **Without the warm-up, `PerAssembly` is worse.** Nothing resets the UI thread, so a read before the first dispatch takes it for good.
+- ⚠ **`PerAssembly` gives the whole process one `Application`.** `Application.Current` is then non-null in every test of the assembly, including tests that never dispatch. Code that treats `Application.Current is null` as "no UI, run inline" then posts to a dispatcher that nobody pumps. A converter that reads `Application.ActualThemeVariant` off the UI thread throws in `VerifyAccess`. This is why the headless tests need an assembly of their own.
+- ⚠ **Nothing is disposed between tests.** Work that one test queues can run inside a later one. A test that changes merged dictionaries, `RequestedThemeVariant` or windows must restore them in a `finally`.
+- ⛔ **A guard that asserts `Application.Current` inside a dispatch proves nothing,** because inside a dispatch it is true by construction. Compare the threads, as the fixture above does.
+
+**Measured here**, on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and .NET 10. Each mode ran twice, on Windows 11 and under WSL 2, as a console program that started a `HeadlessUnitTestSession`, ran a background thread looping `Dispatcher.UIThread.CheckAccess()`, and awaited 2,000 empty dispatches:
+
+| Mode | Dispatches that failed |
+|---|---|
+| `PerTest` | 1,989 to 1,998, each with the stack above |
+| `PerAssembly`, the reader started first | 2,000 |
+| `PerAssembly`, one dispatch before the reader | 0 |
+| `PerTest` with no reader | 0 |
+
+**Measured elsewhere, on Avalonia 12.1.6, not reproduced here:**
+
+- **A mixed assembly fails.** `PerAssembly` with the warm-up was set in a test assembly that held about 14 headless test files among ordinary tests. Three tests failed in each of 2 runs, for the two reasons the second ⚠ above gives. One more failed in 1 run of 2, apparently because queued work leaked across tests; the cause was not found.
+- **An all-headless assembly passes.** Moved into an assembly of their own, with `PerAssembly` and the warm-up, the headless tests passed 4 runs of 4 each on Windows, Linux and macOS CI.
+
+⚠ **Candidate rule:** an assembly with `[AvaloniaTestApplication]` that does not state its isolation, and, under `PerAssembly`, one with no assembly fixture that dispatches before any test.
+
+### A headless test that blocks on `HeadlessUnitTestSession.Dispatch` can hang the run, depending on test order
+
+**Symptom:** A test run never ends. CI's test step hangs until the job is cancelled, on some operating systems and not others, while every test passes locally. Microsoft.Testing.Platform's `--timeout` does not end it. A stack dump shows a test thread blocked in `GetResult` on a dispatch's task, and no thread in the session's loop.
+
+**Cause:** Read in the source at 12.1.3, and unchanged at 12.1.6.
+
+- **The dispatch's task finishes on the session's own thread.** `DispatchCore` (`src/Headless/Avalonia.Headless/HeadlessUnitTestSession.cs`) makes its `TaskCompletionSource` with no options, so not with `RunContinuationsAsynchronously`. It completes that source on the session's one consumer thread, which `StartNew` starts on the default scheduler to loop over `queue.Take`.
+- **So code after an `await` can run on that thread.** That covers the rest of a test that awaits a dispatch or returns its task, and xUnit's start of the next test.
+- **A wait there waits on itself.** If code on that thread waits for another dispatch, it waits on the only thread that could run it.
+- **Test order decides whether it happens.** A blocking test hangs only when it follows an async one, in the order xUnit v3 picks. That order comes from IDs derived from the assembly's path, so a checkout at another path runs another order. A worktree at the CI runner's path reproduces CI's order.
+
+**Fix:** Await the dispatch, or return its task, and never block on it. Make the test `async Task`, and its helpers with it.
+
+**Measured here**, on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and .NET 10, each form twice on Windows 11 and under WSL 2. A console program awaited one dispatch, then waited for a second, bounded by a 5 s watchdog.
+
+- **The await always handed over the thread.** After it, the program ran on the session's consumer thread every time.
+- **Every blocking form hung.** None of these returned within 5 s: `GetAwaiter().GetResult()`, `Result`, `Wait()`, `Task.WaitAll`, `Task.WaitAny`, and `ConfigureAwait(false).GetAwaiter().GetResult()`. `Wait` with a 3 s timeout returned false.
+- **The controls always returned.** The same wait returned when no `await` came before it, and when it came after `await Task.Yield()`.
+
+**Measured elsewhere, with xUnit v3 4.0.3 on Microsoft.Testing.Platform, not reproduced here:** the CI hang, the order reproduced by the checkout's path, the stack dump, and `--timeout` failing to end it. With the blocking tests made async, the same order passed.
+
+⚠ **Candidate rule:** a wait that blocks on the task `Dispatch` returns, planned as `BNCQ3002` in Bennewitz.Ninja.CodeQuality by `plans/00010`.
 
 ### A headless drag is a hover unless each move carries the button
 
