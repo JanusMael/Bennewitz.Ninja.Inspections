@@ -1791,6 +1791,7 @@ public sealed class HeadlessWarmUp : IAsyncLifetime
 - ⚠ **`PerAssembly` gives the whole process one `Application`.** `Application.Current` is then non-null in every test of the assembly, including tests that never dispatch. Code that treats `Application.Current is null` as "no UI, run inline" then posts to a dispatcher that nobody pumps. A converter that reads `Application.ActualThemeVariant` off the UI thread throws in `VerifyAccess`. This is why the headless tests need an assembly of their own.
 - ⚠ **Nothing is disposed between tests.** Work that one test queues can run inside a later one. A test that changes merged dictionaries, `RequestedThemeVariant` or windows must restore them in a `finally`.
 - ⛔ **A guard that asserts `Application.Current` inside a dispatch proves nothing,** because inside a dispatch it is true by construction. Compare the threads, as the fixture above does.
+- ⚠ **A guard's own thread catches what it throws, and hands it back.** A probe thread that reads `Dispatcher.UIThread`, or a background reader in a stress guard, is a thread body that nobody catches. An exception on it ends the test process instead of failing a test, and `BNCQ1009` reports it. Catch on that thread, and rethrow on the test's own thread. In a stress guard, also assert that the reader was still running at the end, because a reader that died early makes every clean dispatch prove nothing.
 
 **Measured here**, on Avalonia 12.1.3 with Avalonia.Headless 12.1.3 and .NET 10. Each mode ran twice, on Windows 11 and under WSL 2, as a console program that started a `HeadlessUnitTestSession`, ran a background thread looping `Dispatcher.UIThread.CheckAccess()`, and awaited 2,000 empty dispatches:
 
@@ -1805,6 +1806,7 @@ public sealed class HeadlessWarmUp : IAsyncLifetime
 
 - **A mixed assembly fails.** `PerAssembly` with the warm-up was set in a test assembly that held about 14 headless test files among ordinary tests. Three tests failed in each of 2 runs, for the two reasons the second ⚠ above gives. One more failed in 1 run of 2, apparently because queued work leaked across tests; the cause was not found.
 - **An all-headless assembly passes.** Moved into an assembly of their own, with `PerAssembly` and the warm-up, the headless tests passed 4 runs of 4 each on Windows, Linux and macOS CI.
+- **The thread check catches the default.** In another adoption, laid out the same way, with the fixture reading the UI thread's owner from a new thread, removing `PerAssembly` failed all 5 headless tests with the fixture's message, on Windows.
 
 ⚠ **Candidate rule:** an assembly with `[AvaloniaTestApplication]` that does not state its isolation, and, under `PerAssembly`, one with no assembly fixture that dispatches before any test.
 
