@@ -36,6 +36,7 @@ where warnings are errors.
 | [`BNCQ1008`](#bncq1008) | on | A gate taken in a body is released outside a finally clause |
 | [`BNCQ1009`](#bncq1009) | on | A callback no caller catches is not wholly inside a try/catch |
 | [`BNCQ3001`](#bncq3001) | on | An Avalonia DispatcherTimer's Tick handler is not wholly inside a try/catch |
+| [`BNCQ3002`](#bncq3002) | on | A wait blocks on the task a headless dispatch returns |
 <!-- END GENERATED RULES -->
 
 The table is rendered from the analyzers' own descriptors, and a test fails if it drifts.
@@ -346,6 +347,32 @@ fatal exception through, as [`BNCQ1009`](#bncq1009) says. On the family's reposi
 application's code the rule reported one handler, which could not throw on real input; suppress such
 a finding there, with the reason. The rules about Avalonia are numbered from `BNCQ3001`, so they stand apart from the rest. Inert in a
 compilation that cannot name `Avalonia.Threading.DispatcherTimer`.
+
+### BNCQ3002
+
+**A wait blocks on the task a headless dispatch returns.** No counterpart.
+
+Avalonia's `HeadlessUnitTestSession` completes the task `Dispatch` returns on its one consumer thread, so the
+rest of a test that awaited a dispatch, and xUnit's start of the next test, can run on that thread. A wait
+there for another dispatch waits on the only thread that could run it, and the test run never ends;
+Microsoft.Testing.Platform's `--timeout` does not end it either. Whether it happens depends on the order the
+tests run in, so a suite can pass locally and hang in CI. Measured on Avalonia 12.1.3, where every wait the
+rule reads hung after an awaited dispatch; the source is unchanged at 12.1.6. What was measured is in
+[the entry on blocking on `Dispatch`](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob/main/docs/avalonia-gotchas.md#a-headless-test-that-blocks-on-headlessunittestsessiondispatch-can-hang-the-run-depending-on-test-order)
+of `docs/avalonia-gotchas.md`.
+
+The rule reports the task's `Wait`, in any overload, its `Result`, `GetAwaiter().GetResult()`, through
+`ConfigureAwait` too, and `Task.WaitAll` or `Task.WaitAny` given the task, where the task is a call to any
+`Dispatch` overload or a local that holds one. It reports a wait wherever it is, in a helper or inside a
+dispatched action, which blocks the session's thread on itself every time. A task held in a field, a
+parameter or a return value is not followed.
+
+The fix is to await the dispatch, or return its task, and make the test `async Task`. A wait inside a
+delegate that `Task.Run` runs, before any `await` in it, never runs on the session's thread, and neither
+does a `Result` read after the task was awaited: suppress such a finding where it is, with the reason, or
+take the value from the `await`. Inert in a compilation that cannot name
+`Avalonia.Headless.HeadlessUnitTestSession`, which is every project that does not reference
+`Avalonia.Headless`.
 
 ## Licence
 

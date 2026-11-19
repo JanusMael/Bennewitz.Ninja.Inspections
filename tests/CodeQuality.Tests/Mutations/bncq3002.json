@@ -1,0 +1,111 @@
+{
+  // BNCQ3002's own set, by plans/00010 decision 7: the gate shut and open, each wait form and each way to the task
+  // left unread, a task that is not a dispatch taken for one, the default severity, generated code, and a control.
+  // Run with this repository's build of the tool, swapping a mutation of the analyzer into the tests' output:
+  //   dotnet run --project src/Testing.Mutate -c Release -- --set tests/CodeQuality.Tests/Mutations/bncq3002.json --swap src/CodeQuality/CodeQuality.csproj
+  "project": "tests/CodeQuality.Tests/CodeQuality.Tests.csproj",
+  "tests": [
+    "tests/CodeQuality.Tests/Rules/HeadlessDispatchWaitTests.cs"
+  ],
+  "mutations": [
+    {
+      "name": "the gate never opens",
+      "file": "src/CodeQuality/Rules/HeadlessDispatchWaitAnalyzer.cs",
+      "old": "return session is null || task is null || taskOf is null ? null",
+      "new": "return session is null || task is null || taskOf is null || session.Name.Length > 0 ? null",
+      "killer": "Every_measured_wait_fires"
+    },
+    {
+      "name": "the gate opens without Avalonia.Headless",
+      "file": "src/CodeQuality/Rules/HeadlessDispatchWaitAnalyzer.cs",
+      "old": "GetTypeByMetadataName(\"Avalonia.Headless.HeadlessUnitTestSession\");",
+      "new": "GetTypeByMetadataName(\"Avalonia.Headless.HeadlessUnitTestSession\") ?? compilation.GetSpecialType(SpecialType.System_Object);",
+      "killer": "Without_Avalonia_Headless_the_rule_registers_nothing"
+    },
+    {
+      "name": "GetAwaiter().GetResult() is unread",
+      "file": "src/CodeQuality/Rules/HeadlessDispatchWaitAnalyzer.cs",
+      "old": "case \"GetResult\" when",
+      "new": "case \"GetResultNever\" when",
+      "killer": "A_helper_that_waits_for_its_dispatch_fires_and_so_does_a_wait_inside_one"
+    },
+    {
+      "name": "Wait is unread",
+      "file": "src/CodeQuality/Rules/HeadlessDispatchWaitAnalyzer.cs",
+      "old": "case \"Wait\" when",
+      "new": "case \"WaitNever\" when",
+      "killer": "A_wait_on_a_local_holding_a_dispatch_fires"
+    },
+    {
+      "name": "WaitAll is unread",
+      "file": "src/CodeQuality/Rules/HeadlessDispatchWaitAnalyzer.cs",
+      "old": "case \"WaitAll\" or \"WaitAny\" when",
+      "new": "case \"WaitAllNever\" or \"WaitAny\" when",
+      "killer": "Every_measured_wait_fires"
+    },
+    {
+      "name": "Result is unread",
+      "file": "src/CodeQuality/Rules/HeadlessDispatchWaitAnalyzer.cs",
+      "old": "reference.Property.Name == \"Result\"",
+      "new": "reference.Property.Name == \"ResultNever\"",
+      "killer": "Every_measured_wait_fires"
+    },
+    {
+      "name": "ConfigureAwait hides the dispatch",
+      "file": "src/CodeQuality/Rules/HeadlessDispatchWaitAnalyzer.cs",
+      "old": "TargetMethod.Name: \"ConfigureAwait\",",
+      "new": "TargetMethod.Name: \"ConfigureAwaitNever\",",
+      "killer": "Every_measured_wait_fires"
+    },
+    {
+      "name": "a local is not followed",
+      "file": "src/CodeQuality/Rules/HeadlessDispatchWaitAnalyzer.cs",
+      "old": "&& unwrapped is ILocalReferenceOperation held",
+      "new": "&& unwrapped is ILocalReferenceOperation held && held.Local.Name.Length < 0",
+      "killer": "A_wait_on_a_local_holding_a_dispatch_fires"
+    },
+    {
+      "name": "an array's tasks are unread",
+      "file": "src/CodeQuality/Rules/HeadlessDispatchWaitAnalyzer.cs",
+      "old": "return initializer.ElementValues;",
+      "new": "return Enumerable.Empty<IOperation>();",
+      "killer": "Every_measured_wait_fires"
+    },
+    {
+      "name": "a span's tasks are unread",
+      "file": "src/CodeQuality/Rules/HeadlessDispatchWaitAnalyzer.cs",
+      "old": "return collection.Elements;",
+      "new": "return Enumerable.Empty<IOperation>();",
+      "killer": "The_span_overloads_of_WaitAll_and_WaitAny_fire"
+    },
+    {
+      "name": "any Dispatch method's task is taken",
+      "file": "src/CodeQuality/Rules/HeadlessDispatchWaitAnalyzer.cs",
+      "old": "&& SymbolEqualityComparer.Default.Equals(call.TargetMethod.ContainingType, scope.Session);",
+      "new": "&& call.TargetMethod.ContainingType is not null;",
+      "killer": "Awaited_returned_and_other_tasks_stay_silent"
+    },
+    {
+      "name": "a finding is reported below a warning",
+      "file": "src/CodeQuality/Rules/HeadlessDispatchWaitAnalyzer.cs",
+      "old": "context.ReportDiagnostic(Diagnostic.Create(Rule, location));",
+      "new": "context.ReportDiagnostic(Diagnostic.Create(Rule, location, DiagnosticSeverity.Info, null, null));",
+      "killer": "By_default_a_wait_on_a_dispatch_is_a_warning"
+    },
+    {
+      "name": "generated code is reported",
+      "file": "src/CodeQuality/Rules/HeadlessDispatchWaitAnalyzer.cs",
+      "old": "public const string Id = \"BNCQ3002\";",
+      "new": "public const string Id = \"BNCQ3002\"; protected override GeneratedCodeAnalysisFlags GeneratedCode => GeneratedCodeAnalysisFlags.Analyze | GeneratedCodeAnalysisFlags.ReportDiagnostics;",
+      "killer": "Generated_code_is_not_analyzed"
+    },
+    {
+      "name": "a remark reworded",
+      "file": "src/CodeQuality/Rules/HeadlessDispatchWaitAnalyzer.cs",
+      "old": "/// <summary>The types the rule compares against, resolved once per compilation.</summary>",
+      "new": "/// <summary>The types against which the rule compares, resolved once per compilation.</summary>",
+      "expect": "green",
+      "because": "a comment compiles to nothing, so every test must stay green"
+    }
+  ]
+}

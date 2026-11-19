@@ -1829,7 +1829,7 @@ public sealed class HeadlessWarmUp : IAsyncLifetime
 
 **Measured elsewhere, with xUnit v3 4.0.3 on Microsoft.Testing.Platform, not reproduced here:** the CI hang, the order reproduced by the checkout's path, the stack dump, and `--timeout` failing to end it. With the blocking tests made async, the same order passed.
 
-⚠ **Candidate rule:** a wait that blocks on the task `Dispatch` returns, planned as `BNCQ3002` in Bennewitz.Ninja.CodeQuality by `plans/00010`.
+⭐ **Checked by [`BNCQ3002`](codequality.md#bncq3002)**, in Bennewitz.Ninja.CodeQuality: `Wait`, `Result`, `GetAwaiter().GetResult()`, `Task.WaitAll` or `Task.WaitAny` on the task a `Dispatch` call returns, or on a local that holds it.
 
 ### A headless drag is a hover unless each move carries the button
 

@@ -95,7 +95,7 @@ internal static class Callbacks
 
         if (hops < MaxLocalHops
             && Calls.LocalReference(value) is { } held
-            && OnlyValueOf(held) is { } initial
+            && Locals.OnlyValueOf(held) is { } initial
             && Of(initial, hops + 1) is { } callback)
         {
             return new Callback(callback.Body, NameLocation(held.Syntax));
@@ -215,68 +215,6 @@ internal static class Callbacks
 
     private static bool EndsInThrow(BlockSyntax block) =>
         block.Statements.Count > 0 && block.Statements[block.Statements.Count - 1] is ThrowStatementSyntax;
-
-    /// <summary>
-    /// The one value a local holds wherever it is read: the initializer of its declaration, where
-    /// nothing in the block declaring it assigns it again, passes it by <c>ref</c> or <c>out</c>, or
-    /// takes a reference to it. Null otherwise.
-    /// </summary>
-    private static IOperation? OnlyValueOf(ILocalReferenceOperation held)
-    {
-        ILocalSymbol local = held.Local;
-        if (local.RefKind != RefKind.None
-            || local.DeclaringSyntaxReferences.Length != 1
-            || local.DeclaringSyntaxReferences[0].GetSyntax() is not VariableDeclaratorSyntax { Initializer.Value: { } initial } declarator
-            || held.SemanticModel is not { } model
-            || declarator.SyntaxTree != model.SyntaxTree
-            || IsWrittenAgain(declarator, local.Name))
-        {
-            return null;
-        }
-
-        return model.GetOperation(initial);
-    }
-
-    /// <summary>
-    /// Whether a name the local's declaration gives is written anywhere in the block that declares it:
-    /// on the left of an assignment, compound or deconstructing ones included, passed by <c>ref</c> or
-    /// <c>out</c>, or taken by reference. Read by name, so a local of the same name in a nested scope
-    /// counts too, which only ever leaves a callback unread.
-    /// </summary>
-    private static bool IsWrittenAgain(VariableDeclaratorSyntax declarator, string name)
-    {
-        SyntaxNode scope = (SyntaxNode?)declarator.FirstAncestorOrSelf<BlockSyntax>() ?? declarator.SyntaxTree.GetRoot();
-        foreach (SyntaxNode node in scope.DescendantNodes())
-        {
-            if (node is not IdentifierNameSyntax identifier || identifier.Identifier.ValueText != name)
-            {
-                continue;
-            }
-
-            switch (identifier.Parent)
-            {
-                case ArgumentSyntax argument when argument.RefKindKeyword.IsKind(SyntaxKind.RefKeyword) || argument.RefKindKeyword.IsKind(SyntaxKind.OutKeyword):
-                case RefExpressionSyntax:
-                case PrefixUnaryExpressionSyntax unary when unary.IsKind(SyntaxKind.AddressOfExpression):
-                    return true;
-            }
-
-            foreach (SyntaxNode ancestor in identifier.Ancestors())
-            {
-                if (ancestor is StatementSyntax)
-                {
-                    break;
-                }
-
-                if (ancestor is AssignmentExpressionSyntax assignment && assignment.Left.Span.Contains(identifier.Span))
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
 
     private static Location NameLocation(SyntaxNode syntax) => syntax switch
     {
