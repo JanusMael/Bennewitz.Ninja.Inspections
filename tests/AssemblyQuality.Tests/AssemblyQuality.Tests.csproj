@@ -17,6 +17,35 @@
           Visible="false" />
   </ItemGroup>
 
+  <!-- BNAQ1010's subjects, one source compiled twice: optimised with an embedded PDB, and unoptimised
+       with its PDB beside it. Neither is referenced, so the stand-in Avalonia types they declare never
+       meet this project's compilation; each is loaded from its own folder. -->
+  <ItemGroup>
+    <ProjectReference Include="..\fixtures\Confined\Confined.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\fixtures\ConfinedDebug\ConfinedDebug.csproj" ReferenceOutputAssembly="false" />
+    <None Include="..\fixtures\Confined\bin\$(Configuration)\$(TargetFramework)\AssemblyQuality.Fixtures.Confined.dll"
+          Link="confined\AssemblyQuality.Fixtures.Confined.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+    <None Include="..\fixtures\ConfinedDebug\bin\$(Configuration)\$(TargetFramework)\AssemblyQuality.Fixtures.ConfinedDebug.dll"
+          Link="confined-debug\AssemblyQuality.Fixtures.ConfinedDebug.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+    <None Include="..\fixtures\ConfinedDebug\bin\$(Configuration)\$(TargetFramework)\AssemblyQuality.Fixtures.ConfinedDebug.pdb"
+          Link="confined-debug\AssemblyQuality.Fixtures.ConfinedDebug.pdb"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+    <!-- The stand-in Avalonia types beside each, as Avalonia is beside a consumer's build. -->
+    <None Include="..\fixtures\Confined\bin\$(Configuration)\$(TargetFramework)\AssemblyQuality.Fixtures.ConfinedStandIns.dll"
+          Link="confined\AssemblyQuality.Fixtures.ConfinedStandIns.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+    <None Include="..\fixtures\ConfinedDebug\bin\$(Configuration)\$(TargetFramework)\AssemblyQuality.Fixtures.ConfinedStandIns.dll"
+          Link="confined-debug\AssemblyQuality.Fixtures.ConfinedStandIns.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+  </ItemGroup>
+
   <!-- Dependent was compiled against version one of AssemblyQuality.Fixtures.Versioned; versioned/
        holds Dependent beside VERSION TWO. Neither is referenced, so this test project never sees two
        assemblies of one name. The load-context tests load versioned/ into a context of its own. -->

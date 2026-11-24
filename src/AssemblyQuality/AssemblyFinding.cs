@@ -8,9 +8,10 @@ namespace Bennewitz.Ninja.AssemblyQuality;
 /// A library that threw would have chosen the consumer's runner for them, and the severity too.
 /// </para>
 /// <para>
-/// ⚠ <b>There is no line number here, and that is deliberate.</b> Reflection reads compiled
-/// metadata, which does not carry one. Naming the member is honest; inventing a position would
-/// send a reader somewhere specific and wrong.
+/// ⚠ <b>A line only where the symbols give one.</b> Metadata carries no line, so a rule that reads
+/// it names the member and leaves <see cref="Source"/> null. A rule that reads method bodies takes
+/// the line from the assembly's portable PDB, embedded or beside it; without one it names the method
+/// instead. Inventing a position would send a reader somewhere specific and wrong.
 /// </para>
 /// </remarks>
 /// <param name="RuleId">The <see cref="IAssemblyRule.Id"/> that produced this finding.</param>
@@ -29,6 +30,12 @@ public sealed record AssemblyFinding(
     string Subject,
     string Message)
 {
+    /// <summary>Where in the source the violation is, where the assembly's symbols say; null otherwise.</summary>
+    public SourceLine? Source { get; init; }
+
     /// <summary>A single line suitable for a failure message or a console report.</summary>
-    public override string ToString() => $"{AssemblyName}: [{RuleId}] {Subject} — {Message}";
+    public override string ToString() =>
+        Source is null
+            ? $"{AssemblyName}: [{RuleId}] {Subject} — {Message}"
+            : $"{AssemblyName}: [{RuleId}] {Subject} ({Source}) — {Message}";
 }

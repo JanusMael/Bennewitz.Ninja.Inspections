@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The stand-in Avalonia types BNAQ1010's subjects use, in an assembly of their own, as Avalonia's are:
+       a type the scanned assembly declares is what ExceptTypesTheScanDeclares leaves out, so these must
+       not be declared there. -->
+  <PropertyGroup>
+    <AssemblyName>AssemblyQuality.Fixtures.ConfinedStandIns</AssemblyName>
+    <SolutionFriendGrants>false</SolutionFriendGrants>
+  </PropertyGroup>
+</Project>

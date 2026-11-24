@@ -16,4 +16,9 @@
          [RequiresUnreferencedCode] instead, and this is what keeps a new one from going unmarked. -->
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The IL reader's, by plans/00011: every consumer takes it, and they are all test projects. -->
+    <PackageReference Include="ICSharpCode.Decompiler" />
+  </ItemGroup>
 </Project>

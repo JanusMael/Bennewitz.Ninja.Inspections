@@ -564,7 +564,8 @@ dotnet run --file reference/fetch-reference.cs -- --status
 ### What this family is
 
 `Bennewitz.Ninja.AssemblyQuality`: static analysis rules for the shape a .NET assembly ships, read
-by reflection over the compiled output rather than from source. The assembly-shaped companion to
+by reflection over the compiled output rather than from source, and, since plans/00011, its method
+bodies, read through ICSharpCode.Decompiler, the package's one dependency. The assembly-shaped companion to
 the XamlQuality family, which reads markup. [docs/assemblyquality.md](docs/assemblyquality.md)
 describes each rule for a consumer; this section covers how to change them.
 

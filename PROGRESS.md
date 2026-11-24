@@ -454,8 +454,8 @@ documents, by the developer's decision of 2026-10-12.
 | 2026-11-16 | Templates, forwarding ClaudeForge | Under the default per-test headless isolation, a background thread can claim `Dispatcher.UIThread` while the session rebuilds the application, and the next test fails with `VerifyAccess`: read in Avalonia 12.1.6, measured in a repro, 1,815 of 2,000 dispatches failing per test, 0 per assembly with a warm-up dispatch. With four checks offered, (a) to (d). Two corrections the same day: per-assembly isolation is no drop-in fix, since it gives every test in the process one `Application`, which broke three ordinary tests in ClaudeForge's assembly, and leaks queued dispatcher work between tests; the mechanism, check (c) and wording (d) stand | Received, and receipts sent the same day for it and for both corrections. ClaudeForge's verdict arrived that day: the headless tests in an assembly of their own, under `PerAssembly` with a warm-up, passed 4 runs of 4 on each of Windows, Linux and macOS CI. Landed in the headless gotchas pull request of 2026-11-19 as an entry of its own beside the one on a thread that asks for the UI thread, whose cause now reads the reset in the source. Read at 12.1.3, and measured here on 2026-11-19, each mode twice on Windows 11 and under WSL 2, 2,000 empty dispatches beside a thread looping `CheckAccess()`: `PerTest` 1,989 to 1,998 failed with the reported stack, `PerAssembly` with the reader first 2,000, `PerAssembly` after one dispatch 0, `PerTest` with no reader 0. The mixed-assembly failures and the CI runs are ClaudeForge's, on 12.1.6, not reproduced here. Outcome sent 2026-11-19, its text approved by the developer. Checks (a) and (b), an explicit isolation choice, become a rule by a plan of their own after that verdict, by the developer's decision of 2026-11-16 |
 | 2026-11-16 | AppKit | One reference fetcher across the family: its `reference/fetch-reference.cs`, at AppKit `d3bdafe`, kept in `reference/` beside its manifest, its README and three MSBuild shields, in place of `scripts/fetch-reference.cs`; each source pinned at the commit its packages' nuspecs record, the tag a fallback. It measured Semi.Avalonia's tag `v12.1.0.1` at `5c1fa38`, one commit past the `dc75ad4` its 12.1.0.1 package records, and Avalonia 12.1.3's tag and nuspec agreeing at `8eeda4f` | Taken on by the developer on 2026-11-16, after PR #144. Landed in PR #145: the script and shields as AppKit has them, this repository's two sources in its manifest, `.gitignore` ignoring `/reference/*/`, and `scripts/fetch-reference.cs` and its manifest gone. Run here, both checkouts read `off-pin` from the old script's records, and `--update` fetched Avalonia at `8eeda4f` and Semi.Avalonia at `dc75ad4`. The Semi difference is recorded in `reference/README.md` and is no Avalonia gotcha, by the developer's decision of 2026-11-16 |
 | 2026-11-19 | Templates | Its template's choice on the headless UI thread: every headless test in a project of its own under `PerAssembly`, with an assembly fixture that dispatches once and reads the UI thread's owner from a new thread, and a stress guard of 200 dispatches beside a background `CheckAccess` reader. `BNCQ1009` rejects an uncaught thread body, so both guard threads catch and hand the exception back, and the stress guard asserts its reader did not die early. Measured on Avalonia 12.1.6 on Windows: without `PerAssembly`, all 5 headless tests fail with the fixture's message. No reply asked | Received after PR #148 landed the entry; a receipt sent the same day. Its guard-thread point and its measurement were added to the UIThread entry in the follow-up pull request of 2026-11-19, as measured there, not reproduced here |
-| 2026-11-19 | AppKit | An IL reader in AssemblyQuality, the developer's own words relayed from AppKit's session, "the most feature rich, rather than the lightest", on ICSharpCode.Decompiler 11.2.0.10050, for AppKit's `plans/00007` step 5: four sweeps over `AppServices.AvaloniaUI`, a foreign window, a colour or brush outside one type, a lookup outside one helper, and keys through `DialogColors.Brush`, each planted defect to turn red, with an empty `Skipped` and `Inspected` above zero, and the same sweeps over ScopedEditors for its `plans/00006` | Received, and a receipt sent the same day. Plan 00011, by the developer's decision of 2026-11-19, which moved the explicit-isolation rule's plan to 00012; approved that day after four reviews and merged as #151, with the helpers found by an attribute, `Bennewitz.Ninja.ResourceKeyAttribute`, which AppKit declares, and the compile-time analyzers left to plan 00013. Step 2 measured 2026-11-23. A note to AppKit on what the plan asks of it waits on the developer's approval of its text |
-| 2026-11-23 | Templates | A CodeQuality rule for the one log-line form its `plans/00014` sets, approved by the developer on 2026-11-23: in the constant template of every `ILogger.Log*`, `LoggerMessage` and Serilog call, a tag `[Area.Kind]` first, both parts PascalCase, then only `key=value` pairs with camelCase keys, free text quoted; a hole carrying `:l`, and an enum passed to a hole, reported; on by default, at warning. One line per action and redaction stay with review. DiffView's `plans/00037` waits on the rule's id and release | Received, and a receipt sent the same day. It needs a plan of its own here, whose place in the queue is the developer's to decide; Templates is told the rule's id and release once that plan gives them |
+| 2026-11-19 | AppKit | An IL reader in AssemblyQuality, the developer's own words relayed from AppKit's session, "the most feature rich, rather than the lightest", on ICSharpCode.Decompiler 11.2.0.10050, for AppKit's `plans/00007` step 5: four sweeps over `AppServices.AvaloniaUI`, a foreign window, a colour or brush outside one type, a lookup outside one helper, and keys through `DialogColors.Brush`, each planted defect to turn red, with an empty `Skipped` and `Inspected` above zero, and the same sweeps over ScopedEditors for its `plans/00006` | Received, and a receipt sent the same day. Plan 00011, by the developer's decision of 2026-11-19, which moved the explicit-isolation rule's plan to 00012; approved that day after four reviews and merged as #151, with the helpers found by an attribute, `Bennewitz.Ninja.ResourceKeyAttribute`, which AppKit declares, and the compile-time analyzers left to plan 00013. Step 2 measured 2026-11-23. A note to AppKit on what the plan asks of it was sent 2026-11-24, its text approved by the developer, and AppKit recorded it for its `plans/00007` step 5 and its revision of `plans/00006` |
+| 2026-11-23 | Templates | A CodeQuality rule for the one log-line form its `plans/00014` sets, approved by the developer on 2026-11-23: in the constant template of every `ILogger.Log*`, `LoggerMessage` and Serilog call, a tag `[Area.Kind]` first, both parts PascalCase, then only `key=value` pairs with camelCase keys, free text quoted; a hole carrying `:l`, and an enum passed to a hole, reported; on by default, at warning. One line per action and redaction stay with review. DiffView's `plans/00037` waits on the rule's id and release | Received, and a receipt sent the same day. It needs a plan of its own here, whose place in the queue is the developer's to decide; Plan 00014, approved 2026-11-23 and merged as #153, gives it `BNCQ1012`, and the id was sent 2026-11-24, its text approved by the developer. AppKit's count, revised 2026-11-24, is 24 templates outside the form, and its `plans/00009` suppresses both pass-through sites; the developer decided on 2026-11-24 that `AvaloniaDiagnostics`' `{EventLine}` is written in the form, as plan 00014's decision 8 has it, and that outcome waits on the developer's approval of its text. Templates is told the release once it is out |
 
 ### Rule backlog
 
@@ -793,8 +793,8 @@ JanusMael/Bennewitz.Ninja.AssemblyQuality.
 | | |
 |---|---|
 | Published | `2026.4.1031`, released 2026-10-31 on the maintainer's word: tag `assemblyquality/v2026.4.1031` on `04dcb06`, release run `41211729501`, which pushed `Bennewitz.Ninja.AssemblyQuality` alone, and the flat container lists it. It carries #110: **a scan of an assembly whose collectible load context is unloading throws** `InvalidOperationException`, naming the context, where it recorded the reference as one that would not load and compared against nothing (#109). A collectible context nothing holds starts to unload at the next collection; measured on .NET 10, `GetLoadContext` still answers it and every load through it fails with HRESULT `0x80131509`. `BNAQ1004` (through `AssemblyScanContext.ReferencedNamespaces`) and `BNAQ1006` both resolve through it; each has a test that failed against the previous library. `docs/assemblyquality.md`'s BNAQ1006 example had the same unheld collectible context and holds a non-collectible one now. Before it, `2026.4.1029`, released 2026-10-29 from this repository, the family's first here: tag `assemblyquality/v2026.4.1029` on `3092aee`, release run `40939268891`. Verified from the feed: the flat container lists it, the served nuspec names Inspections at `3092aee`, its DLL is byte-identical to the GitHub release asset's, and a project restoring from nuget.org alone gets it and finds all six rules. It carries #17, Templates' solution-wide friend grants (`plans/00006`): the DLL grants its internals to this repository's sixteen assemblies, matched by name, and every fixture opts out; and the move: the package names Inspections and packs `docs/assemblyquality.md` as its README. No rule, dependency or public API changed. The release's notes were written by hand, the generated ones listing XamlQuality's pull requests. The previous release, `2026.3.929`, added `BNAQ1005` (#12) and `BNAQ1006` (#13), by [plan 00001](plans/assemblyquality/00001-friend-grant-rules.md), now complete |
-| Not yet released | Nothing |
-| Plan 00011 | [An IL reader, and `BNAQ1010` and `BNAQ1011` on it](plans/00011-il-reader.md), approved 2026-11-19 and merged as #151 (in Inspections). Step 2, the measurement, done 2026-11-23: no decision refuted, recorded below. Next, step 3: the reader and `BNAQ1010` |
+| Not yet released | `BNAQ1010` and `AssemblyFinding.Source`, by plans/00011 step 3, and the package's first dependency, ICSharpCode.Decompiler 11.2.0.10050. Effect on a consumer: the package brings the decompiler, with System.Collections.Immutable and System.Reflection.Metadata 9.0.0, which .NET 10 ships; `AssemblyFinding.ToString` names the file and line where a finding has one; no other rule's findings change |
+| Plan 00011 | [An IL reader, and `BNAQ1010` and `BNAQ1011` on it](plans/00011-il-reader.md), approved 2026-11-19 and merged as #151 (in Inspections). Step 2, the measurement, done 2026-11-23: no decision refuted, recorded below. Step 3, the reader and `BNAQ1010`, done 2026-11-24, measured below. Next, step 4: `BNAQ1011` and `BNAQ1010`'s option that allows a use by its key |
 | Next release | On the maintainer's word, from an `assemblyquality/vYYYY.Q.MMDD` tag. One release per calendar day, three-part `YYYY.Q.MMDD`: a fourth part is AutoVersioning's `HHmm` build stamp, not a patch counter |
 
 ### Next
@@ -897,6 +897,66 @@ Counts, the same in Debug and Release:
   constructor's signature, whether one place may also be all compiled XAML.
 - **Two of ScopedEditors' negatives are not in AppKit's list**: `ScopeToBrushConverter`'s direct `TryGetResource`, a
   lookup outside `BrushHelper`, and `TipCell`'s `Brushes.Transparent`, read in its static constructor.
+
+### Plan 00011 step 3, measured
+
+Measured 2026-11-24 in the scratchpad, with `BNAQ1010` as its pull request builds it, over AppKit at `a0f43fe` with the
+key attribute declared and the helpers marked as in step 2, each assembly built in Debug and in Release with its
+packages copied beside it, as a test project's output holds them. AppKit's cases 1 to 3 were configured as it names
+them: constructing `Window`, with its subtypes, but for the types the scan declares; constructing `Color`, and `IBrush`
+with its subtypes, `Color`'s parse and factory methods, `Brush.Parse`, and every member of `Colors`, `Brushes` and
+`KnownColors`, each allowed in `DialogColors`; and constructing `DynamicResourceExtension`, `ResourceNodeExtensions`'
+`GetResourceObservable`, `FindResource` and `TryFindResource`, and `IResourceNode.TryGetResource` with its subtypes,
+each allowed in `DialogColors::Brush`.
+
+| | Debug | Release |
+|---|---|---|
+| `AppServices.AvaloniaUI` | 376 bodies read in 1.8 s, no finding, nothing skipped | 359 bodies in 1.9 s, no finding, nothing skipped |
+| Its positive controls, in the reading | The eight window classes' chains to `Window`; `DialogColors`' `Color.Parse`, `new ImmutableSolidColorBrush`, `Brushes.Transparent` and `new DynamicResourceExtension`; each with its file and line | The same |
+| Five defects planted in a scratch copy: a foreign `Window`, a `Color.Parse` and a colour made in a lambda outside `DialogColors`, `Brushes.Red`, and an `Application.TryGetResource` outside `Brush` | Each reported, with its file and line, nothing skipped | The same |
+| `ScopedEditors.AvaloniaUI`, colours allowed nowhere and lookups in `BrushHelper` | 476 bodies, 66 findings, nothing skipped | 473 bodies, 66 findings, nothing skipped |
+
+ScopedEditors' 66 findings: `JsonHighlightBlock`'s eight literal brushes, each a `Color.Parse` and a
+`new SolidColorBrush`; `BrushHelper`'s hex fallback, four `Color.Parse`, five brushes and a `Color.FromArgb`;
+`EnvVarNameToBrushConverter`'s brush and `ScopeToBrushConverter`'s, two uses each; `TipCell`'s `Brushes.Transparent`;
+`ScopeToBrushConverter`'s own `TryGetResource`; and in compiled XAML, `EditorColors.axaml`'s twelve brushes, each a
+`Color.FromUInt32` and a `new SolidColorBrush`, and `PropertyEditorWrapper.axaml`'s two brushes and eight
+`{DynamicResource}`.
+
+The mutation set `tests/AssemblyQuality.Tests/Mutations/il.json`, run 2026-11-24 with `--swap
+src/AssemblyQuality/AssemblyQuality.csproj`: 21 mutations, every one as declared, each of the 14 declared tests killed
+by one, in about 2 minutes.
+
+### Where step 3 departs from plan 00011
+
+- **Ancestry is read from metadata, not from the decompiler's type system.** The type system loads the scanned
+  assembly's own references and follows type forwarders, but not a reference one of them makes. Measured: every
+  Avalonia control in `AppServices.AvaloniaUI` implements `INotifyPropertyChanged`, which lives in
+  `System.ObjectModel`, which only Avalonia references, so the first build skipped 35 subtype matches on clean code.
+  `IL/Ancestry.cs` follows each base type and interface through the same resolver, across the references' closure.
+- **`BNAQ1010`'s constructor, settled in its pull request by the developer's choice of 2026-11-24:**
+  `new ConfinedUseRule(IEnumerable<ConfinedUse>)`, each entry made by `ConfinedUse.Constructing(type)`,
+  `AnyMemberOf(type)` or `Member(type, member)` and shaped with `init` options, `IncludingSubtypes`,
+  `ExceptTypesTheScanDeclares`, `AllowedInTypes`, `AllowedInMethods` and `AllowedInMarkup`. `ConfinedUse` is a
+  record, so `with` shapes one. Markup is allowed by its file, or by its `x:Class`, a type; there is no place that is
+  all compiled XAML.
+- **A generated body is read on its own as well as through its source method**, and a use is kept once by the token
+  of the body it was compiled into and its IL offset. Decision 7 read it once, through its method; the uses are the
+  same, and a body the transforms do not fold is not lost.
+- **A name the compiler gives a member the source wrote, `<Main>$` or `<Clone>$`, is credited to itself**; only a
+  mangled name that names no method is skipped. The plumbing of a closure class or a display class is credited to the
+  type that holds it, with no method.
+- **The fixtures' stand-in Avalonia types are an assembly of their own**, `ConfinedStandIns`, as Avalonia's are: in the
+  scanned assembly they were types the scan declares, which `ExceptTypesTheScanDeclares` rightly left out.
+  `ConfinedDebug` builds Release with its PDB beside the DLL, which `.github/repository.json` exempts from the family's
+  embedded symbols.
+- **Two existing tests changed their subject.** `FriendReferenceTests.AnAssemblyThatReferencesOnlyTheFramework_InspectsNothing`
+  scanned the library itself, which now references the decompiler, and scans the stand-ins; and
+  `CoverageTests.AnAssemblyWithATypeThatCannotLoad_IsScannedNotFatal` leaves `BNAQ1010` out with `BNAQ1003` and
+  `BNAQ1005`, since unconfigured it reads nothing; `ConfinedUseRuleTests` holds its skip against the same fixture.
+- **`AssemblyFinding.ToString` names the file and line** where a finding has one.
+- **A real-code check needs the assembly's dependencies beside it**, as a test project's output has them; a library's
+  own `bin` folder does not.
 
 ### Decisions
 
