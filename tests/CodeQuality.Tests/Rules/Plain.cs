@@ -40,10 +40,14 @@ internal static class Plain
     public static Task<ImmutableArray<MetadataReference>> NetStandard20() =>
         ReferenceAssemblies.NetStandard.NetStandard20.ResolveAsync(LanguageNames.CSharp, TestContext.Current.CancellationToken);
 
-    public static async Task<Run> Analyze(DiagnosticAnalyzer analyzer, string source, IEnumerable<MetadataReference> references, string? editorconfig = null)
+    public static Task<Run> Analyze(DiagnosticAnalyzer analyzer, string source, IEnumerable<MetadataReference> references, string? editorconfig = null) =>
+        Analyze(analyzer, [("/Test0.cs", source)], references, editorconfig);
+
+    /// <summary>The same over several files, each parsed at its path, which Roslyn reads to tell a generated file.</summary>
+    public static async Task<Run> Analyze(DiagnosticAnalyzer analyzer, IEnumerable<(string Path, string Source)> sources, IEnumerable<MetadataReference> references, string? editorconfig = null)
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
-        SyntaxTree tree = CSharpSyntaxTree.ParseText(source, path: "/Test0.cs", cancellationToken: cancellationToken);
+        SyntaxTree[] trees = [.. sources.Select(file => CSharpSyntaxTree.ParseText(file.Source, path: file.Path, cancellationToken: cancellationToken))];
         CSharpCompilationOptions options = new(OutputKind.DynamicallyLinkedLibrary);
         AnalyzerOptions analyzerOptions = new([]);
 
@@ -54,7 +58,7 @@ internal static class Plain
             analyzerOptions = new AnalyzerOptions([], new Options(configs));
         }
 
-        CSharpCompilation compilation = CSharpCompilation.Create("Test", [tree], references, options);
+        CSharpCompilation compilation = CSharpCompilation.Create("Test", trees, references, options);
         CompilationWithAnalyzers run = compilation.WithAnalyzers(
             [analyzer],
             new CompilationWithAnalyzersOptions(analyzerOptions, onAnalyzerException: null, concurrentAnalysis: false, logAnalyzerExecutionTime: true));
