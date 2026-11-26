@@ -109,9 +109,11 @@ public sealed class CoverageTests
         // BNAQ1003 and BNAQ1005 read only the assembly's own metadata (its reference list, its grants)
         // and load no type, so they never skip and are not asked to here. BNAQ1010 reads method bodies
         // from the file, loads no type, and unconfigured reads nothing; ConfinedUseRuleTests holds its
-        // skip of an ancestry it cannot follow against this same fixture.
+        // skip of an ancestry it cannot follow against this same fixture. BNAQ1011 reads the same bodies
+        // and loads no type either, and Orphan marks no parameter; HelperKeyRuleTests holds its skip of a
+        // key class that does not resolve against KeyedOdd, which names a type in Absent too.
         foreach (IAssemblyRule rule in RulesCatalogTests.DiscoverRules()
-            .Where(r => r is not (ForbiddenReferenceRule or FriendGrantRule or ConfinedUseRule)))
+            .Where(r => r is not (ForbiddenReferenceRule or FriendGrantRule or ConfinedUseRule or HelperKeyRule)))
         {
             AssemblyRuleResult result = rule.Analyze(Orphaned);
             Assert.Contains(result.Skipped, s => s.Contains("AssemblyQuality.Fixtures.Orphan", StringComparison.Ordinal)

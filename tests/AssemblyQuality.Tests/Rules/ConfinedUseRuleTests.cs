@@ -44,7 +44,7 @@ public sealed class ConfinedUseRuleTests
 
         Assert.Equal(
             [".cctor", "ADefault", "InACapturingLambda", "InALambda", "InALocalFunction", "InAMethod", "InAnAsyncMethod",
-             "InAnIterator", "get_InAGetter"],
+             "InAnIterator", "InAnIteratorsFinally", "get_InAGetter"],
             methods);
         Assert.All(reading.Uses.Where(u => u.Method.StartsWith(Outside, StringComparison.Ordinal)),
             u => Assert.EndsWith("Uses.cs", u.Source?.File ?? "(none)", StringComparison.Ordinal));

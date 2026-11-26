@@ -96,6 +96,30 @@ public sealed record ConfinedUse
     /// <summary>The markup files, by file name, whose compiled code may make the use.</summary>
     public IReadOnlyList<string> AllowedInMarkup { get; init; } = [];
 
+    /// <summary>
+    /// The index, among the member's parameters, of its key: <c>0</c> for <c>TryGetResource</c>'s, <c>1</c> for the
+    /// <c>FindResource</c> extension's, whose first is the control it extends. Set, a call or a construction is allowed
+    /// wherever every value that argument takes traces, as <see cref="HelperKeyRule"/> follows a key, to a parameter
+    /// that carries the key attribute, <c>Bennewitz.Ninja.ResourceKeyAttribute</c>; a literal, a field, a computed key
+    /// or a parameter the attribute does not mark is allowed only by a place.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">The index is negative.</exception>
+    public int? KeyParameter
+    {
+        get => _keyParameter;
+        init
+        {
+            if (value < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value, "A key parameter's index is never negative.");
+            }
+
+            _keyParameter = value;
+        }
+    }
+
+    private readonly int? _keyParameter;
+
     /// <summary>The confinement as a reader would name it.</summary>
     public override string ToString() => Target switch
     {
@@ -122,7 +146,14 @@ public sealed record ConfinedUseMatch(
     string AssemblyName,
     SourceLine? Source,
     int ILOffset,
-    bool Allowed);
+    bool Allowed)
+{
+    /// <summary>
+    /// Every value the use's key takes, where the confinement names a <see cref="ConfinedUse.KeyParameter"/>; empty
+    /// otherwise, and for a use that is given no arguments.
+    /// </summary>
+    public IReadOnlyList<KeyValue> Keys { get; init; } = [];
+}
 
 /// <summary>What <see cref="ConfinedUseRule.Read"/> found: every matched use, and what it read and skipped.</summary>
 /// <param name="Uses">Every matched use, allowed ones and base-constructor chains included, in a stable order.</param>

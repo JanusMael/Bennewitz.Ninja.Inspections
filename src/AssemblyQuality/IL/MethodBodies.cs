@@ -23,6 +23,7 @@ namespace Bennewitz.Ninja.AssemblyQuality.IL;
 /// <param name="Source">Its file and line, where the symbols give one.</param>
 /// <param name="Function">The metadata token of the body the instruction was compiled into.</param>
 /// <param name="Offset">Its IL offset in that body.</param>
+/// <param name="Instruction">The instruction that makes the use, whose arguments a key is followed from.</param>
 internal sealed record BodyUse(
     UseKind Kind,
     IMember? Member,
@@ -31,7 +32,38 @@ internal sealed record BodyUse(
     string? CreditMethod,
     SourceLine? Source,
     int Function,
-    int Offset);
+    int Offset,
+    ILInstruction Instruction);
+
+/// <summary>Where an instruction is: the code the source wrote it in, its line, and where it was compiled.</summary>
+/// <param name="CreditType">The type the source wrote it in, in reflection syntax.</param>
+/// <param name="CreditMethod">The method the source wrote it in, or null for a generated type's plumbing.</param>
+/// <param name="Source">Its file and line, where the symbols give one.</param>
+/// <param name="Function">The metadata token of the body it was compiled into.</param>
+/// <param name="Offset">Its IL offset in that body.</param>
+internal sealed record BodyPlace(string CreditType, string? CreditMethod, SourceLine? Source, int Function, int Offset)
+{
+    /// <summary>The code it is in, as <c>Type::Method</c>, or a type for a closure's plumbing.</summary>
+    internal string Method => CreditMethod is null ? CreditType : $"{CreditType}::{CreditMethod}";
+
+    /// <summary>The code and, where the symbols give one, the line.</summary>
+    public override string ToString() => Source is null ? $"{Method} at IL_{Offset:x4}" : $"{Method} ({Source})";
+}
+
+/// <summary>One method body as the reader read it.</summary>
+/// <param name="Top">Its tree, the functions folded into it included.</param>
+/// <param name="Method">The method it is the body of.</param>
+/// <param name="Credit">The code the source wrote it in.</param>
+internal sealed record ReadFunction(ILFunction Top, IMethod Method, (string Type, string? Method) Credit)
+{
+    /// <summary>
+    /// Whether the tree holds code compiled into another method's body: a lambda folded into the method that wrote
+    /// it, or a state machine's <c>MoveNext</c> into its stub. That reading knows the variables the other method's own
+    /// reading sees only as a closure's fields.
+    /// </summary>
+    internal bool Folds(ILInstruction instruction) =>
+        MethodBodies.FunctionToken(MethodBodies.OwnerOf(instruction, Top), Top) != MethodBodies.TokenOf(Method);
+}
 
 /// <summary>One assembly's method bodies, read as the decompiler's transformed ILAst.</summary>
 /// <remarks>
@@ -43,7 +75,8 @@ internal sealed class AssemblyBodies(
     PEFile file,
     ICompilation compilation,
     Ancestry ancestry,
-    int bodies,
+    MethodBodies.Symbols symbols,
+    IReadOnlyList<ReadFunction> functions,
     IReadOnlyList<BodyUse> uses) : IDisposable
 {
     /// <summary>The assembly's simple name.</summary>
@@ -53,10 +86,23 @@ internal sealed class AssemblyBodies(
     internal ICompilation Compilation { get; } = compilation;
 
     /// <summary>How many method bodies were read.</summary>
-    internal int Bodies { get; } = bodies;
+    internal int Bodies => Functions.Count;
+
+    /// <summary>Every body read, as its tree.</summary>
+    internal IReadOnlyList<ReadFunction> Functions { get; } = functions;
 
     /// <summary>Every use the bodies make, each once.</summary>
     internal IReadOnlyList<BodyUse> Uses { get; } = uses;
+
+    /// <summary>Where <paramref name="instruction"/>, of <paramref name="function"/>'s tree, is.</summary>
+    internal BodyPlace PlaceOf(ILInstruction instruction, ReadFunction function)
+    {
+        ILFunction owner = MethodBodies.OwnerOf(instruction, function.Top);
+        int token = MethodBodies.FunctionToken(owner, function.Top);
+        int offset = MethodBodies.OffsetOf(instruction);
+        (string Type, string? Method) credit = MethodBodies.CreditIn(owner, function);
+        return new BodyPlace(credit.Type, credit.Method, symbols.LineOf(token, offset), token, offset);
+    }
 
     /// <summary>
     /// The names of <paramref name="type"/> and every type it derives from or implements, and whether any did not
@@ -73,7 +119,11 @@ internal sealed class AssemblyBodies(
         return ([type.ReflectionName], true);
     }
 
-    public void Dispose() => file.Dispose();
+    public void Dispose()
+    {
+        symbols.Dispose();
+        file.Dispose();
+    }
 }
 
 /// <summary>Reads every method body of an assembly, plan 00011's IL reader.</summary>
@@ -127,6 +177,7 @@ internal static partial class MethodBodies
             return null;
         }
 
+        Symbols? symbols = null;
         try
         {
             var resolver = new UniversalAssemblyResolver(path, false, file.DetectTargetFrameworkId(), null,
@@ -136,14 +187,16 @@ internal static partial class MethodBodies
                 ThrowOnAssemblyResolveErrors = false,
             };
             var typeSystem = new DecompilerTypeSystem(file, resolver, settings);
-            using Symbols symbols = Symbols.Open(file, path);
+            symbols = Symbols.Open(file, path);
 
             var reader = new Reading(name, file, typeSystem, settings, symbols, skipped);
             reader.ReadAll();
-            return new AssemblyBodies(name, file, typeSystem, new Ancestry(file, resolver), reader.Bodies, reader.Uses);
+            return new AssemblyBodies(name, file, typeSystem, new Ancestry(file, resolver), symbols, reader.Functions,
+                reader.Uses);
         }
         catch
         {
+            symbols?.Dispose();
             file.Dispose();
             throw;
         }
@@ -188,7 +241,7 @@ internal static partial class MethodBodies
         private readonly List<IILTransform> _transforms = CSharpDecompiler.GetILTransforms();
         private readonly HashSet<(int Function, int Offset, UseKind Kind, string Member)> _seen = [];
 
-        internal int Bodies { get; private set; }
+        internal List<ReadFunction> Functions { get; } = [];
 
         internal List<BodyUse> Uses { get; } = [];
 
@@ -220,8 +273,9 @@ internal static partial class MethodBodies
                         continue;
                     }
 
-                    Bodies++;
-                    Collect(function, credit);
+                    var read = new ReadFunction(function, method, credit);
+                    Functions.Add(read);
+                    Collect(read);
                 }
             }
         }
@@ -263,15 +317,14 @@ internal static partial class MethodBodies
             new ILReader(typeSystem.MainModule).ReadIL(handle, file.GetMethodBody(definition.RelativeVirtualAddress),
                 context, ILFunctionKind.TopLevelFunction, default);
 
-        private void Collect(ILFunction top, (string Type, string? Method) topCredit)
+        private void Collect(ReadFunction read)
         {
+            ILFunction top = read.Top;
             foreach (ILInstruction instruction in top.Descendants)
             {
-                ILFunction owner = instruction.Ancestors.OfType<ILFunction>().FirstOrDefault() ?? top;
+                ILFunction owner = OwnerOf(instruction, top);
                 int function = FunctionToken(owner, top);
-                (string Type, string? Method) credit = owner == top
-                    ? topCredit
-                    : owner.Method is { } nested && Credit(nested) is { } c ? c : topCredit;
+                (string Type, string? Method) credit = CreditIn(owner, read);
 
                 switch (instruction)
                 {
@@ -324,84 +377,102 @@ internal static partial class MethodBodies
             }
 
             Uses.Add(new BodyUse(kind, member, type, credit.Type, credit.Method, symbols.LineOf(function, offset),
-                function, offset));
-        }
-
-        /// <summary>An instruction's IL offset, or its nearest ancestor's where the transforms gave it none.</summary>
-        private static int OffsetOf(ILInstruction instruction)
-        {
-            for (ILInstruction? at = instruction; at is not null; at = at.Parent)
-            {
-                if (!at.ILRangeIsEmpty)
-                {
-                    return at.StartILOffset;
-                }
-            }
-
-            return -1;
-        }
-
-        /// <summary>The token of the body an instruction was compiled into: a nested function's own, or a state machine's.</summary>
-        private static int FunctionToken(ILFunction owner, ILFunction top)
-        {
-            if (owner == top && top.MoveNextMethod is { } moveNext && !moveNext.MetadataToken.IsNil)
-            {
-                return MetadataTokens.GetToken(moveNext.MetadataToken);
-            }
-
-            return owner.Method is { } method && !method.MetadataToken.IsNil ? MetadataTokens.GetToken(method.MetadataToken) : 0;
-        }
-
-        /// <summary>
-        /// The type and the method the source wrote a body in, or null for a generated name the reader cannot take
-        /// apart.
-        /// </summary>
-        private static (string Type, string? Method)? Credit(IMethod method)
-        {
-            ITypeDefinition? type = method.DeclaringTypeDefinition;
-            if (type is null)
-            {
-                return null;
-            }
-
-            string? fromMethod = null;
-            if (method.Name.Contains('<', StringComparison.Ordinal))
-            {
-                if (TryMangled(method.Name, out string made))
-                {
-                    if (made.Length == 0)
-                    {
-                        return null;
-                    }
-
-                    fromMethod = made;
-                }
-                else
-                {
-                    fromMethod = method.Name;
-                }
-            }
-
-            string? fromType = null;
-            bool inGenerated = false;
-            while (IsGenerated(type) && type.DeclaringTypeDefinition is { } outer)
-            {
-                inGenerated = true;
-                if (fromType is null && TryMangled(type.Name, out string made) && made.Length > 0)
-                {
-                    fromType = made;
-                }
-
-                type = outer;
-            }
-
-            string? credited = fromMethod ?? fromType ?? (inGenerated ? null : method.Name);
-            return (type.ReflectionName, credited);
+                function, offset, instruction));
         }
     }
 
+    /// <summary>The function an instruction is in: the innermost one folded into the tree, or the tree's own.</summary>
+    internal static ILFunction OwnerOf(ILInstruction instruction, ILFunction top) =>
+        instruction.Ancestors.OfType<ILFunction>().FirstOrDefault() ?? top;
+
+    /// <summary>The code the source wrote a function of <paramref name="read"/>'s tree in.</summary>
+    internal static (string Type, string? Method) CreditIn(ILFunction owner, ReadFunction read) =>
+        owner == read.Top
+            ? read.Credit
+            : owner.Method is { } nested && Credit(nested) is { } credit ? credit : read.Credit;
+
+    /// <summary>An instruction's IL offset, or its nearest ancestor's where the transforms gave it none.</summary>
+    internal static int OffsetOf(ILInstruction instruction)
+    {
+        for (ILInstruction? at = instruction; at is not null; at = at.Parent)
+        {
+            if (!at.ILRangeIsEmpty)
+            {
+                return at.StartILOffset;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>The token of the body an instruction was compiled into: a nested function's own, or a state machine's.</summary>
+    internal static int FunctionToken(ILFunction owner, ILFunction top)
+    {
+        if (owner == top && top.MoveNextMethod is { } moveNext && !moveNext.MetadataToken.IsNil)
+        {
+            return MetadataTokens.GetToken(moveNext.MetadataToken);
+        }
+
+        return owner.Method is { } method ? TokenOf(method) : 0;
+    }
+
+    /// <summary>A method's metadata token, or zero for one that has none.</summary>
+    internal static int TokenOf(IMethod method) =>
+        method.MetadataToken.IsNil ? 0 : MetadataTokens.GetToken(method.MetadataToken);
+
+    /// <summary>
+    /// The type and the method the source wrote a body in, or null for a generated name the reader cannot take
+    /// apart.
+    /// </summary>
+    internal static (string Type, string? Method)? Credit(IMethod method)
+    {
+        ITypeDefinition? type = method.DeclaringTypeDefinition;
+        if (type is null)
+        {
+            return null;
+        }
+
+        string? fromMethod = null;
+        bool namesNoMethod = false;
+        if (method.Name.Contains('<', StringComparison.Ordinal))
+        {
+            if (TryMangled(method.Name, out string made))
+            {
+                namesNoMethod = made.Length == 0;
+                fromMethod = namesNoMethod ? null : made;
+            }
+            else
+            {
+                fromMethod = method.Name;
+            }
+        }
+
+        string? fromType = null;
+        bool inGenerated = false;
+        while (IsGenerated(type) && type.DeclaringTypeDefinition is { } outer)
+        {
+            inGenerated = true;
+            if (fromType is null && TryMangled(type.Name, out string made) && made.Length > 0)
+            {
+                fromType = made;
+            }
+
+            type = outer;
+        }
+
+        // A name that names no method, as an iterator's finally block <>m__Finally1 does, is its state machine's
+        // plumbing, credited as the type that holds it is; only outside a generated type can it not be taken apart.
+        if (namesNoMethod && !inGenerated)
+        {
+            return null;
+        }
+
+        string? credited = fromMethod ?? fromType ?? (inGenerated ? null : method.Name);
+        return (type.ReflectionName, credited);
+    }
+
     /// <summary>The sequence points of a portable PDB, embedded in the DLL or beside it.</summary>
-    private sealed class Symbols : IDisposable
+    internal sealed class Symbols : IDisposable
     {
         private readonly MetadataReaderProvider? _provider;
         private readonly MetadataReader? _reader;

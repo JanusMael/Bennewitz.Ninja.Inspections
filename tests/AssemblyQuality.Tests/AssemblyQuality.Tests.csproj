@@ -46,6 +46,47 @@
           Visible="false" />
   </ItemGroup>
 
+  <!-- BNAQ1011's subjects and BNAQ1010's key option's, one source compiled twice as BNAQ1010's are, each beside the
+       library it references and the stand-ins; and KeyedOdd alone in its folder, so the key class one of its
+       attributes names, in Absent, does not resolve. -->
+  <ItemGroup>
+    <ProjectReference Include="..\fixtures\Keyed\Keyed.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\fixtures\KeyedDebug\KeyedDebug.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\fixtures\KeyedOdd\KeyedOdd.csproj" ReferenceOutputAssembly="false" />
+    <None Include="..\fixtures\Keyed\bin\$(Configuration)\$(TargetFramework)\AssemblyQuality.Fixtures.Keyed.dll"
+          Link="keyed\AssemblyQuality.Fixtures.Keyed.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+    <None Include="..\fixtures\Keyed\bin\$(Configuration)\$(TargetFramework)\AssemblyQuality.Fixtures.KeyedLibrary.dll"
+          Link="keyed\AssemblyQuality.Fixtures.KeyedLibrary.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+    <None Include="..\fixtures\Keyed\bin\$(Configuration)\$(TargetFramework)\AssemblyQuality.Fixtures.ConfinedStandIns.dll"
+          Link="keyed\AssemblyQuality.Fixtures.ConfinedStandIns.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+    <None Include="..\fixtures\KeyedDebug\bin\$(Configuration)\$(TargetFramework)\AssemblyQuality.Fixtures.KeyedDebug.dll"
+          Link="keyed-debug\AssemblyQuality.Fixtures.KeyedDebug.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+    <None Include="..\fixtures\KeyedDebug\bin\$(Configuration)\$(TargetFramework)\AssemblyQuality.Fixtures.KeyedDebug.pdb"
+          Link="keyed-debug\AssemblyQuality.Fixtures.KeyedDebug.pdb"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+    <None Include="..\fixtures\KeyedDebug\bin\$(Configuration)\$(TargetFramework)\AssemblyQuality.Fixtures.KeyedLibrary.dll"
+          Link="keyed-debug\AssemblyQuality.Fixtures.KeyedLibrary.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+    <None Include="..\fixtures\KeyedDebug\bin\$(Configuration)\$(TargetFramework)\AssemblyQuality.Fixtures.ConfinedStandIns.dll"
+          Link="keyed-debug\AssemblyQuality.Fixtures.ConfinedStandIns.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+    <None Include="..\fixtures\KeyedOdd\bin\$(Configuration)\$(TargetFramework)\AssemblyQuality.Fixtures.KeyedOdd.dll"
+          Link="keyed-odd\AssemblyQuality.Fixtures.KeyedOdd.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+  </ItemGroup>
+
   <!-- Dependent was compiled against version one of AssemblyQuality.Fixtures.Versioned; versioned/
        holds Dependent beside VERSION TWO. Neither is referenced, so this test project never sees two
        assemblies of one name. The load-context tests load versioned/ into a context of its own. -->

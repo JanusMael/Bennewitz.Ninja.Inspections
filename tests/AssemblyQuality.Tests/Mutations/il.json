@@ -1,12 +1,14 @@
 {
-  // The IL reader's and BNAQ1010's own set, by plans/00011 decision 12, the first half; step 4 adds BNAQ1011's.
+  // The IL reader's, BNAQ1010's and BNAQ1011's own set, by plans/00011 decision 12: step 3's half, then step 4's.
   // Each way the reader could go blind or credit a use to the wrong code, each option of a confinement, each place
-  // a use is allowed, each skip, and a control. Run with this repository's build of the tool, swapping a mutation
+  // a use is allowed, each path a key is followed along and each way it stops, each skip, and a control each. Run with this repository's build of the tool, swapping a mutation
   // of the library into the tests' output:
   //   dotnet run --project src/Testing.Mutate -c Release -- --set tests/AssemblyQuality.Tests/Mutations/il.json --swap src/AssemblyQuality/AssemblyQuality.csproj
   "project": "tests/AssemblyQuality.Tests/AssemblyQuality.Tests.csproj",
   "tests": [
-    "tests/AssemblyQuality.Tests/Rules/ConfinedUseRuleTests.cs"
+    "tests/AssemblyQuality.Tests/Rules/ConfinedUseRuleTests.cs",
+    "tests/AssemblyQuality.Tests/Rules/ConfinedUseKeyTests.cs",
+    "tests/AssemblyQuality.Tests/Rules/HelperKeyRuleTests.cs"
   ],
   "mutations": [
     {
@@ -148,6 +150,196 @@
       "old": "if (_confinements.Length == 0)",
       "new": "if (_confinements.Length < 0)",
       "killer": "Unconfigured_it_inspects_nothing"
+    },
+    {
+      "name": "an iterator's finally is skipped",
+      "file": "src/AssemblyQuality/IL/MethodBodies.cs",
+      "old": "if (namesNoMethod && !inGenerated)",
+      "new": "if (namesNoMethod)",
+      "killer": "Every_kind_of_body_is_read_and_credited_to_the_method_the_source_wrote"
+    },
+    {
+      "name": "the attribute is looked for by another name",
+      "file": "src/AssemblyQuality/IL/KeyFlow.cs",
+      "old": "internal const string AttributeName = \"Bennewitz.Ninja.ResourceKeyAttribute\";",
+      "new": "internal const string AttributeName = \"Bennewitz.Ninja.ResourceKey\";",
+      "killer": "The_attribute_is_found_by_its_full_name_here_and_in_a_referenced_assembly_each_declaring_it"
+    },
+    {
+      "name": "a ternary's first arm is not followed",
+      "file": "src/AssemblyQuality/IL/KeyFlow.cs",
+      "old": "Trace(choice.TrueInst, function, bodies, depth, seen, into);",
+      "new": "Trace(choice.FalseInst, function, bodies, depth, seen, into);",
+      "killer": "Each_path_a_key_takes_is_followed"
+    },
+    {
+      "name": "a local's stores are not followed",
+      "file": "src/AssemblyQuality/IL/KeyFlow.cs",
+      "old": "Trace(stored.Value, function, bodies, depth, seen, into);",
+      "new": "Trace(load, function, bodies, depth, seen, into);",
+      "killer": "Each_path_a_key_takes_is_followed"
+    },
+    {
+      "name": "a tuple's element is not followed",
+      "file": "src/AssemblyQuality/IL/KeyFlow.cs",
+      "old": "&& TupleItem(field) is int item)",
+      "new": "&& TupleItem(field) is int item && item < 0)",
+      "killer": "Each_path_a_key_takes_is_followed"
+    },
+    {
+      "name": "a parameter's callers are not followed",
+      "file": "src/AssemblyQuality/IL/KeyFlow.cs",
+      "old": "foreach (CallSite caller in callers)",
+      "new": "foreach (CallSite caller in callers.Take(0))",
+      "killer": "A_field_that_reaches_the_helper_only_through_a_parameter_is_passed"
+    },
+    {
+      "name": "the depth is not bounded at eight",
+      "file": "src/AssemblyQuality/IL/KeyFlow.cs",
+      "old": "if (depth >= Depth)",
+      "new": "if (depth >= Depth * 2)",
+      "killer": "What_cannot_be_followed_says_why"
+    },
+    {
+      "name": "eight callers are one too many",
+      "file": "src/AssemblyQuality/IL/KeyFlow.cs",
+      "old": "internal const int Depth = 8;",
+      "new": "internal const int Depth = 7;",
+      "killer": "Each_path_a_key_takes_is_followed"
+    },
+    {
+      "name": "a public method's callers are taken as every caller",
+      "file": "src/AssemblyQuality/IL/KeyFlow.cs",
+      "old": "if (IsVisibleOutside(method))",
+      "new": "if (IsVisibleOutside(method) && method.Name.Length < 0)",
+      "killer": "Each_key_that_is_no_field_or_cannot_be_followed_is_reported"
+    },
+    {
+      "name": "an override's callers are taken as every caller",
+      "file": "src/AssemblyQuality/IL/KeyFlow.cs",
+      "old": "InheritanceHelper.GetBaseMembers(method, true).Any()",
+      "new": "InheritanceHelper.GetBaseMembers(method, true).Any(m => m.Name.Length < 0)",
+      "killer": "Each_key_that_is_no_field_or_cannot_be_followed_is_reported"
+    },
+    {
+      "name": "a method made into a delegate has its callers taken as every caller",
+      "file": "src/AssemblyQuality/IL/KeyFlow.cs",
+      "old": "return _delegated.Contains(KeyOf(method)) ? ",
+      "new": "return _delegated.Contains(KeyOf(method) + \"?\") ? ",
+      "killer": "Each_key_that_is_no_field_or_cannot_be_followed_is_reported"
+    },
+    {
+      "name": "a marked parameter is followed past",
+      "file": "src/AssemblyQuality/IL/KeyFlow.cs",
+      "old": "if (KeyAttribute(parameter) is not null)",
+      "new": "if (KeyAttribute(parameter) is not null && parameter.Name.Length < 0)",
+      "killer": "A_marked_parameter_of_another_class_is_reported"
+    },
+    {
+      "name": "the reading that sees a captured local is not the one kept",
+      "file": "src/AssemblyQuality/IL/KeyFlow.cs",
+      "old": "|| (function.Folds(instruction) && !FoldedIn(earlier)))",
+      "new": "|| (!function.Folds(instruction) && FoldedIn(earlier)))",
+      "killer": "Each_path_a_key_takes_is_followed"
+    },
+    {
+      "name": "a local function's callers are not found",
+      "file": "src/AssemblyQuality/IL/KeyFlow.cs",
+      "old": "if (method.IsLocalFunction && method.ReducedFrom is { } original)",
+      "new": "if (method.IsLocalFunction && method.ReducedFrom is { } original && original.Name.Length < 0)",
+      "killer": "Each_path_a_key_takes_is_followed"
+    },
+    {
+      "name": "a literal no field holds reads as unknown",
+      "file": "src/AssemblyQuality/Rules/HelperKeyRule.cs",
+      "old": "FlowKind.Constant => (KeyValueKind.Literal, value.Text),",
+      "new": "FlowKind.Constant => (KeyValueKind.Unknown, value.Text),",
+      "killer": "What_cannot_be_followed_says_why"
+    },
+    {
+      "name": "a field passed nowhere is not reported",
+      "file": "src/AssemblyQuality/Rules/HelperKeyRule.cs",
+      "old": "if (!reached.Contains((parameter.KeyClass, $\"{parameter.KeyClass}::{field}\")))",
+      "new": "if (!reached.Contains((parameter.KeyClass, $\"{parameter.KeyClass}::{field}\")) && field.Length < 0)",
+      "killer": "A_const_passed_nowhere_is_reported"
+    },
+    {
+      "name": "another class's marked parameter passes",
+      "file": "src/AssemblyQuality/Rules/HelperKeyRule.cs",
+      "old": "&& other != call.KeyClass:",
+      "new": "&& other == call.KeyClass:",
+      "killer": "A_marked_parameter_of_another_class_is_reported"
+    },
+    {
+      "name": "a parameter that is no string is read",
+      "file": "src/AssemblyQuality/Rules/HelperKeyRule.cs",
+      "old": "if (!parameter.Type.IsKnownType(KnownTypeCode.String))",
+      "new": "if (parameter.Type.IsKnownType(KnownTypeCode.Int64))",
+      "killer": "A_parameter_that_is_no_string_a_class_with_no_const_string_and_two_fields_of_one_value_are_skipped"
+    },
+    {
+      "name": "two fields of one value are not named",
+      "file": "src/AssemblyQuality/Rules/HelperKeyRule.cs",
+      "old": "if (fields.Length > 1 && ",
+      "new": "if (fields.Length > 2 && ",
+      "killer": "A_parameter_that_is_no_string_a_class_with_no_const_string_and_two_fields_of_one_value_are_skipped"
+    },
+    {
+      "name": "a helper made into a delegate is not listed",
+      "file": "src/AssemblyQuality/Rules/HelperKeyRule.cs",
+      "old": "foreach (DelegateSite site in flow.Delegates)",
+      "new": "foreach (DelegateSite site in flow.Delegates.Take(0))",
+      "killer": "A_marked_helper_made_into_a_delegate_is_reported"
+    },
+    {
+      "name": "one marked key allows a lookup given others",
+      "file": "src/AssemblyQuality/Rules/ConfinedUseRule.cs",
+      "old": "keys.Length > 0 && keys.All(k => k.Kind == KeyValueKind.MarkedParameter);",
+      "new": "keys.Length > 0 && keys.Any(k => k.Kind == KeyValueKind.MarkedParameter);",
+      "killer": "A_lookup_given_a_marked_key_and_another_is_reported_naming_the_other"
+    },
+    {
+      "name": "the key option allows nothing",
+      "file": "src/AssemblyQuality/Rules/ConfinedUseRule.cs",
+      "old": "allowed |= ByKey(keys);",
+      "new": "allowed |= ByKey([]);",
+      "killer": "A_lookup_whose_key_traces_to_a_marked_parameter_directly_or_through_a_private_method_is_allowed"
+    },
+    {
+      "name": "a literal key reads as a marked parameter",
+      "file": "src/AssemblyQuality/Rules/ConfinedUseRule.cs",
+      "old": "FlowKind.Constant => KeyValueKind.Literal,",
+      "new": "FlowKind.Constant => KeyValueKind.MarkedParameter,",
+      "killer": "A_lookup_given_a_literal_an_unmarked_parameter_a_field_or_a_computed_key_is_reported_in_a_marked_method_or_not"
+    },
+    {
+      "name": "a key is read where the confinement names none",
+      "file": "src/AssemblyQuality/Rules/ConfinedUseRule.cs",
+      "old": "if (confinement.KeyParameter is int key && use.Kind != UseKind.Chain)",
+      "new": "if ((confinement.KeyParameter ?? 0) is int key && use.Kind != UseKind.Chain)",
+      "killer": "Without_the_option_no_key_is_read_and_none_allows_a_use"
+    },
+    {
+      "name": "the key alone decides, a place aside",
+      "file": "src/AssemblyQuality/Rules/ConfinedUseRule.cs",
+      "old": "allowed |= ByKey(keys);",
+      "new": "allowed = ByKey(keys);",
+      "killer": "A_place_allows_a_use_its_key_does_not"
+    },
+    {
+      "name": "a negative key parameter is taken",
+      "file": "src/AssemblyQuality/Rules/ConfinedUse.cs",
+      "old": "if (value < 0)",
+      "new": "if (value < -1)",
+      "killer": "A_key_parameter_is_never_negative"
+    },
+    {
+      "name": "a key option's remark reworded",
+      "file": "src/AssemblyQuality/IL/KeyFlow.cs",
+      "old": "/// <summary>How many callers deep a parameter is followed.</summary>",
+      "new": "/// <summary>How deep, in callers, a parameter is followed.</summary>",
+      "expect": "green",
+      "because": "a comment compiles to nothing, so every test must stay green"
     },
     {
       "name": "a remark reworded",

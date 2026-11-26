@@ -64,6 +64,7 @@ MIT. See [LICENSE](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob
 | `BNAQ1005` | Every InternalsVisibleTo grant names an assembly the caller allows. |
 | `BNAQ1006` | Every reference into another assembly resolves, and every one into an internal is still granted. |
 | `BNAQ1010` | A named type or member is used only where its confinement allows it. |
+| `BNAQ1011` | Every key a marked parameter is given is one of its key class's constants, and every such constant is given to one. |
 <!-- END GENERATED RULES -->
 
 **Renamed after `2026.3.922`.** Up to and including that version the IDs were `AQ1001`–`AQ1004`.
@@ -250,9 +251,25 @@ var rule = new ConfinedUseRule(
   assembly writes is.
 - **A place** is allowed by type, its nested types included; by method, written `Type::Method`, its lambdas and
   state machine included; or by markup file, by the file name the symbols give the code compiled from it.
+- **`KeyParameter`** allows a call or a construction by its key: the index, among the member's parameters, of
+  the argument that is its key, `0` for `TryGetResource`'s and `1` for the `FindResource` extension's, whose first
+  is the control it extends. The use is allowed wherever every value that argument takes traces, as `BNAQ1011`
+  follows a key, to a parameter marked `[ResourceKey]`, directly or through private methods. A literal, a field, a
+  computed key, or a parameter the attribute does not mark is allowed only by a place, inside a marked method or
+  not:
+
+  ```csharp
+  // A resource is looked up only by a key a marked helper was given.
+  ConfinedUse.Member("Avalonia.Controls.IResourceNode", "TryGetResource") with
+  {
+      IncludingSubtypes = true,
+      KeyParameter = 0,
+  },
+  ```
 
 `ConfinedUseRule.Read` returns every matched use, allowed or not, with its kind, the method that makes it, its
-file and line, and its IL offset, and `Analyze` reports the ones not allowed. A finding carries `Source`, the file
+file and line, its IL offset and, under `KeyParameter`, each value its key takes, and `Analyze` reports the ones
+not allowed. A finding carries `Source`, the file
 and line, wherever the assembly's portable PDB, embedded or beside it, gives one.
 
 ⚠ **Assert your positive controls through the reading.** `Inspected` counts the method bodies read, which a
@@ -267,3 +284,58 @@ no source-side counterpart: where a thing is used across an assembly, compiled m
 
 This rule makes the package depend on ICSharpCode.Decompiler (MIT), its first dependency, which brings
 System.Collections.Immutable and System.Reflection.Metadata with it, both part of .NET 10.
+
+### BNAQ1011
+
+Every key a marked parameter is given is one of its key class's constants, and every such constant is given to
+one. A helper marks its key parameter with the class whose `const string` fields are its keys, so the code says
+which methods are helpers, which argument is the key and where the keys live, and a rename keeps it true:
+
+```csharp
+internal static class DialogColors
+{
+    internal const string Accent = "Dialog.Accent";
+    internal const string Warning = "Dialog.Warning";
+
+    internal static IBrush Brush([ResourceKey(typeof(DialogColors))] string key) => ...;
+}
+```
+
+No package ships the attribute, since the code that carries it is shipped code, which a test package cannot reach.
+Declare it once, `internal`, in the lowest project that needs it; its friend grants make it visible to the rest, and
+the rule finds it by its full name:
+
+```csharp
+namespace Bennewitz.Ninja;
+
+/// <summary>Marks a parameter whose argument must be one of <see cref="Keys"/>' const string fields.</summary>
+[AttributeUsage(AttributeTargets.Parameter)]
+internal sealed class ResourceKeyAttribute(Type keys) : Attribute
+{
+    public Type Keys { get; } = keys;
+}
+```
+
+⛔ **Declare it once.** Two projects that each declare it, one referencing the other, get CS0436, an error under
+warnings as errors.
+
+- **A key is followed** within its method through locals, ternaries, `??` and tuples, and through a parameter to
+  every caller in the scan, to a depth of eight. The key class may be nested, or in an assembly the scanned one
+  references.
+- **What cannot be followed is a finding:** a field, a call's result, a delegate's result, a lambda's parameter, and
+  the parameter of a method whose callers the scan cannot all see, one visible outside its assembly, one that
+  overrides or implements another, and one made into a delegate. A marked helper made into a delegate is reported
+  too, since no call shows its keys, and so is a marked parameter handed one that names another class.
+- ⛔ **A literal equal to a key is that key.** A `const` is compiled into each of its uses, so the rule reads a key
+  by its value, and `"Dialog.Accent"` cannot be told from `DialogColors.Accent`.
+- **Every field must reach a marked parameter** naming its class somewhere in the scan, and every marked parameter
+  naming one class shares its keys. A class named only by a helper outside the scan is checked for the keys the scan
+  gives it, not for the fields it never gives.
+
+`HelperKeyRule.Read` returns every marked parameter the scan declares, every call to a marked parameter, with each
+value its key takes and where that value arises, and every delegate made of a method with one; `Analyze` reports
+from it. `Inspected` is the number of calls to marked parameters, zero where none is called, which is what a
+misspelt attribute leaves. `Skipped` names an assembly with no file to read, a method body the decompiler cannot
+read, a marked parameter that takes no `string`, an attribute without one type, given to its constructor, that
+resolves, a key class with no `const string` field, and two fields of one class that hold one value. It has no
+source-side counterpart yet.
