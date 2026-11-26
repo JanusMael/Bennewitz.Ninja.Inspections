@@ -26,3 +26,12 @@ BNCQ1007 | Bennewitz.Ninja.CodeQuality | Warning | A producer built by Observabl
 BNCQ1008 | Bennewitz.Ninja.CodeQuality | Warning | A gate taken in a body is released outside a finally clause
 BNCQ1009 | Bennewitz.Ninja.CodeQuality | Warning | A callback no caller catches is not wholly inside a try/catch
 BNCQ3001 | Bennewitz.Ninja.CodeQuality | Warning | An Avalonia DispatcherTimer's Tick handler is not wholly inside a try/catch
+
+## Release 2026.4.1126
+
+### New Rules
+
+Rule ID | Category | Severity | Notes
+--------|----------|----------|-------
+BNCQ1012 | Bennewitz.Ninja.CodeQuality | Warning | A log template is not in the family's one form
+BNCQ3002 | Bennewitz.Ninja.CodeQuality | Warning | A wait blocks on the task a headless dispatch returns
