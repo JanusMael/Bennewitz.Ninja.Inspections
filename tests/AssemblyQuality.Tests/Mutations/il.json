@@ -1,0 +1,161 @@
+{
+  // The IL reader's and BNAQ1010's own set, by plans/00011 decision 12, the first half; step 4 adds BNAQ1011's.
+  // Each way the reader could go blind or credit a use to the wrong code, each option of a confinement, each place
+  // a use is allowed, each skip, and a control. Run with this repository's build of the tool, swapping a mutation
+  // of the library into the tests' output:
+  //   dotnet run --project src/Testing.Mutate -c Release -- --set tests/AssemblyQuality.Tests/Mutations/il.json --swap src/AssemblyQuality/AssemblyQuality.csproj
+  "project": "tests/AssemblyQuality.Tests/AssemblyQuality.Tests.csproj",
+  "tests": [
+    "tests/AssemblyQuality.Tests/Rules/ConfinedUseRuleTests.cs"
+  ],
+  "mutations": [
+    {
+      "name": "a generated name is credited to itself",
+      "file": "src/AssemblyQuality/IL/MethodBodies.cs",
+      "old": "string? credited = fromMethod ?? fromType ?? (inGenerated ? null : method.Name);",
+      "new": "string? credited = fromMethod is null && fromType is null && inGenerated ? null : method.Name;",
+      "killer": "Every_kind_of_body_is_read_and_credited_to_the_method_the_source_wrote"
+    },
+    {
+      "name": "a use read twice is kept twice",
+      "file": "src/AssemblyQuality/IL/MethodBodies.cs",
+      "old": "if (!_seen.Add((function, offset, kind, key)))",
+      "new": "if (!_seen.Add((function, offset, kind, key)) && kind == UseKind.Chain)",
+      "killer": "A_use_inside_a_lambda_is_one_use"
+    },
+    {
+      "name": "a base-constructor chain reads as a construction",
+      "file": "src/AssemblyQuality/IL/MethodBodies.cs",
+      "old": "&& owner.Method is { IsConstructor: true };",
+      "new": "&& owner.Method is { IsConstructor: true } && false;",
+      "killer": "A_base_constructor_chain_is_listed_and_never_reported"
+    },
+    {
+      "name": "a getter reads as a call",
+      "file": "src/AssemblyQuality/IL/MethodBodies.cs",
+      "old": "Add(getter ? UseKind.Read : UseKind.Call,",
+      "new": "Add(UseKind.Call,",
+      "killer": "Each_kind_of_use_is_read"
+    },
+    {
+      "name": "a delegate made from a method is unread",
+      "file": "src/AssemblyQuality/IL/MethodBodies.cs",
+      "old": "case LdFtn ldFtn:",
+      "new": "case LdFtn ldFtn when ldFtn.Method.Name.Length < 0:",
+      "killer": "Each_kind_of_use_is_read"
+    },
+    {
+      "name": "a static field read is unread",
+      "file": "src/AssemblyQuality/IL/MethodBodies.cs",
+      "old": "case LdsFlda field when !IsWritten(instruction):",
+      "new": "case LdsFlda field when field.Field.Name.Length < 0:",
+      "killer": "Each_kind_of_use_is_read"
+    },
+    {
+      "name": "initobj of a value type is unread",
+      "file": "src/AssemblyQuality/IL/MethodBodies.cs",
+      "old": "case DefaultValue value when value.Type.IsReferenceType == false",
+      "new": "case DefaultValue value when value.Type.IsReferenceType == true",
+      "killer": "Every_kind_of_body_is_read_and_credited_to_the_method_the_source_wrote"
+    },
+    {
+      "name": "the symbols give no line",
+      "file": "src/AssemblyQuality/IL/MethodBodies.cs",
+      "old": "if (_reader is null || function == 0)",
+      "new": "if (_reader is null || function != int.MinValue)",
+      "killer": "A_finding_says_where_in_the_source_it_is"
+    },
+    {
+      "name": "an assembly with no file is read anyway",
+      "file": "src/AssemblyQuality/IL/MethodBodies.cs",
+      "old": "if (path.Length == 0 || !File.Exists(path))",
+      "new": "if (path.Length == 0 && !File.Exists(path) && path.Length > 0)",
+      "killer": "An_assembly_with_no_file_is_skipped"
+    },
+    {
+      "name": "an interface's own interfaces are not followed",
+      "file": "src/AssemblyQuality/IL/Ancestry.cs",
+      "old": "unknown |= Follow(file, metadata.GetInterfaceImplementation(implementation).Interface, names, seen);",
+      "new": "unknown |= metadata.GetInterfaceImplementation(implementation).Interface.IsNil;",
+      "killer": "An_interface_reaches_what_implements_it_only_with_the_subtype_option"
+    },
+    {
+      "name": "an ancestor that does not resolve reads as no match",
+      "file": "src/AssemblyQuality/Rules/ConfinedUseRule.cs",
+      "old": "return names.Contains(name) ? true : unknown ? null : false;",
+      "new": "return names.Contains(name);",
+      "killer": "A_reference_a_match_needs_that_does_not_resolve_is_skipped"
+    },
+    {
+      "name": "the subtype option is ignored",
+      "file": "src/AssemblyQuality/Rules/ConfinedUseRule.cs",
+      "old": "if (!confinement.IncludingSubtypes)",
+      "new": "if (confinement.IncludingSubtypes || !confinement.IncludingSubtypes)",
+      "killer": "The_subtype_and_declared_type_options_each_change_what_is_matched"
+    },
+    {
+      "name": "a member on a subtype is taken whatever its parameters",
+      "file": "src/AssemblyQuality/Rules/ConfinedUseRule.cs",
+      "old": ".Any(m => Parameters(m).SequenceEqual(parameters, StringComparer.Ordinal));",
+      "new": ".Any(m => Parameters(m).Length < 0);",
+      "killer": "A_member_named_on_an_interface_matches_a_class_that_implements_it_only_with_the_subtype_option"
+    },
+    {
+      "name": "the declared-type option is ignored",
+      "file": "src/AssemblyQuality/Rules/ConfinedUseRule.cs",
+      "old": "if (confinement.ExceptTypesTheScanDeclares && use.Kind != UseKind.Chain",
+      "new": "if (confinement.ExceptTypesTheScanDeclares && use.Kind == UseKind.Chain",
+      "killer": "A_base_constructor_chain_is_listed_and_never_reported"
+    },
+    {
+      "name": "a call on a constructed-only type is matched",
+      "file": "src/AssemblyQuality/Rules/ConfinedUseRule.cs",
+      "old": "? use.Kind is UseKind.Construction or UseKind.Chain",
+      "new": "? use.Kind is UseKind.Construction or UseKind.Chain or UseKind.Call",
+      "killer": "A_call_on_a_type_confined_by_its_construction_is_no_use"
+    },
+    {
+      "name": "a nested type is not allowed with its type",
+      "file": "src/AssemblyQuality/Rules/ConfinedUseRule.cs",
+      "old": "|| use.CreditType.StartsWith(t + \"+\", StringComparison.Ordinal)",
+      "new": "|| use.CreditType.StartsWith(t + \"-\", StringComparison.Ordinal)",
+      "killer": "A_use_is_allowed_by_its_type_and_the_types_nested_in_it_by_its_method_and_by_its_file"
+    },
+    {
+      "name": "a method is never a place",
+      "file": "src/AssemblyQuality/Rules/ConfinedUseRule.cs",
+      "old": "confinement.AllowedInMethods.Contains($\"{use.CreditType}::{method}\", StringComparer.Ordinal)",
+      "new": "confinement.AllowedInMethods.Contains($\"{use.CreditType}.{method}\", StringComparer.Ordinal)",
+      "killer": "A_use_is_allowed_by_its_type_and_the_types_nested_in_it_by_its_method_and_by_its_file"
+    },
+    {
+      "name": "a file is never a place",
+      "file": "src/AssemblyQuality/Rules/ConfinedUseRule.cs",
+      "old": "&& confinement.AllowedInMarkup.Contains(FileName(source.File), StringComparer.OrdinalIgnoreCase);",
+      "new": "&& confinement.AllowedInMarkup.Contains(source.File, StringComparer.Ordinal);",
+      "killer": "A_use_is_allowed_by_its_type_and_the_types_nested_in_it_by_its_method_and_by_its_file"
+    },
+    {
+      "name": "a name that resolves nowhere is not named",
+      "file": "src/AssemblyQuality/Rules/ConfinedUseRule.cs",
+      "old": "if (types.Length == 0)",
+      "new": "if (types.Length < 0)",
+      "killer": "A_name_that_resolves_nowhere_is_skipped_once_however_many_assemblies_are_scanned"
+    },
+    {
+      "name": "unconfigured, it reads every body",
+      "file": "src/AssemblyQuality/Rules/ConfinedUseRule.cs",
+      "old": "if (_confinements.Length == 0)",
+      "new": "if (_confinements.Length < 0)",
+      "killer": "Unconfigured_it_inspects_nothing"
+    },
+    {
+      "name": "a remark reworded",
+      "file": "src/AssemblyQuality/Rules/ConfinedUseRule.cs",
+      "old": "/// <summary>A document's file name, whichever separator the compiler wrote its path with.</summary>",
+      "new": "/// <summary>The file name of a document, whichever separator the compiler wrote its path with.</summary>",
+      "expect": "green",
+      "because": "a comment compiles to nothing, so every test must stay green"
+    }
+  ]
+}

@@ -16,6 +16,9 @@
   </Folder>
   <Folder Name="/tests/fixtures/">
     <Project Path="tests/fixtures/Absent/Absent.csproj" />
+    <Project Path="tests/fixtures/Confined/Confined.csproj" />
+    <Project Path="tests/fixtures/ConfinedDebug/ConfinedDebug.csproj" />
+    <Project Path="tests/fixtures/ConfinedStandIns/ConfinedStandIns.csproj" />
     <Project Path="tests/fixtures/Orphan/Orphan.csproj" />
     <Project Path="tests/fixtures/Dependent/Dependent.csproj" />
     <Project Path="tests/fixtures/FriendConsumer/FriendConsumer.csproj" />

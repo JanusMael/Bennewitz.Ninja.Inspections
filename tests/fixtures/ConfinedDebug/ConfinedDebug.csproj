@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The same sources unoptimised, with the PDB beside the DLL, as AppKit's Debug builds are: the
+       compiler shapes closures, state machines and locals differently there. -->
+  <PropertyGroup>
+    <AssemblyName>AssemblyQuality.Fixtures.ConfinedDebug</AssemblyName>
+    <SolutionFriendGrants>false</SolutionFriendGrants>
+    <Optimize>false</Optimize>
+    <DebugType>portable</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Confined\*.cs" />
+    <ProjectReference Include="..\ConfinedStandIns\ConfinedStandIns.csproj" />
+  </ItemGroup>
+</Project>

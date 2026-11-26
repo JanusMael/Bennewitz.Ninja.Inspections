@@ -63,6 +63,7 @@ MIT. See [LICENSE](https://github.com/JanusMael/Bennewitz.Ninja.Inspections/blob
 | `BNAQ1004` | No declared namespace segment shadows the root namespace of a referenced assembly. |
 | `BNAQ1005` | Every InternalsVisibleTo grant names an assembly the caller allows. |
 | `BNAQ1006` | Every reference into another assembly resolves, and every one into an internal is still granted. |
+| `BNAQ1010` | A named type or member is used only where its confinement allows it. |
 <!-- END GENERATED RULES -->
 
 **Renamed after `2026.3.922`.** Up to and including that version the IDs were `AQ1001`–`AQ1004`.
@@ -206,3 +207,63 @@ Assert.True(result.Inspected > 0, "the consumer must reference the provider at a
 Outside the Bennewitz.Ninja family it answers the same question for any library with published
 dependents, internals or not: will what they call still be there when an application pairs them with
 this release?
+
+### BNAQ1010
+
+A named type or member is used only where its confinement allows it. It reads every method body, the compiler's
+lambdas, local functions, async and iterator state machines, static constructors, accessors and compiled XAML
+among them, as ICSharpCode.Decompiler's transformed ILAst, and credits a use in generated code to the method the
+source wrote. Each confinement names a type or a member by its full name, in reflection syntax, which reaches an
+internal type of a library the consumer cannot reference:
+
+```csharp
+var rule = new ConfinedUseRule(
+[
+    // No window is constructed but the ones the assembly declares.
+    ConfinedUse.Constructing("Avalonia.Controls.Window") with
+    {
+        IncludingSubtypes = true,
+        ExceptTypesTheScanDeclares = true,
+    },
+    // Colours and brushes are made in one type and the types nested in it.
+    ConfinedUse.AnyMemberOf("Avalonia.Media.Colors") with { AllowedInTypes = ["MyApp.Palette"] },
+    ConfinedUse.Member("Avalonia.Media.Color", "Parse") with { AllowedInTypes = ["MyApp.Palette"] },
+    // Resources are looked up by one helper, and by the markup that says so.
+    ConfinedUse.Member("Avalonia.Controls.IResourceNode", "TryGetResource") with
+    {
+        IncludingSubtypes = true,
+        AllowedInMethods = ["MyApp.Palette::Brush"],
+        AllowedInMarkup = ["Theme.axaml"],
+    },
+]);
+```
+
+- **What counts as a use** is the confinement's: constructing the type (`newobj`, a constructor called on an
+  address, `initobj` of a value type), any use of its members (a call, a delegate made from a method, a read of a
+  field or a property), or one member by name. A constructor chaining to its own base or its own type's constructs
+  nothing: it is listed in the reading as a `Chain` and never reported.
+- **`IncludingSubtypes`** matches the types that derive from the named one or implement it, directly or through
+  another interface, and a member by its name and parameters on any of them. A call holds the member the compiler
+  bound to, so `TryGetResource` named on `IResourceNode` reaches a call through `Application`, which declares its
+  own.
+- **`ExceptTypesTheScanDeclares`** leaves out a type an assembly of the scan declares, as a window class the
+  assembly writes is.
+- **A place** is allowed by type, its nested types included; by method, written `Type::Method`, its lambdas and
+  state machine included; or by markup file, by the file name the symbols give the code compiled from it.
+
+`ConfinedUseRule.Read` returns every matched use, allowed or not, with its kind, the method that makes it, its
+file and line, and its IL offset, and `Analyze` reports the ones not allowed. A finding carries `Source`, the file
+and line, wherever the assembly's portable PDB, embedded or beside it, gives one.
+
+⚠ **Assert your positive controls through the reading.** `Inspected` counts the method bodies read, which a
+matcher that had stopped matching would still read, so "no findings, `Inspected` above zero, nothing skipped" is
+not enough on its own. Assert that the reading lists the allowed uses you know are there: the chain each window
+class makes, the parse your palette calls.
+
+`Skipped` names an assembly with no file to read, a configured name that resolves to nothing in the scan or what
+it references (once, however many assemblies are scanned), a type whose ancestry a match depended on and could
+not follow, a generated name the reader cannot take apart, and a method body the decompiler cannot read. There is
+no source-side counterpart: where a thing is used across an assembly, compiled markup included, is what shipped.
+
+This rule makes the package depend on ICSharpCode.Decompiler (MIT), its first dependency, which brings
+System.Collections.Immutable and System.Reflection.Metadata with it, both part of .NET 10.

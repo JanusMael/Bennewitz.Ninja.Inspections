@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- BNAQ1010's subject, optimised with its PDB embedded, as AppKit's Release builds are. -->
+  <PropertyGroup>
+    <AssemblyName>AssemblyQuality.Fixtures.Confined</AssemblyName>
+    <SolutionFriendGrants>false</SolutionFriendGrants>
+    <Optimize>true</Optimize>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ConfinedStandIns\ConfinedStandIns.csproj" />
+  </ItemGroup>
+</Project>

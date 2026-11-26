@@ -13,6 +13,9 @@
 
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("AssemblyQuality")]
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("AssemblyQuality.Fixtures.Absent")]
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("AssemblyQuality.Fixtures.Confined")]
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("AssemblyQuality.Fixtures.ConfinedDebug")]
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("AssemblyQuality.Fixtures.ConfinedStandIns")]
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("AssemblyQuality.Fixtures.Dependent")]
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("AssemblyQuality.Fixtures.Friend")]
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("AssemblyQuality.Fixtures.FriendConsumer")]

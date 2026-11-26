@@ -88,7 +88,14 @@ public sealed class FriendReferenceTests
     [Fact]
     public void AnAssemblyThatReferencesOnlyTheFramework_InspectsNothing()
     {
-        AssemblyRuleResult result = new FriendReferenceRule().Analyze(AssemblyScanContext.Of(typeof(IAssemblyRule).Assembly));
+        // Not the library itself, which references ICSharpCode.Decompiler since plans/00011: the stand-ins
+        // BNAQ1010's fixtures use reference the framework alone, as this test needs.
+        Assembly frameworkOnly = Assembly.LoadFrom(
+            Path.Combine(AppContext.BaseDirectory, "confined", "AssemblyQuality.Fixtures.ConfinedStandIns.dll"));
+        Assert.All(frameworkOnly.GetReferencedAssemblies(),
+            r => Assert.StartsWith("System.", r.Name, StringComparison.Ordinal));
+
+        AssemblyRuleResult result = new FriendReferenceRule().Analyze(AssemblyScanContext.Of(frameworkOnly));
 
         Assert.Empty(result.Findings);
         Assert.Equal(0, result.Inspected);

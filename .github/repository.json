@@ -44,6 +44,9 @@
     "XamlQuality": {
       "Trimming": "It reads types and IL by reflection (ElementTypes, CompiledStrings), and the trim analyser reports 106 places, measured 2026-10-26. Not trimmable until those warnings are fixed (plans/00009 decision 19 in Bennewitz.Ninja.Templates); its plans/00008 side 2 holds what a repository takes and does not lift this (issue #106)."
     },
+    "ConfinedDebug": {
+      "DebugType": "BNAQ1010's fixture compiled as a consumer's Debug build is, unoptimised with its PDB beside the DLL, so the IL reader's sequence points are proved on that shape of symbols as on the embedded one (plans/00011 decision 9). It ships nothing."
+    },
     "XamlQuality.ThemeRuntime.Tests": {
       "ImplicitUsings": "It compiles the runtime theme check's source files as an adopting project that turns implicit usings off would, so a file that leans on one fails here rather than in that project (plans/00003)."
     }

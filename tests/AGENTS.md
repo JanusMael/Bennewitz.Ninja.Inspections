@@ -97,6 +97,9 @@ keeps the fixtures plain libraries.
 | `AssemblyQuality.Tests/Rules/LoadContextTests.cs` | References resolve in the scanned assembly's own load context, against the `versioned/` fixtures |
 | `fixtures/Dependent/`, `fixtures/VersionOne/`, `fixtures/VersionTwo/` | `Dependent` is compiled against `VersionOne`; `VersionTwo` has the same assembly name, a newer pinned `BuildTimestamp` and a different root namespace. Only `Dependent` and `VersionTwo` are copied into `versioned/` |
 | `fixtures/Orphan/`, `fixtures/Absent/` | `Orphan` references `Absent` with `Private="false"`, and only `Orphan`'s dll is copied into the test output's `orphan/` folder, so `Absent` really will not load |
+| `AssemblyQuality.Tests/Rules/ConfinedUseRuleTests.cs` | `BNAQ1010`, by plans/00011, over both builds of the `Confined` fixture: each kind of use in each kind of body, credited to the method the source wrote; each option of a confinement both ways; each place a use is allowed; the reading's chains; each skip, `Orphan`'s unresolvable ancestry among them |
+| `fixtures/Confined/`, `fixtures/ConfinedDebug/`, `fixtures/ConfinedStandIns/` | `Confined`'s `Uses.cs` makes every kind of use in every kind of body; it is compiled optimised with an embedded PDB into `confined/`, and by `ConfinedDebug` unoptimised with its PDB beside it into `confined-debug/`, which `.github/repository.json` exempts from the family's embedded symbols. Both reference `ConfinedStandIns`, stand-ins named as Avalonia's types are, in an assembly of their own as Avalonia's are, copied beside each. None is referenced by the test project |
+| `AssemblyQuality.Tests/Mutations/il.json` | The IL reader's and `BNAQ1010`'s mutation set, by plans/00011, run with `mutate --swap src/AssemblyQuality/AssemblyQuality.csproj`; no test reads it |
 
 ### Rules
 
