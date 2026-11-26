@@ -96,6 +96,8 @@ The family's one project, the analyzer, packed as `Bennewitz.Ninja.CodeQuality`.
 | `CodeQuality/Rules/NamespaceShadowAnalyzer.cs` | `BNCQ1004`: a namespace segment that shadows a referenced root namespace |
 | `CodeQuality/Rules/SurfaceLeakAnalyzer.cs` | `BNCQ1002`: a type from a leak-prone namespace in the visible surface, walked transitively through referenced types |
 | `CodeQuality/Rules/CancellationTokenAnalyzer.cs` | `BNCQ1001`: a defaulted cancellation token, or a token-less overload of a tokened sibling; off by default |
+| `CodeQuality/LogTemplates.cs` | A message template as Serilog and Microsoft.Extensions.Logging read one, its holes, and the first place it leaves the family's one form for a log line, by plans/00014 decision 5 |
+| `CodeQuality/Rules/LogLineFormAnalyzer.cs` | `BNCQ1012`: a log template not in the family's one form, one that is not a constant, a `:l` hole, an enum given to a hole. It analyses generated code and leaves out only a file a tool wrote, by its name or header, since Roslyn takes a partial method for generated where its other half carries `[GeneratedCode]`: a consumer's own `[LoggerMessage]` method, or an MVVM Toolkit hook |
 | `CodeQuality/AnalyzerReleases.Unshipped.md`, `AnalyzerReleases.Shipped.md` | Release tracking (RS2007, RS2008): every rule is listed in one of them |
 
 ### Rules

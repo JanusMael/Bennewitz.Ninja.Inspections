@@ -1,0 +1,309 @@
+{
+  // BNCQ1012's own set, by plans/00014 decision 11: the gate shut, open with neither logger and with one, each call
+  // left unread, generated code read both ways, each clause of the form and each way out of it, the :l hole, the enum
+  // through each mapping, the run-time template, the message, the location suppressions read, the default severity,
+  // and a control. Run with this repository's build of the tool, swapping a mutation of the analyzer into the tests'
+  // output:
+  //   dotnet run --project src/Testing.Mutate -c Release -- --set tests/CodeQuality.Tests/Mutations/bncq1012.json --swap src/CodeQuality/CodeQuality.csproj
+  "project": "tests/CodeQuality.Tests/CodeQuality.Tests.csproj",
+  "tests": [
+    "tests/CodeQuality.Tests/Rules/LogLineFormTests.cs"
+  ],
+  "mutations": [
+    {
+      "name": "the gate never opens",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "if (melLogger is null && serilogLogger is null)",
+      "new": "if (melLogger is null || serilogLogger is null || compilation.AssemblyName is not null)",
+      "killer": "Every_call_it_reads_fires_through_an_interface_and_a_class_alike"
+    },
+    {
+      "name": "the gate opens with neither logger",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "if (melLogger is null && serilogLogger is null)",
+      "new": "if (melLogger is null && serilogLogger is null && compilation.AssemblyName == \"never\")",
+      "killer": "Without_either_logger_the_rule_registers_nothing"
+    },
+    {
+      "name": "Serilog alone does not open the gate",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "if (melLogger is null && serilogLogger is null)",
+      "new": "if (melLogger is null)",
+      "killer": "Either_logger_alone_opens_the_gate"
+    },
+    {
+      "name": "the LoggerExtensions calls are unread",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "return \"message\";",
+      "new": "return null;",
+      "killer": "Every_call_it_reads_fires_through_an_interface_and_a_class_alike"
+    },
+    {
+      "name": "Define is unread",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "return \"formatString\";",
+      "new": "return null;",
+      "killer": "Every_call_it_reads_fires_through_an_interface_and_a_class_alike"
+    },
+    {
+      "name": "the static Serilog.Log is unread",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "SymbolEqualityComparer.Default.Equals(type, scope.SerilogLog)",
+      "new": "SymbolEqualityComparer.Default.Equals(type, scope.LoggerMessage)",
+      "killer": "Every_call_it_reads_fires_through_an_interface_and_a_class_alike"
+    },
+    {
+      "name": "a type implementing Serilog.ILogger is unread",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "|| type.AllInterfaces.Contains(serilog, SymbolEqualityComparer.Default)))",
+      "new": "))",
+      "killer": "Every_call_it_reads_fires_through_an_interface_and_a_class_alike"
+    },
+    {
+      "name": "[LoggerMessage] is unread",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "context.RegisterSyntaxNodeAction(nodeContext => CheckDeclaration(nodeContext, scope), SyntaxKind.MethodDeclaration);",
+      "new": "_ = SyntaxKind.MethodDeclaration;",
+      "killer": "A_LoggerMessage_template_is_read_though_Roslyn_takes_its_method_for_generated"
+    },
+    {
+      "name": "no generated code is analysed, so Roslyn hides [LoggerMessage]",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "GeneratedCodeAnalysisFlags.Analyze | GeneratedCodeAnalysisFlags.ReportDiagnostics;",
+      "new": "GeneratedCodeAnalysisFlags.None;",
+      "killer": "A_LoggerMessage_template_is_read_though_Roslyn_takes_its_method_for_generated"
+    },
+    {
+      "name": "a call in a generated file is read",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "if (IsGeneratedFile(call.Syntax.SyntaxTree, context.CancellationToken))",
+      "new": "if (call.Syntax is null)",
+      "killer": "Generated_code_is_not_analyzed"
+    },
+    {
+      "name": "Roslyn's reading of generated code hides a hand-written hook",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "if (IsGeneratedFile(call.Syntax.SyntaxTree, context.CancellationToken))",
+      "new": "if (context.IsGeneratedCode || IsGeneratedFile(call.Syntax.SyntaxTree, context.CancellationToken))",
+      "killer": "A_hand_written_body_whose_generated_half_is_marked_fires"
+    },
+    {
+      "name": "a [LoggerMessage] in a generated file is read",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "if (declaration.AttributeLists.Count == 0 || IsGeneratedFile(declaration.SyntaxTree, context.CancellationToken)",
+      "new": "if (declaration.AttributeLists.Count == 0",
+      "killer": "Generated_code_is_not_analyzed"
+    },
+    {
+      "name": "the Message named in [LoggerMessage] is unread",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "if (named.Key == \"Message\"",
+      "new": "if (named.Key == \"Messages\"",
+      "killer": "A_LoggerMessage_template_is_read_though_Roslyn_takes_its_method_for_generated"
+    },
+    {
+      "name": "the message [LoggerMessage]'s constructor takes is unread",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "if (constructor.Parameters[i].Name == \"message\"",
+      "new": "if (constructor.Parameters[i].Name == \"messages\"",
+      "killer": "A_LoggerMessage_template_is_read_though_Roslyn_takes_its_method_for_generated"
+    },
+    {
+      "name": "a run-time template is not reported",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "Report(context.ReportDiagnostic, location,\n                \"This log template is not a constant",
+      "new": "Report(_ => { }, location,\n                \"This log template is not a constant",
+      "killer": "A_template_that_is_not_a_constant_fires"
+    },
+    {
+      "name": "only a literal is a constant",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "if (template.Value.ConstantValue is not { HasValue: true } constant)",
+      "new": "if (template.Value.ConstantValue is not { HasValue: true } constant || template.Value is not ILiteralOperation)",
+      "killer": "The_form_and_the_calls_it_does_not_read_stay_silent"
+    },
+    {
+      "name": "the finding does not say where",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "\", at \\\"\" + departure.Near + \"\\\". A line",
+      "new": "\". A line",
+      "killer": "The_finding_names_what_leaves_the_form_and_where"
+    },
+    {
+      "name": "the :l hole is unread",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "if (hole.Format == \"l\")",
+      "new": "if (hole.Format == \"L\")",
+      "killer": "A_hole_whose_format_is_l_fires"
+    },
+    {
+      "name": "any format is reported",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "if (hole.Format == \"l\")",
+      "new": "if (hole.Format is not null)",
+      "killer": "A_hole_whose_format_is_l_fires"
+    },
+    {
+      "name": "an enum is not an enum",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "private static bool IsEnum(ITypeSymbol type) =>",
+      "new": "private static bool IsEnum(ITypeSymbol type) => false &&",
+      "killer": "An_enum_given_to_a_hole_fires_by_position_and_by_number"
+    },
+    {
+      "name": "a nullable enum is not an enum",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "&& nullable.TypeArguments[0].TypeKind == TypeKind.Enum",
+      "new": "&& nullable.TypeArguments[0].TypeKind == TypeKind.Struct",
+      "killer": "An_enum_given_to_a_hole_fires_by_position_and_by_number"
+    },
+    {
+      "name": "a cast to object hides the enum",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "&& (conversion.IsImplicit || conversion.Type?.SpecialType == SpecialType.System_Object))",
+      "new": "&& conversion.IsImplicit)",
+      "killer": "An_enum_given_to_a_hole_fires_by_position_and_by_number"
+    },
+    {
+      "name": "a number made of an enum is taken for it",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "&& (conversion.IsImplicit || conversion.Type?.SpecialType == SpecialType.System_Object))",
+      "new": "&& conversion.Operand is not null)",
+      "killer": "An_enum_given_to_a_hole_fires_by_position_and_by_number"
+    },
+    {
+      "name": "numbered holes are placed by position",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "if (holes.Count > 0 && holes.All(hole => hole.Number >= 0))",
+      "new": "if (holes.Count < 0)",
+      "killer": "An_enum_given_to_a_hole_fires_by_position_and_by_number"
+    },
+    {
+      "name": "holes and values that do not pair are placed anyway",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "return holes.Count == values.Count ? values : Array.Empty<ITypeSymbol?>();",
+      "new": "return values;",
+      "killer": "An_enum_that_cannot_be_placed_is_not_reported"
+    },
+    {
+      "name": "a params array's elements are unread",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "values.AddRange(initializer.ElementValues.Select(TypeOf));",
+      "new": "values.Add(null);",
+      "killer": "An_enum_given_to_a_hole_fires_by_position_and_by_number"
+    },
+    {
+      "name": "Define's type arguments are unread",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "? method.TypeArguments.Cast<ITypeSymbol?>().ToList()",
+      "new": "? new List<ITypeSymbol?>()",
+      "killer": "An_enum_given_through_Define_or_LoggerMessage_fires"
+    },
+    {
+      "name": "[LoggerMessage] matches a parameter's case",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "string.Equals(p.Name, hole.Name, StringComparison.OrdinalIgnoreCase)",
+      "new": "string.Equals(p.Name, hole.Name, StringComparison.Ordinal)",
+      "killer": "An_enum_given_through_Define_or_LoggerMessage_fires"
+    },
+    {
+      "name": "a finding has no location, so no suppression reaches it",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "report(Diagnostic.Create(Rule, location, message));",
+      "new": "report(Diagnostic.Create(Rule, Location.None, message));",
+      "killer": "A_suppressed_call_is_silent"
+    },
+    {
+      "name": "a finding is reported below a warning",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "report(Diagnostic.Create(Rule, location, message));",
+      "new": "report(Diagnostic.Create(Rule, location, DiagnosticSeverity.Info, null, null, message));",
+      "killer": "By_default_a_template_out_of_the_form_is_a_warning"
+    },
+    {
+      "name": "a template need not start with a tag",
+      "file": "src/CodeQuality/LogTemplates.cs",
+      "old": "if (!IsChar(parts, 0, '['))",
+      "new": "if (parts.Count < 0)",
+      "killer": "A_template_out_of_the_form_is_named_where_it_leaves_it"
+    },
+    {
+      "name": "[Area] alone is not told apart",
+      "file": "src/CodeQuality/LogTemplates.cs",
+      "old": "if (IsChar(parts, i, ']'))",
+      "new": "if (IsChar(parts, i, ')'))",
+      "killer": "A_template_out_of_the_form_is_named_where_it_leaves_it"
+    },
+    {
+      "name": "a tag part may start lower-case",
+      "file": "src/CodeQuality/LogTemplates.cs",
+      "old": "!char.IsUpper(parts[index].Char)",
+      "new": "!char.IsLetter(parts[index].Char)",
+      "killer": "A_template_out_of_the_form_is_named_where_it_leaves_it"
+    },
+    {
+      "name": "a key may start upper-case",
+      "file": "src/CodeQuality/LogTemplates.cs",
+      "old": "!char.IsLower(parts[start].Char)",
+      "new": "!char.IsLetter(parts[start].Char)",
+      "killer": "A_template_out_of_the_form_is_named_where_it_leaves_it"
+    },
+    {
+      "name": "a sentence is not told apart",
+      "file": "src/CodeQuality/LogTemplates.cs",
+      "old": "if (i >= parts.Count || parts[i].Char != '=')",
+      "new": "if (i > parts.Count)",
+      "killer": "A_template_out_of_the_form_is_named_where_it_leaves_it"
+    },
+    {
+      "name": "two spaces pass",
+      "file": "src/CodeQuality/LogTemplates.cs",
+      "old": "return Leaves(space, \"two spaces\");",
+      "new": "return null;",
+      "killer": "A_template_out_of_the_form_is_named_where_it_leaves_it"
+    },
+    {
+      "name": "text after the last pair passes",
+      "file": "src/CodeQuality/LogTemplates.cs",
+      "old": ": Leaves(i, \"text after the last pair\");",
+      "new": ": null;",
+      "killer": "A_template_out_of_the_form_is_named_where_it_leaves_it"
+    },
+    {
+      "name": "a quoted value is not read as one",
+      "file": "src/CodeQuality/LogTemplates.cs",
+      "old": "int value = ++i;\n            if (IsChar(parts, i, '\"'))",
+      "new": "int value = ++i;\n            if (IsChar(parts, i, '`'))",
+      "killer": "A_template_in_the_form_does_not_leave_it"
+    },
+    {
+      "name": "where it leaves the form is counted in parts, not characters",
+      "file": "src/CodeQuality/LogTemplates.cs",
+      "old": "new(what, index < parts.Count ? parts[index].Start : template.Length, template);",
+      "new": "new(what, index, template);",
+      "killer": "A_template_out_of_the_form_is_named_where_it_leaves_it"
+    },
+    {
+      "name": "{{ opens a hole",
+      "file": "src/CodeQuality/LogTemplates.cs",
+      "old": "if ((c == '{' || c == '}') && i + 1 < template.Length && template[i + 1] == c)",
+      "new": "if (c == '}' && i + 1 < template.Length && template[i + 1] == c)",
+      "killer": "An_enum_that_cannot_be_placed_is_not_reported"
+    },
+    {
+      "name": "a destructured hole is no hole",
+      "file": "src/CodeQuality/LogTemplates.cs",
+      "old": "(template[i] == '@' || template[i] == '$')",
+      "new": "template[i] == '$'",
+      "killer": "An_enum_given_to_a_hole_fires_by_position_and_by_number"
+    },
+    {
+      "name": "a remark reworded",
+      "file": "src/CodeQuality/Rules/LogLineFormAnalyzer.cs",
+      "old": "/// <summary>The types the rule compares against, resolved once per compilation.</summary>",
+      "new": "/// <summary>The types against which the rule compares, resolved once per compilation.</summary>",
+      "expect": "green",
+      "because": "a comment compiles to nothing, so every test must stay green"
+    }
+  ]
+}
