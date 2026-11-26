@@ -19,6 +19,10 @@
     <Project Path="tests/fixtures/Confined/Confined.csproj" />
     <Project Path="tests/fixtures/ConfinedDebug/ConfinedDebug.csproj" />
     <Project Path="tests/fixtures/ConfinedStandIns/ConfinedStandIns.csproj" />
+    <Project Path="tests/fixtures/Keyed/Keyed.csproj" />
+    <Project Path="tests/fixtures/KeyedDebug/KeyedDebug.csproj" />
+    <Project Path="tests/fixtures/KeyedLibrary/KeyedLibrary.csproj" />
+    <Project Path="tests/fixtures/KeyedOdd/KeyedOdd.csproj" />
     <Project Path="tests/fixtures/Orphan/Orphan.csproj" />
     <Project Path="tests/fixtures/Dependent/Dependent.csproj" />
     <Project Path="tests/fixtures/FriendConsumer/FriendConsumer.csproj" />

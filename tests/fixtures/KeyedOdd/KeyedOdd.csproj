@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Marked parameters BNAQ1011 must skip. -->
+  <PropertyGroup>
+    <AssemblyName>AssemblyQuality.Fixtures.KeyedOdd</AssemblyName>
+    <SolutionFriendGrants>false</SolutionFriendGrants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Private="false": compiled against, never copied, so the key class one attribute names does not resolve. -->
+    <ProjectReference Include="..\Absent\Absent.csproj" Private="false" />
+  </ItemGroup>
+</Project>

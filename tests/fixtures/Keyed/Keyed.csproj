@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- BNAQ1011's subject and BNAQ1010's key option's, optimised with its PDB embedded, as AppKit's Release builds are. -->
+  <PropertyGroup>
+    <AssemblyName>AssemblyQuality.Fixtures.Keyed</AssemblyName>
+    <SolutionFriendGrants>false</SolutionFriendGrants>
+    <Optimize>true</Optimize>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\KeyedLibrary\KeyedLibrary.csproj" />
+    <ProjectReference Include="..\ConfinedStandIns\ConfinedStandIns.csproj" />
+  </ItemGroup>
+</Project>

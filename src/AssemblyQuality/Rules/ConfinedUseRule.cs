@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Bennewitz.Ninja.AssemblyQuality.IL;
+using ICSharpCode.Decompiler.IL;
 using ICSharpCode.Decompiler.TypeSystem;
 
 namespace Bennewitz.Ninja.AssemblyQuality.Rules;
@@ -105,6 +106,7 @@ public sealed class ConfinedUseRule : IAssemblyRule
         HashSet<string> scanned = [.. read.Select(r => r.Name)];
         SkipUnresolved(read, skipped);
 
+        KeyFlow? flow = null;
         SortedSet<string> undecided = new(StringComparer.Ordinal);
         List<(int Order, ConfinedUseMatch Match)> uses = [];
         foreach (AssemblyBodies bodies in read)
@@ -114,11 +116,22 @@ public sealed class ConfinedUseRule : IAssemblyRule
                 for (int index = 0; index < _confinements.Length; index++)
                 {
                     ConfinedUse confinement = _confinements[index];
-                    if (Matches(confinement, use, bodies, scanned, undecided))
+                    if (!Matches(confinement, use, bodies, scanned, undecided))
                     {
-                        uses.Add((index, new ConfinedUseMatch(confinement, use.Kind, MemberOf(use), MethodOf(use),
-                            bodies.Name, use.Source, use.Offset, Allows(confinement, use))));
+                        continue;
                     }
+
+                    bool allowed = Allows(confinement, use);
+                    KeyValue[] keys = [];
+                    if (confinement.KeyParameter is int key && use.Kind != UseKind.Chain)
+                    {
+                        flow ??= new KeyFlow(read);
+                        keys = KeysOf(flow, bodies, use, key);
+                        allowed |= ByKey(keys);
+                    }
+
+                    uses.Add((index, new ConfinedUseMatch(confinement, use.Kind, MemberOf(use), MethodOf(use),
+                        bodies.Name, use.Source, use.Offset, allowed) { Keys = keys }));
                 }
             }
         }
@@ -252,6 +265,28 @@ public sealed class ConfinedUseRule : IAssemblyRule
             && confinement.AllowedInMarkup.Contains(FileName(source.File), StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>Every value the use's key argument takes, followed as <see cref="HelperKeyRule"/> follows one.</summary>
+    private static KeyValue[] KeysOf(KeyFlow flow, AssemblyBodies bodies, BodyUse use, int key)
+    {
+        if (use.Instruction is not CallInstruction || flow.SiteAt(bodies.Name, use.Function, use.Offset) is not { } site)
+        {
+            return [];
+        }
+
+        return [.. flow.ValuesOf(site, key).Select(v => new KeyValue(
+            v.Kind switch
+            {
+                FlowKind.Constant => KeyValueKind.Literal,
+                FlowKind.Marked => KeyValueKind.MarkedParameter,
+                _ => KeyValueKind.Unknown,
+            },
+            v.Text, v.Where.Method, v.Where.Source, v.Where.Offset))];
+    }
+
+    /// <summary>Whether every value a key takes is a marked parameter, which allows the use by its key.</summary>
+    private static bool ByKey(KeyValue[] keys) =>
+        keys.Length > 0 && keys.All(k => k.Kind == KeyValueKind.MarkedParameter);
+
     /// <summary>A document's file name, whichever separator the compiler wrote its path with.</summary>
     private static string FileName(string path) => path[(path.LastIndexOfAny(['/', '\\']) + 1)..];
 
@@ -276,10 +311,28 @@ public sealed class ConfinedUseRule : IAssemblyRule
     private AssemblyFinding Finding(ConfinedUseMatch use) =>
         new(Id, use.AssemblyName, $"{use.Member} in {use.Method}",
             $"{Verb(use.Kind)} in {use.Method}, outside where {use.Confinement} is confined: {Places(use.Confinement)}. "
-            + "Move the use into one of those places, or allow this one if it is meant to make it.")
+            + KeyReason(use)
+            + (use.Confinement.KeyParameter is null
+                ? "Move the use into one of those places, or allow this one if it is meant to make it."
+                : "Take the key from a parameter marked [ResourceKey], move the use into one of those places, or allow "
+                    + "this one if it is meant to make it."))
         {
             Source = use.Source,
         };
+
+    /// <summary>Why the key option did not allow the use, where the confinement has one.</summary>
+    private static string KeyReason(ConfinedUseMatch use)
+    {
+        if (use.Confinement.KeyParameter is not int key)
+        {
+            return string.Empty;
+        }
+
+        KeyValue[] unmarked = [.. use.Keys.Where(k => k.Kind != KeyValueKind.MarkedParameter)];
+        return unmarked.Length == 0
+            ? $"Its key, parameter {key}, takes no value the rule could read. "
+            : $"Its key, parameter {key}, is not only a marked parameter: {string.Join("; ", unmarked)}. ";
+    }
 
     private static string Verb(UseKind kind) => kind switch
     {

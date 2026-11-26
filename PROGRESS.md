@@ -793,8 +793,8 @@ JanusMael/Bennewitz.Ninja.AssemblyQuality.
 | | |
 |---|---|
 | Published | `2026.4.1031`, released 2026-10-31 on the maintainer's word: tag `assemblyquality/v2026.4.1031` on `04dcb06`, release run `41211729501`, which pushed `Bennewitz.Ninja.AssemblyQuality` alone, and the flat container lists it. It carries #110: **a scan of an assembly whose collectible load context is unloading throws** `InvalidOperationException`, naming the context, where it recorded the reference as one that would not load and compared against nothing (#109). A collectible context nothing holds starts to unload at the next collection; measured on .NET 10, `GetLoadContext` still answers it and every load through it fails with HRESULT `0x80131509`. `BNAQ1004` (through `AssemblyScanContext.ReferencedNamespaces`) and `BNAQ1006` both resolve through it; each has a test that failed against the previous library. `docs/assemblyquality.md`'s BNAQ1006 example had the same unheld collectible context and holds a non-collectible one now. Before it, `2026.4.1029`, released 2026-10-29 from this repository, the family's first here: tag `assemblyquality/v2026.4.1029` on `3092aee`, release run `40939268891`. Verified from the feed: the flat container lists it, the served nuspec names Inspections at `3092aee`, its DLL is byte-identical to the GitHub release asset's, and a project restoring from nuget.org alone gets it and finds all six rules. It carries #17, Templates' solution-wide friend grants (`plans/00006`): the DLL grants its internals to this repository's sixteen assemblies, matched by name, and every fixture opts out; and the move: the package names Inspections and packs `docs/assemblyquality.md` as its README. No rule, dependency or public API changed. The release's notes were written by hand, the generated ones listing XamlQuality's pull requests. The previous release, `2026.3.929`, added `BNAQ1005` (#12) and `BNAQ1006` (#13), by [plan 00001](plans/assemblyquality/00001-friend-grant-rules.md), now complete |
-| Not yet released | `BNAQ1010` and `AssemblyFinding.Source`, by plans/00011 step 3, and the package's first dependency, ICSharpCode.Decompiler 11.2.0.10050. Effect on a consumer: the package brings the decompiler, with System.Collections.Immutable and System.Reflection.Metadata 9.0.0, which .NET 10 ships; `AssemblyFinding.ToString` names the file and line where a finding has one; no other rule's findings change |
-| Plan 00011 | [An IL reader, and `BNAQ1010` and `BNAQ1011` on it](plans/00011-il-reader.md), approved 2026-11-19 and merged as #151 (in Inspections). Step 2, the measurement, done 2026-11-23: no decision refuted, recorded below. Step 3, the reader and `BNAQ1010`, done 2026-11-24, measured below. Next, step 4: `BNAQ1011` and `BNAQ1010`'s option that allows a use by its key |
+| Not yet released | `BNAQ1010` and `AssemblyFinding.Source`, by plans/00011 step 3, and the package's first dependency, ICSharpCode.Decompiler 11.2.0.10050; `BNAQ1011` and `BNAQ1010`'s `KeyParameter`, by its step 4. Effect on a consumer: the package brings the decompiler, with System.Collections.Immutable and System.Reflection.Metadata 9.0.0, which .NET 10 ships; `AssemblyFinding.ToString` names the file and line where a finding has one; `BNAQ1011` takes no configuration and inspects nothing until a parameter carries `Bennewitz.Ninja.ResourceKeyAttribute`, which the consumer declares; no other rule's findings change |
+| Plan 00011 | [An IL reader, and `BNAQ1010` and `BNAQ1011` on it](plans/00011-il-reader.md), approved 2026-11-19 and merged as #151 (in Inspections). Step 2, the measurement, done 2026-11-23: no decision refuted, recorded below. Step 3, the reader and `BNAQ1010`, done 2026-11-24, merged as #154, measured below. Step 4, `BNAQ1011` and `BNAQ1010`'s option that allows a use by its key, done 2026-11-26, measured below. The plan's steps are done; the release, and the message to AppKit, wait on the developer's word |
 | Next release | On the maintainer's word, from an `assemblyquality/vYYYY.Q.MMDD` tag. One release per calendar day, three-part `YYYY.Q.MMDD`: a fourth part is AutoVersioning's `HHmm` build stamp, not a patch counter |
 
 ### Next
@@ -957,6 +957,53 @@ by one, in about 2 minutes.
 - **`AssemblyFinding.ToString` names the file and line** where a finding has one.
 - **A real-code check needs the assembly's dependencies beside it**, as a test project's output has them; a library's
   own `bin` folder does not.
+
+### Plan 00011 step 4, measured
+
+Measured 2026-11-26 in the scratchpad, with `BNAQ1011` and `BNAQ1010`'s key option as their pull request builds them,
+over step 3's marked copy of AppKit at `a0f43fe`, each assembly built in Debug and in Release with its packages beside
+it. Case 3's lookups were configured with no place at all, so only a key could allow one: constructing
+`DynamicResourceExtension` by its first argument, `ResourceNodeExtensions`' three lookups by their second, and
+`IResourceNode.TryGetResource`, with its subtypes, by its first.
+
+| | Debug | Release |
+|---|---|---|
+| `AppServices.AvaloniaUI`, `BNAQ1011` | 11 calls to `DialogColors.Brush`, each key one of its ten fields, every field given, no finding, nothing skipped, in 1.6 s | The same, in 1.4 s |
+| Read through | `AppendCategoryHeader`'s ternary of tuples as `ErrorBrush` and `WarningBrush`; `PaintedWhen`'s `fill` and `GlyphButton`'s `colour` to their callers' fields | The same |
+| `AppServices.AvaloniaUI`, lookups by key alone | `DialogColors.Brush`'s `new DynamicResourceExtension(key)` allowed by its marked key; no finding, nothing skipped | The same |
+| Planted in a scratch copy: a key that is no field, a field passed nowhere, a `DynamicResourceExtension` given a literal, and step 3's `TryGetResource("Planted")` | Each reported, with its file and line but the field, which has none | The same |
+| `ScopedEditors.AvaloniaUI`, `BNAQ1011` | `BrushHelper`'s three marked methods read as one set of `ScratchEditorKeys`' six fields; the six literals read clean, as the fields they spell; `KeyFor(severity)` reported as unknown, twice; nothing skipped | The same |
+| `ScopedEditors.AvaloniaUI`, lookups by key alone | `Resolve`'s and `ResolveThemed`'s lookups allowed; `ColorFor`'s reported for the keys the refresh gives it, `TrackedTint.ResourceKey`, with `ResolveThemed`'s marked key listed beside them; `ScopeToBrushConverter`'s computed key and compiled XAML's eight `{DynamicResource}` literals reported; ten findings, nothing skipped | The same |
+
+The mutation set `tests/AssemblyQuality.Tests/Mutations/il.json`, both halves, run 2026-11-26 with `--swap
+src/AssemblyQuality/AssemblyQuality.csproj`: 48 mutations, every one as declared, each of the 36 declared tests killed
+by one.
+
+### Where step 4 departs from plan 00011
+
+- **Step 3's reader skipped an iterator's `finally`.** The compiler moves it into `<>m__Finally1` on the state
+  machine, a name that names no method, and the reader named it in `Skipped` as one it could not take apart.
+  `BNAQ1011`, which reads every body unconfigured, found four in AssemblyQuality itself. The state machine's own name
+  credits it, as decision 7 credits a generated type's plumbing; `Confined` gained an iterator with a `finally`.
+- **`BNAQ1011`'s reading, settled in its pull request:** `HelperKeyRule.Read` returns `HelperKeyReading`, its
+  `Parameters` each a `MarkedParameter` the scan declares with its key class and fields, its `Calls` each a
+  `HelperKeyCall`, a call, a construction or a delegate, with every `KeyValue` its key takes: a field, a literal, a
+  marked parameter, or unknown with why, each with where it arises. `BNAQ1010`'s option is `ConfinedUse.KeyParameter`,
+  the key's index among the member's parameters, which a construction takes too, and `ConfinedUseMatch.Keys` lists
+  what each match's key takes.
+- **A key class is checked for its unused fields only where a marked parameter the scan declares names it.** A
+  helper in a referenced assembly has its calls checked, but the scan holds only some of its callers.
+- **Two fields of one value read as the first by name**, and the second is named in `Skipped` and left out of the
+  check that every field is given, since no key can tell the two apart.
+- **A key option allows a use where every value its key takes is a marked parameter**, of any key class; a use whose
+  key takes no value, a private method's that nothing calls, is not allowed by it.
+- **A local function's call names its reduced form**, which the key is followed through to the method the compiler
+  made of it, `IMethod.ReducedFrom`.
+- **A call whose key takes no value is inspected and reports nothing:** a private method that nothing calls passes
+  nothing to its helper.
+- **`CoverageTests.AnAssemblyWithATypeThatCannotLoad_IsScannedNotFatal` leaves `BNAQ1011` out** with `BNAQ1010`:
+  it reads bodies from the file and loads no type, and `Orphan` marks no parameter. `HelperKeyRuleTests` holds its
+  skip of a key class that does not resolve against `KeyedOdd`.
 
 ### Decisions
 

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Keyed's sources unoptimised, with the PDB beside the DLL, as AppKit's Debug builds are: there the compiler
+       keeps the locals and stack slots a key passes through that an optimised build folds away. -->
+  <PropertyGroup>
+    <AssemblyName>AssemblyQuality.Fixtures.KeyedDebug</AssemblyName>
+    <SolutionFriendGrants>false</SolutionFriendGrants>
+    <Optimize>false</Optimize>
+    <DebugType>portable</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Keyed\*.cs" />
+    <ProjectReference Include="..\KeyedLibrary\KeyedLibrary.csproj" />
+    <ProjectReference Include="..\ConfinedStandIns\ConfinedStandIns.csproj" />
+  </ItemGroup>
+</Project>

@@ -69,6 +69,20 @@ namespace Confined.App
             yield return new Color(5, 5, 5, 5);
         }
 
+        // The compiler moves an iterator's finally into a method of its own on the state machine, <>m__Finally1,
+        // whose name names no method: the state machine's type does.
+        public IEnumerable<int> InAnIteratorsFinally()
+        {
+            try
+            {
+                yield return 1;
+            }
+            finally
+            {
+                _ = new Color(9, 9, 9, 9);
+            }
+        }
+
         public Color InAGetter => new(6, 6, 6, 6);
 
         public static Color FromTheInitialiser => Initialised;

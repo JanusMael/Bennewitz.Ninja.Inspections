@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A referenced assembly with a key attribute, a key class and a marked helper of its own. -->
+  <PropertyGroup>
+    <AssemblyName>AssemblyQuality.Fixtures.KeyedLibrary</AssemblyName>
+    <SolutionFriendGrants>false</SolutionFriendGrants>
+  </PropertyGroup>
+</Project>
